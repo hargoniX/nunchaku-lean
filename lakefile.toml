@@ -1,0 +1,6 @@
+name = "nunchaku"
+version = "0.1.0"
+defaultTargets = ["Nunchaku"]
+
+[[lean_lib]]
+name = "Nunchaku"
