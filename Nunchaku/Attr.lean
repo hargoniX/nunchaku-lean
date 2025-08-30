@@ -1,5 +1,6 @@
 import Lean.Data.Options
 import Lean.Util.Trace
+import Lean.Elab.Tactic.Config
 
 /-!
 This module contains declarations of environment extensions etc. used in the `nunchaku` tactic.
@@ -10,6 +11,8 @@ open Lean
 namespace Nunchaku
 
 initialize registerTraceClass `nunchaku
+initialize registerTraceClass `nunchaku.solver (inherited := true)
+initialize registerTraceClass `nunchaku.equations (inherited := true)
 
 inductive NunchakuConfig.Solvers where
   | cvc4
@@ -24,6 +27,8 @@ structure NunchakuConfig where
   falsify : Bool := true
   /-- The list of portfolio solvers to try. -/
   solvers : Array NunchakuConfig.Solvers := #[.cvc4]
+
+declare_config_elab elabNunchakuConfig Nunchaku.NunchakuConfig
 
 /--
 Invoke the external model finder Nunchaku in an attempt to find a counter example for the current
