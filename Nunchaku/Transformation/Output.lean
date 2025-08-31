@@ -252,6 +252,21 @@ where
     | .proj .. => throwError "Missing support for projections"
     | _ => throwError m!"Don't know how to encode term {expr}"
 
+private def arrowN (n : Nat) (type : Expr) : MetaM (Array Expr × Expr) :=
+  Meta.forallBoundedTelescope type n fun xs out => do
+    unless xs.size = n do
+      throwError "type {type} does not have {n} parameters"
+    let types ← xs.mapM (Meta.inferType ·)
+    for t in types do
+      if t.hasAnyFVar (fun fvar => xs.contains (.fvar fvar)) then
+        throwError "unexpected dependent type {t} in {type}"
+    return (types, out)
+
+
+private def encodePredCtor (ctor : Name) : OutputM NunTerm := do
+  let info ← getConstInfoCtor ctor
+  encodeTerm info.type
+
 private def encodeDataCtor (ctor : Name) : OutputM NunCtorSpec := do
   let info ← getConstInfoCtor ctor
   if info.numParams != 0 then
@@ -307,9 +322,18 @@ private def LeanIdentifier.encode : OutputM Unit := do
         let ctors ← val.ctors.mapM encodeDataCtor
         addCommand <| .dataDecl [{ name := mangled, ctors }]
       | _ =>
-        -- TODO: analyze if it is an inductive predicate (they can still have value args at this
-        -- point)
-        throwError s!"Don't know how to encode inductive {mkConst name}"
+        let args := val.numParams + val.numIndices
+        let (argTypes, outType) ← arrowN args val.type
+        if outType != .sort 0 then
+          throwError m!"Cannot encode non Prop inductive type with arguments {name}"
+        -- It's an inductive proposition
+        let mangledName := mangleName name
+        let encodedArgTypes ← argTypes.mapM encodeType
+        let encodedOutType ← encodeType outType
+        let encodedType := .ofList (encodedArgTypes.toList ++ [encodedOutType]) (by simp)
+        let laws ← val.ctors.mapM encodePredCtor
+        let spec := { name := mangledName, type := encodedType, laws }
+        addCommand <| .predDecl [spec]
     | .thmInfo val | .ctorInfo val | .recInfo val =>
       trace[nunchaku.output] m!"Ignoring {val.name} as it should be irrelevant"
       return ()
