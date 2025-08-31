@@ -9,16 +9,12 @@ namespace Nunchaku
 
 open Std
 
-instance : ToFormat NunBaseType where
-  format typ :=
-    match typ with
-    | .prop => "prop"
-    | .type => "type"
-    | .const name => name
-
 private partial def NunType.format (typ : NunType) : Std.Format :=
-  let head := ToFormat.format typ.head
-  typ.tail.foldl (init := head) (fun acc typ => acc ++ " -> " ++ NunType.format typ)
+  match typ with
+  | .prop => "prop"
+  | .type => "type"
+  | .const name => name
+  | .arrow lhs rhs => "(" ++ lhs.format ++ " -> " ++ rhs.format ++ ")"
 
 instance : ToFormat NunType where
   format := NunType.format
@@ -88,7 +84,7 @@ instance : ToFormat NunPropSpec where
 instance : ToFormat NunCommand where
   format problem :=
     match problem with
-    | .valDecl name type => s!"val {name} : " ++ ToFormat.format type ++ "."
+    | .valDecl name typ => s!"val {name} : " ++ ToFormat.format typ ++ "."
     | .dataDecl specs =>
       let first := ToFormat.format specs[0]!
       let combined := specs.tail.foldl (init := first) fun acc spec =>

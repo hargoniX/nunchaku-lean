@@ -6,31 +6,12 @@ generic types.
 
 namespace Nunchaku
 
-inductive NunBaseType where
+inductive NunType where
   | prop
   | type
   | const (name : String)
+  | arrow (lhs rhs : NunType)
   deriving Inhabited
-
-/--
-A monomorphized Nunchaku type.
--/
-structure NunType where
-  /--
-  The head symbol of the type.
-  -/
-  head : NunBaseType
-  /--
-  If `tail` is empty this type refers to base type in `head`, otherwise it's an arrow type
-  `head -> tail`.
-  -/
-  tail : List NunType
-  deriving Inhabited
-
-/-
-TODO: The isabelle frontend handles every built-in primitive as an application, this includes things
-like `forall`, `exists` etc., check if we want to keep it this way.
--/
 
 /--
 All Nunchaku built-in functions with special syntax, meaning etc.
@@ -162,7 +143,7 @@ inductive NunCommand where
   /--
   `val name : type.`
   -/
-  | valDecl (name : String) (type : NunType)
+  | valDecl (name : String) (typ : NunType)
   /--
   `data specs.`
   -/
@@ -178,11 +159,11 @@ inductive NunCommand where
   /--
   `axiom type.`
   -/
-  | axiomDecl (type : NunType)
+  | axiomDecl (type : NunTerm)
   /--
   `goal type.`
   -/
-  | goalDecl (type : NunType)
+  | goalDecl (type : NunTerm)
   deriving Inhabited
 
 /--

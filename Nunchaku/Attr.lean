@@ -13,6 +13,7 @@ namespace Nunchaku
 initialize registerTraceClass `nunchaku
 initialize registerTraceClass `nunchaku.solver (inherited := true)
 initialize registerTraceClass `nunchaku.equations (inherited := true)
+initialize registerTraceClass `nunchaku.output (inherited := true)
 
 inductive NunchakuConfig.Solvers where
   | cvc4

@@ -1,18 +1,32 @@
 import Nunchaku
 
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+n m : Nat
+h : n = m
+⊢ n ≠ m
+-/
+#guard_msgs in
+example (n m : Nat) (h : n = m) : n ≠ m := by nunchaku
 
 /--
 info: The prover found a counter example
 ---
 error: unsolved goals
 n m : Nat
-⊢ n.add m = n.add n
----
-trace: [nunchaku.equations] Collected equations:
-[nunchaku.equations] - Nat.add
-[nunchaku.equations]   - ∀ (x : Nat), x.add Nat.zero = x
-[nunchaku.equations]   - ∀ (x b : Nat), x.add b.succ = (x.add b).succ
+⊢ n.add n = n.add m
 -/
 #guard_msgs in
-set_option trace.nunchaku.equations true in
-example (n m : Nat) : n.add m = n.add n := by nunchaku
+example (n m : Nat) : n.add n = n.add m := by nunchaku
+
+/--
+info: The prover wasn't able to prove or disprove the theorem.
+---
+error: unsolved goals
+n m : Nat
+⊢ n.add m = m.add n
+-/
+#guard_msgs in
+example (n m : Nat) : n.add m = m.add n := by nunchaku (timeout := 1)

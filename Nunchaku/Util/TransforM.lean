@@ -19,6 +19,9 @@ namespace TransforM
 
 def getConfig : TransforM NunchakuConfig := do return (← read)
 
+def getEquationsFor (decl : Name) : TransforM (List Expr) := do
+  return (← get).equations.getD decl []
+
 private def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) := do
   let mut worklist : Array Name ← initializeWorklist g
   let mut defs : Std.HashMap Name (List Expr) := {}
@@ -58,7 +61,6 @@ where
         throwError "Unsupported: let decls"
       used := used ++ decl.type.getUsedConstants
     return used
-
 
 def run (g : MVarId) (cfg : NunchakuConfig) (x : TransforM α) : MetaM α := do
   let equations ← findEquations g

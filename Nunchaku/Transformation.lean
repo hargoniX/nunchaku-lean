@@ -1,3 +1,4 @@
+import Nunchaku.Transformation.Falsify
 import Nunchaku.Transformation.Skolemization
 import Nunchaku.Transformation.Monomorphization
 import Nunchaku.Transformation.Approximation
@@ -11,6 +12,7 @@ namespace Nunchaku
 namespace Transformation
 
 def pipeline : Pipeline Lean.MVarId NunProblem NunResult LeanResult :=
+  .compose Falsify.transformation <|
   .tip Output.transformation
 
 end Transformation

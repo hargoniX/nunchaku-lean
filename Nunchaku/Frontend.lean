@@ -16,7 +16,9 @@ private def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
     MetaM NunResult := do
   IO.FS.withTempFile fun nunHandle nunPath => do
     withTraceNode `nunchaku.solver (fun _ => return "Serializing Nunchaku Problem") do
-      nunHandle.putStr (← IO.lazyPure fun _ => toString problem)
+      let problem ← IO.lazyPure fun _ => toString problem
+      trace[nunchaku.output] s!"Handing problem to solver:\n{problem}"
+      nunHandle.putStr problem
       nunHandle.flush
 
     -- TODO: configurable solver path
@@ -28,6 +30,7 @@ private def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
       "cvc4",
       "-i",
       "nunchaku",
+      "-nc",
       "--timeout",
       s!"{cfg.timeout}",
       nunPath.toString
@@ -48,6 +51,8 @@ private def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
         else if stdout.startsWith "SAT" then
           -- TODO: model parsing
           return .sat ()
+        else if stdout.startsWith "UNKNOWN" then
+          return .unknown
         else
           throwError s!"The external prover produced unexpected output, stdout:\n{stdout}stderr:\n{stderr}"
 
