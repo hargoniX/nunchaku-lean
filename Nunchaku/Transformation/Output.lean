@@ -276,6 +276,78 @@ private def encodeDataCtor (ctor : Name) : OutputM NunCtorSpec := do
   let mangled := mangleName ctor
   return { name := mangled, arguments := encodedArgs.toList }
 
+/--
+Transfers all dependencies of `orig` to `new` and makes `orig` depend on `new` only.
+-/
+private def transferDeps (orig : LeanIdentifier) (new : LeanIdentifier) : OutputM Unit := do
+  let origDeps := (← get).dependencies.getD orig []
+
+  let alterOrig := fun _ => some [new]
+  modify fun s => { s with dependencies := s.dependencies.alter orig alterOrig }
+
+  let alterNew := fun currDeps => some (origDeps ++ currDeps.getD [])
+  modify fun s => { s with dependencies := s.dependencies.alter new alterNew }
+
+private def encodeDataType (val : InductiveVal) : OutputM Unit := do
+  let mutualTypes := val.all
+  let rootType ← getCurrentIdent
+  let encodedTypes ← mutualTypes.mapM fun typ => do
+    let thisType := .const typ
+    let cmd ←
+      withCurrentIdent thisType do
+        let mangled := mangleName typ
+        let val ← getConstInfoInduct typ
+        let ctors ← val.ctors.mapM encodeDataCtor
+        return { name := mangled, ctors }
+
+    if typ != val.name then
+      markVisited thisType
+      transferDeps thisType rootType
+
+    return cmd
+
+  let filter := Std.HashSet.ofList <| val.all.map LeanIdentifier.const
+  let alterRoot :=
+    fun
+      | none => some []
+      | some deps => some <| deps.filter (!filter.contains ·)
+  modify fun s => { s with dependencies := s.dependencies.alter rootType alterRoot }
+  addCommand <| .dataDecl encodedTypes
+
+private def encodeIndPredicate (val : InductiveVal) : OutputM Unit := do
+  let mutualTypes := val.all
+  let rootType ← getCurrentIdent
+  let encodedTypes ← mutualTypes.mapM fun typ => do
+    let thisType := .const typ
+    let cmd ←
+      withCurrentIdent thisType do
+        let val ← getConstInfoInduct typ
+        let args := val.numParams + val.numIndices
+        let (argTypes, outType) ← arrowN args val.type
+        if outType != .sort 0 then
+          throwError m!"Cannot encode non Prop inductive type with arguments {val.name}"
+        -- It's an inductive proposition
+        let mangledName := mangleName val.name
+        let encodedArgTypes ← argTypes.mapM encodeType
+        let encodedOutType ← encodeType outType
+        let encodedType := .ofList (encodedArgTypes.toList ++ [encodedOutType]) (by simp)
+        let laws ← val.ctors.mapM encodePredCtor
+        return { name := mangledName, type := encodedType, laws }
+
+    if typ != val.name then
+      markVisited thisType
+      transferDeps thisType rootType
+
+    return cmd
+
+  let filter := Std.HashSet.ofList <| val.all.map LeanIdentifier.const
+  let alterRoot :=
+    fun
+      | none => some []
+      | some deps => some <| deps.filter (!filter.contains ·)
+  modify fun s => { s with dependencies := s.dependencies.alter rootType alterRoot }
+  addCommand <| .predDecl encodedTypes
+
 private def LeanIdentifier.encode : OutputM Unit := do
   match (← getCurrentIdent) with
   | .goal =>
@@ -305,6 +377,7 @@ private def LeanIdentifier.encode : OutputM Unit := do
       let encoded ← encodeTerm val.type
       addCommand <| .axiomDecl encoded
     | .defnInfo val =>
+      -- TODO: support for mutual recursion
       let eqns ← TransforM.getEquationsFor name
       let encodedEqns ← eqns.mapM encodeTerm
       let encodedType ← encodeType val.type
@@ -317,23 +390,14 @@ private def LeanIdentifier.encode : OutputM Unit := do
     | .inductInfo val =>
       match val.type with
       | .sort (.succ _) =>
-        -- It's a regular inductive type
-        let mangled := mangleName name
-        let ctors ← val.ctors.mapM encodeDataCtor
-        addCommand <| .dataDecl [{ name := mangled, ctors }]
+        encodeDataType val
       | _ =>
         let args := val.numParams + val.numIndices
-        let (argTypes, outType) ← arrowN args val.type
+        let (_, outType) ← arrowN args val.type
         if outType != .sort 0 then
           throwError m!"Cannot encode non Prop inductive type with arguments {name}"
-        -- It's an inductive proposition
-        let mangledName := mangleName name
-        let encodedArgTypes ← argTypes.mapM encodeType
-        let encodedOutType ← encodeType outType
-        let encodedType := .ofList (encodedArgTypes.toList ++ [encodedOutType]) (by simp)
-        let laws ← val.ctors.mapM encodePredCtor
-        let spec := { name := mangledName, type := encodedType, laws }
-        addCommand <| .predDecl [spec]
+
+        encodeIndPredicate val
     | .thmInfo val | .ctorInfo val | .recInfo val =>
       trace[nunchaku.output] m!"Ignoring {val.name} as it should be irrelevant"
       return ()

@@ -66,3 +66,44 @@ n : Nat
 -/
 #guard_msgs in
 example (n : Nat) : n ≠ n.succ := by nunchaku
+
+namespace Mutual
+
+mutual
+
+inductive Even : Nat → Prop where
+  | zero : Even Nat.zero
+  | step : Odd n → Even n.succ
+
+inductive Odd : Nat → Prop where
+  | step : Even n → Odd n.succ
+
+end
+
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+n m : Nat
+h1 : Even n
+h2 : Even m
+⊢ Odd (n.add m)
+-/
+#guard_msgs in
+example (n m : Nat) (h1 : Even n) (h2 : Even m) : Odd (n.add m) := by nunchaku
+
+mutual
+
+inductive A where
+  | base
+  | step : B → A
+
+inductive B where
+  | step : A → B
+
+end
+
+set_option trace.nunchaku.output true in
+example (x : A) : (.step (.step x)) ≠ x := by nunchaku
+
+end Mutual
