@@ -99,11 +99,19 @@ inductive A where
   | step : B → A
 
 inductive B where
+  | base
   | step : A → B
 
 end
 
-set_option trace.nunchaku.output true in
+/--
+info: The prover is convinced that the theorem is true.
+---
+error: unsolved goals
+x : A
+⊢ A.step (B.step x) ≠ x
+-/
+#guard_msgs in
 example (x : A) : (.step (.step x)) ≠ x := by nunchaku
 
 end Mutual

@@ -13,6 +13,7 @@ namespace Transformation
 
 def pipeline : Pipeline Lean.MVarId NunProblem NunResult LeanResult :=
   .compose Falsify.transformation <|
+  .compose Monomorphization.transformation <|
   .tip Output.transformation
 
 end Transformation

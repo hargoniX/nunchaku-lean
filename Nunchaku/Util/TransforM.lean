@@ -17,10 +17,21 @@ abbrev TransforM := ReaderT NunchakuConfig <| StateRefT TransforM.State MetaM
 
 namespace TransforM
 
+private def builtins : Std.HashSet Name :=
+  .ofList [``True, ``False, ``Not, ``And, ``Or, ``Eq, ``Ne, ``Iff, ``ite, ``Exists]
+
+def isBuiltin (n : Name) : Bool := builtins.contains n
+
 def getConfig : TransforM NunchakuConfig := do return (← read)
+
+def getEquations : TransforM (Std.HashMap Name (List Expr)) := do
+  return (← get).equations
 
 def getEquationsFor (decl : Name) : TransforM (List Expr) := do
   return (← get).equations.getD decl []
+
+def replaceEquations (equations : Std.HashMap Name (List Expr)) : TransforM Unit :=
+  modify fun s => { s with equations }
 
 private def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) := do
   let mut worklist : Array Name ← initializeWorklist g
@@ -29,12 +40,13 @@ private def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) :=
   while !worklist.isEmpty do
     let elem := worklist.back!
     worklist := worklist.pop
-    if visited.contains elem then
+    if visited.contains elem || isBuiltin elem then
       continue
     visited := visited.insert elem
     let constInfo ← getConstInfo elem
-    if constInfo.isDefinition then
-      let some eqns ← getEqnsFor? elem | throwError s!"Unable to find equations for {elem}"
+    -- HACK
+    if constInfo.isDefinition && elem != ``rfl then
+      let some eqns ← getEqnsFor? elem | throwError s!"Unable to find equations for {mkConst elem}"
       let eqns ← eqns.mapM fun eq => do inferType (← mkConstWithLevelParams eq)
       defs := defs.insert elem eqns.toList
       for eq in eqns do
@@ -44,9 +56,9 @@ private def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) :=
             continue
           worklist := worklist.push name
     else
-      let used := constInfo.getUsedConstantsAsSet
+      let used := constInfo.type.getUsedConstantsAsSet
       for name in used do
-        if visited.contains name then
+        if visited.contains name || isBuiltin name then
           continue
         worklist := worklist.push name
 
