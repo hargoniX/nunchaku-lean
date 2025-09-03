@@ -374,8 +374,21 @@ private def LeanIdentifier.encode : OutputM Unit := do
     let constInfo ← getConstInfo name
     match constInfo with
     | .axiomInfo val =>
-      let encoded ← encodeTerm val.type
-      addCommand <| .axiomDecl encoded
+      if (← Meta.inferType val.type).isProp then
+        let encoded ← encodeTerm val.type
+        addCommand <| .axiomDecl encoded
+      else
+        let encodedType ← encodeType val.type
+        let mangled := mangleName name
+        addCommand <| .valDecl mangled encodedType
+    | .opaqueInfo val =>
+      if (← Meta.inferType val.type).isProp then
+        let encoded ← encodeTerm val.type
+        addCommand <| .axiomDecl encoded
+      else
+        let encodedType ← encodeType val.type
+        let mangled := mangleName name
+        addCommand <| .valDecl mangled encodedType
     | .defnInfo val =>
       -- TODO: support for mutual recursion
       let eqns ← TransforM.getEquationsFor name
@@ -383,10 +396,6 @@ private def LeanIdentifier.encode : OutputM Unit := do
       let encodedType ← encodeType val.type
       let mangled := mangleName name
       addCommand <| .recDecl [{ name := mangled, type := encodedType, laws := encodedEqns }]
-    | .opaqueInfo val =>
-      let encodedType ← encodeType val.type
-      let mangled := mangleName name
-      addCommand <| .valDecl mangled encodedType
     | .inductInfo val =>
       match val.type with
       | .sort (.succ _) =>
