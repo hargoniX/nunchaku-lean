@@ -20,7 +20,10 @@ private structure FlowVariable where
 instance : ToString FlowVariable where
   toString var := Name.toString var.function
 
-private inductive FlowType where
+/--
+A non ground type argument.
+-/
+private inductive FlowTypeArg where
   /--
   Projecting a particular type out of a flow variable.
   -/
@@ -28,17 +31,33 @@ private inductive FlowType where
   /--
   A (potentially polymorphic) type with arguments.
   -/
-  | const (name : Name) (args : List FlowType)
+  | const (name : Name) (args : List FlowTypeArg)
   /--
-  A (potentially polymorphic) uninterpreted type.
+  An uninterpreted type.
   -/
   | uninterpreted (fvar : FVarId)
   deriving Inhabited, BEq, Hashable
 
-instance : ToMessageData FlowType where
+private def FlowTypeArg.findTypeVar (type : FlowTypeArg) : Option FlowVariable :=
+  match type with
+  | .index var .. => some var
+  | .const _ args => Id.run do
+    for arg in args do
+      if let some var := findTypeVar arg then
+        return some var
+    return none
+  | .uninterpreted .. => none
+
+private def FlowTypeArg.findTypeVarIn (types : List FlowTypeArg) : Option FlowVariable := Id.run do
+  for type in types do
+    if let some var := findTypeVar type then
+      return some var
+  return none
+
+instance : ToMessageData FlowTypeArg where
   toMessageData := go
 where
-  go (ty : FlowType) : MessageData :=
+  go (ty : FlowTypeArg) : MessageData :=
     match ty with
     | .index var idx => m!"{var}_({idx})"
     | .const name args => m!"{name} {args.map go}"
@@ -48,8 +67,14 @@ where
 The inputs into a flow variable.
 -/
 private inductive FlowInput where
+  /--
+  If we want to state that `var` is a subset of whatever it flows into.
+  -/
   | var (var : FlowVariable)
-  | vec (vec : List FlowType)
+  /--
+  If we want to state what flow into individual components of our flow variable.
+  -/
+  | vec (vec : List FlowTypeArg)
   deriving Inhabited, BEq, Hashable
 
 instance : ToMessageData FlowInput where
@@ -58,23 +83,74 @@ instance : ToMessageData FlowInput where
     | .vec vec => toMessageData vec
 
 /--
-`input ⊑ var`.
+`input ⊑ var`, recall that `FlowVariable` are vector valued to account for
+functions with multiple type arguments and as such `FlowInput` represents a vector of inputs as
+well.
 -/
 private structure FlowConstraint where
-  input : FlowInput
-  var : FlowVariable
+  src : FlowInput
+  dst : FlowVariable
   deriving Inhabited, BEq, Hashable
 
 instance : ToMessageData FlowConstraint where
-  toMessageData constr := m!"{toMessageData constr.input} ⊑ {toMessageData constr.var}"
+  toMessageData constr := m!"{toMessageData constr.src} ⊑ {toMessageData constr.dst}"
 
-private inductive GroundFlowArg where
-  | type (name : Name) (args : List GroundFlowArg)
+/--
+A ground type argument.
+-/
+private inductive GroundTypeArg where
+  /--
+  A list of ground type arguments applied to a constant are ground.
+  -/
+  | const (name : Name) (args : List GroundTypeArg)
+  /--
+  Some monomorphic free variable from the context is ground.
+  -/
+  | uninterpreted (fvar : FVarId)
   deriving Inhabited, BEq, Hashable
 
-private structure GroundFlowInput where
-  args : List GroundFlowArg
+instance : ToMessageData GroundTypeArg where
+  toMessageData := go
+where
+  go (arg : GroundTypeArg) : MessageData :=
+    match arg with
+    | .const name args => m!"{toMessageData name} {args.map go}"
+    | .uninterpreted fvar => m!"{mkFVar fvar}"
+
+/--
+An assignment to a vector of type variables.
+-/
+private structure GroundInput where
+  args : List GroundTypeArg
   deriving Inhabited, BEq, Hashable
+
+instance : ToMessageData GroundInput where
+  toMessageData i := toMessageData i.args
+
+/--
+The type arguments of `dst` are instantiated using the ground type arguments in `src`.
+-/
+private structure GroundConstraint where
+  src : GroundInput
+  dst : FlowVariable
+  deriving Inhabited, BEq, Hashable
+
+private def FlowTypeArg.toGroundTypeArg (type : FlowTypeArg) : Option GroundTypeArg := do
+  match type with
+  | .const name args => return .const name (← args.mapM FlowTypeArg.toGroundTypeArg)
+  | .index .. => none
+  | .uninterpreted fvar => return .uninterpreted fvar
+
+private def FlowInput.toGroundInput (inp : FlowInput) : Option GroundInput := do
+  match inp with
+  | .var .. => none
+  | .vec args =>
+    return ⟨← args.mapM FlowTypeArg.toGroundTypeArg⟩
+
+private def GroundTypeArg.toFlowTypeArg (arg : GroundTypeArg) : FlowTypeArg :=
+  match arg with
+  | .const name args => .const name (args.map GroundTypeArg.toFlowTypeArg)
+  | .uninterpreted fvar => .uninterpreted fvar
 
 structure MonoAnalysisState where
   /--
@@ -88,7 +164,7 @@ private def MonoAnalysisM.run (x : MonoAnalysisM α) : TransforM (α × MonoAnal
   StateRefT'.run x {}
 
 structure CollectCtx where
-  flowFVars : FVarIdMap FlowType := {}
+  flowFVars : FVarIdMap FlowTypeArg := {}
 
 structure CollectState where
   constraints : Std.HashSet FlowConstraint := {}
@@ -110,7 +186,7 @@ private def getMonoArgPositions (const : Name) : MonoAnalysisM (Array Nat) := do
 
     return positions
 
-private def FlowInput.ofTypes (types : List FlowType) : MonoAnalysisM FlowInput := do
+private def FlowInput.ofTypes (types : List FlowTypeArg) : MonoAnalysisM FlowInput := do
   let firstType := types[0]!
   match firstType with
   | .index flowVar 0 =>
@@ -165,7 +241,7 @@ where
           for pos in positions do
             let arg := args[pos]!
             if !arg.isFVar then
-              throwError m!"Equation contains non fvar type argument: {eq}"
+              throwError m!"Equation lhs contains non fvar type argument: {eq}"
             flowArgs := flowArgs.push (arg.fvarId!, .index ⟨name⟩ pos)
 
           let insertVars flowFVars :=
@@ -186,7 +262,7 @@ where
     let constr := ⟨input, flowVariable⟩
     modify fun s => { s with constraints := s.constraints.insert constr }
 
-  flowTypeOfExpr (expr : Expr) : CollectM FlowType := do
+  flowTypeOfExpr (expr : Expr) : CollectM FlowTypeArg := do
     let expr ← Meta.whnfR expr
     match expr with
     | .fvar fvarId =>
@@ -274,24 +350,122 @@ where
           collectExpr value
         collectExpr body
     | .mdata _ e => collectExpr e
-    | .proj _ _ struct => collectExpr struct
+    | .proj _ _ struct =>
+      -- TODO: Maybe we have to collect in the inferred type of `struct`?
+      collectExpr struct
     | .lit .. | .sort .. | .fvar .. | .bvar .. | .mvar .. => return ()
 
 private def constraintsSolvable (constraints : List FlowConstraint) : Bool :=
   -- TODO
   true
 
+private structure SolveCtx where
+  /--
+  The (non-ground) rules that we need to apply until a fixpoint is reached.
+  -/
+  rules : Array FlowConstraint
+
+private structure SolveState where
+  /--
+  Whether the last iteration of the fixpoint solver caused a change.
+  -/
+  changed : Bool := false
+  /--
+  Ground facts that we have so far collected about the constraint system.
+  -/
+  facts : Std.HashSet GroundConstraint
+  /--
+  An accumulator for new facts in this iteration of the fixpoint solver.
+  -/
+  newFacts : List GroundConstraint := []
+
+private abbrev SolveM := ReaderT SolveCtx <| StateM SolveState
+
 private partial def solveConstraints (constraints : List FlowConstraint)
-    (h : constraintsSolvable constraints) :
-    Std.HashMap FlowVariable (List GroundFlowInput) := sorry
+    (_h : constraintsSolvable constraints) :
+    Std.HashMap FlowVariable (List GroundInput) := Id.run do
+  let mut facts := {}
+  let mut rules := #[]
+  for constraint in constraints do
+    match constraint.src.toGroundInput with
+    | some ground => facts := facts.insert ⟨ground, constraint.dst⟩
+    | none => rules := rules.push constraint
+  let (_, st) := go |>.run { rules } |>.run { facts }
+  let mut solution := {}
+  for fact in st.facts do
+    solution :=
+      solution.alter fact.dst fun
+        | some stuff => fact.src :: stuff
+        | none => [fact.src]
+  return solution
+where
+  go : SolveM Unit := do
+    modify fun s => { s with changed := false }
+    step
+    if (← get).changed then
+      go
+    else
+      return ()
+
+  step : SolveM Unit := do
+    for rule in (← read).rules do
+      workRule rule
+    commitNewFacts
+
+  partiallyInstantiateFlowType (arg : FlowTypeArg) (fact : GroundConstraint) : FlowTypeArg :=
+    match arg with
+    | .uninterpreted fvar => .uninterpreted fvar
+    | .const name args => .const name (partiallyInstantiate args fact)
+    | .index var idx =>
+      if var == fact.dst then
+        fact.src.args[idx]! |>.toFlowTypeArg
+      else
+        .index var idx
+
+  partiallyInstantiate (args : List FlowTypeArg) (fact : GroundConstraint) : List FlowTypeArg :=
+    args.map (partiallyInstantiateFlowType · fact)
+
+  workRule (rule : FlowConstraint) : SolveM Unit := do
+    match rule.src with
+    | .vec args =>
+      match FlowTypeArg.findTypeVarIn args with
+      | some tvar =>
+        -- the rule is not ground, instantiate one argument and repeat until grounded
+        -- TODO: index facts
+        for fact in (← get).facts do
+          if fact.dst == tvar then
+            let newArgs := partiallyInstantiate args fact
+            let newRule := { rule with src := .vec newArgs }
+            workRule newRule
+      | none =>
+        -- The rule is already ground
+        learnFact { src := rule.src.toGroundInput.get! , dst := rule.dst  }
+    | .var inputVar =>
+      -- we have inputVar ⊑ rule.dst and find fact.src ⊑ inputVar
+      -- -> need to forward fact.src into rule.dst
+      -- TODO: index facts
+      for fact in (← get).facts do
+        if fact.dst == inputVar then
+          learnFact { fact with dst := rule.dst }
+
+  @[inline]
+  learnFact (fact : GroundConstraint) : SolveM Unit := do
+    modify fun s => { s with newFacts := fact :: s.newFacts }
+
+  commitNewFacts : SolveM Unit := do
+    for fact in (← get).newFacts do
+      modify fun { facts, changed, newFacts } =>
+        let (contains, facts) := facts.containsThenInsert fact
+        { facts := facts, changed := changed || !contains, newFacts }
+    modify fun s => { s with newFacts := [] }
 
 structure SpecializeContext where
   analysis : MonoAnalysisState
-  solution : Std.HashMap FlowVariable (List GroundFlowInput)
+  solution : Std.HashMap FlowVariable (List GroundInput)
 
 structure SpecializeState where
   newEquations : Std.HashMap Name (List Expr) := {}
-  specialisationCache : Std.HashMap (FlowVariable × GroundFlowInput) Name := {}
+  specialisationCache : Std.HashMap (FlowVariable × GroundInput) Name := {}
 
 private abbrev SpecializeM := ReaderT SpecializeContext <| StateRefT SpecializeState TransforM
 
@@ -315,7 +489,8 @@ def transformation : Transformation MVarId MVarId LeanResult LeanResult where
         throwError "The goal cannot be monomorphised."
       else
         trace[nunchaku.mono] m!"Constraints: {constraints}"
-        --let solution := solveConstraints constraints (by simpa using h)
+        let solution := solveConstraints constraints (by simpa using h)
+        trace[nunchaku.mono] m!"Solution: {solution.toList}"
         --let (g, st) ← (specialize g).run { analysis := monoAnalysis, solution }
         --TransforM.replaceEquations st.newEquations
         return (g, ())
