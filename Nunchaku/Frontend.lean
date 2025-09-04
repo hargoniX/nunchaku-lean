@@ -58,14 +58,15 @@ private def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
 
 def runNunchaku (g : MVarId) (cfg : NunchakuConfig) : MetaM LeanResult := do
   TransforM.run g cfg do
-    let (problem, back) ←
-      withTraceNode `nunchaku (fun _ => return "Running forward pipeline") do
-        Transformation.pipeline.run g
-    let res ←
-      withTraceNode `nunchaku (fun _ => return "Running the solver") do
-        runSolver problem (← TransforM.getConfig)
-    withTraceNode `nunchaku (fun _ => return "Running the backwards pipeline") do
-      back res
+    withoutModifyingEnv do
+      let (problem, back) ←
+        withTraceNode `nunchaku (fun _ => return "Running forward pipeline") do
+          Transformation.pipeline.run g
+      let res ←
+        withTraceNode `nunchaku (fun _ => return "Running the solver") do
+          runSolver problem (← TransforM.getConfig)
+      withTraceNode `nunchaku (fun _ => return "Running the backwards pipeline") do
+        back res
 
 @[tactic nunchakuStx]
 def evalNunchaku : Tactic

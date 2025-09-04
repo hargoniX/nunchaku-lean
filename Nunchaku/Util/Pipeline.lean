@@ -27,12 +27,14 @@ namespace Pipeline
 def run (pipe : Pipeline a b c d) (x : a) : TransforM (b × (c → TransforM d)) := do
   match pipe with
   | .tip trans =>
-    trace[nunchaku] m!"Running transformation: {trans.inner.name}"
-    let (transformed, st) ← trans.inner.encode x
+    let (transformed, st) ←
+      withTraceNode `nunchaku (fun _ => return m!"Running transformation: {trans.inner.name}") do
+        trans.inner.encode x
     return (transformed, fun res => trans.inner.decode st res)
   | .compose start remainder =>
-    trace[nunchaku] m!"Running transformation: {start.inner.name}"
-    let (transformed, st) ← start.inner.encode x
+    let (transformed, st) ←
+      withTraceNode `nunchaku (fun _ => return m!"Running transformation: {start.inner.name}") do
+        start.inner.encode x
     let (transformed, back) ← remainder.run transformed
     let fullBack res := do
       let step ← back res

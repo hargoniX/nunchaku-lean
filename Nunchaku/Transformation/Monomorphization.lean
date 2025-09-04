@@ -32,10 +32,6 @@ private inductive FlowTypeArg where
   A (potentially polymorphic) type with arguments.
   -/
   | const (name : Name) (args : List FlowTypeArg)
-  /--
-  An uninterpreted type.
-  -/
-  | uninterpreted (fvar : FVarId)
   deriving Inhabited, BEq, Hashable
 
 private def FlowTypeArg.findTypeVar (type : FlowTypeArg) : Option FlowVariable :=
@@ -46,7 +42,6 @@ private def FlowTypeArg.findTypeVar (type : FlowTypeArg) : Option FlowVariable :
       if let some var := findTypeVar arg then
         return some var
     return none
-  | .uninterpreted .. => none
 
 private def FlowTypeArg.findTypeVarIn (types : List FlowTypeArg) : Option FlowVariable := Id.run do
   for type in types do
@@ -61,7 +56,6 @@ where
     match ty with
     | .index var idx => m!"{var}_({idx})"
     | .const name args => m!"{name} {args.map go}"
-    | .uninterpreted fvar => m!"{mkFVar fvar}"
 
 /--
 The inputs into a flow variable.
@@ -103,10 +97,6 @@ private inductive GroundTypeArg where
   A list of ground type arguments applied to a constant are ground.
   -/
   | const (name : Name) (args : List GroundTypeArg)
-  /--
-  Some monomorphic free variable from the context is ground.
-  -/
-  | uninterpreted (fvar : FVarId)
   deriving Inhabited, BEq, Hashable
 
 instance : ToMessageData GroundTypeArg where
@@ -115,7 +105,6 @@ where
   go (arg : GroundTypeArg) : MessageData :=
     match arg with
     | .const name args => m!"{toMessageData name} {args.map go}"
-    | .uninterpreted fvar => m!"{mkFVar fvar}"
 
 /--
 An assignment to a vector of type variables.
@@ -139,7 +128,6 @@ private def FlowTypeArg.toGroundTypeArg (type : FlowTypeArg) : Option GroundType
   match type with
   | .const name args => return .const name (← args.mapM FlowTypeArg.toGroundTypeArg)
   | .index .. => none
-  | .uninterpreted fvar => return .uninterpreted fvar
 
 private def FlowInput.toGroundInput (inp : FlowInput) : Option GroundInput := do
   match inp with
@@ -150,7 +138,6 @@ private def FlowInput.toGroundInput (inp : FlowInput) : Option GroundInput := do
 private def GroundTypeArg.toFlowTypeArg (arg : GroundTypeArg) : FlowTypeArg :=
   match arg with
   | .const name args => .const name (args.map GroundTypeArg.toFlowTypeArg)
-  | .uninterpreted fvar => .uninterpreted fvar
 
 structure MonoAnalysisState where
   /--
@@ -206,14 +193,6 @@ private def FlowInput.ofTypes (types : List FlowTypeArg) : MonoAnalysisM FlowInp
 
 private partial def collectConstraints (g : MVarId) : MonoAnalysisM (List FlowConstraint) := do
   let mut flowFVars := {}
-  for decl in ← getLCtx do
-    if decl.isImplementationDetail then
-      continue
-    if decl.isLet then throwError "Let declarations not supported"
-    -- TODO: if the fvar takes a type former argument itself we have to throw an error
-    let fvar := decl.fvarId
-    if ← Meta.isTypeFormer (mkFVar fvar) then
-      flowFVars := flowFVars.insert fvar (.uninterpreted fvar)
   let (_, st) ← go g |>.run { flowFVars } |>.run {}
   return st.constraints.toList
 where
@@ -315,6 +294,8 @@ where
           if args.size ≤ last then
             throwError m!"Underapplied constant cannot be monomorphised: {expr}"
           let flowTypes ← monoArgPositions.mapM (fun idx => flowTypeOfExpr args[idx]!)
+          -- TODO: Maybe we have to collect in the ctors of an inductive type upon encountering an
+          -- inductive type or one of its ctors
           match ← getConstInfo fn with
           | .ctorInfo ctorInfo =>
             let induct := ctorInfo.induct
@@ -414,7 +395,6 @@ where
 
   partiallyInstantiateFlowType (arg : FlowTypeArg) (fact : GroundConstraint) : FlowTypeArg :=
     match arg with
-    | .uninterpreted fvar => .uninterpreted fvar
     | .const name args => .const name (partiallyInstantiate args fact)
     | .index var idx =>
       if var == fact.dst then
@@ -477,7 +457,9 @@ private def generateSpecialisations : SpecializeM Unit := sorry
 
 private def applySpecialisations (g : MVarId) : SpecializeM MVarId := sorry
 
-private def specialize (g : MVarId) : SpecializeM MVarId := sorry
+private def specialize (g : MVarId) : SpecializeM MVarId := do
+  generateSpecialisations
+  applySpecialisations g
 
 def transformation : Transformation MVarId MVarId LeanResult LeanResult where
   st := Unit
