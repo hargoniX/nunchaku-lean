@@ -11,7 +11,7 @@ inductive NunType where
   | type
   | const (name : String)
   | arrow (lhs rhs : NunType)
-  deriving Inhabited
+  deriving Inhabited, Repr
 
 /--
 All Nunchaku built-in functions with special syntax, meaning etc.
@@ -61,7 +61,7 @@ inductive NunBuiltin where
   Logical implication.
   -/
   | imply
-  deriving Inhabited
+  deriving Inhabited, Repr
 
 /--
 A monomorphized Nunchaku term.
@@ -99,7 +99,7 @@ inductive NunTerm where
   A function application `fn arg`.
   -/
   | app (fn arg : NunTerm)
-  deriving Inhabited
+  deriving Inhabited, Repr
 
 /--
 A single `data` constructor declaration.
@@ -107,7 +107,7 @@ A single `data` constructor declaration.
 structure NunCtorSpec where
   name : String
   arguments : List NunType
-  deriving Inhabited
+  deriving Inhabited, Repr
 
 /--
 A single `data` declaration, potentially within a mutual `data` block.
@@ -115,7 +115,7 @@ A single `data` declaration, potentially within a mutual `data` block.
 structure NunDataSpec where
   name : String
   ctors : List NunCtorSpec
-  deriving Inhabited
+  deriving Inhabited, Repr
 
 /--
 A single `data` or `rec` declaration as a "propositional specification", potentially within a
@@ -134,7 +134,7 @@ structure NunPropSpec where
   The laws associated with the declaration.
   -/
   laws : List NunTerm
-  deriving Inhabited
+  deriving Inhabited, Repr
 
 /--
 A monomorphized Nunchaku command.
@@ -164,7 +164,7 @@ inductive NunCommand where
   `goal type.`
   -/
   | goalDecl (type : NunTerm)
-  deriving Inhabited
+  deriving Inhabited, Repr
 
 /--
 A full Nunchaku problem.
@@ -174,6 +174,6 @@ structure NunProblem where
   The commands of the Nunchaku problem.
   -/
   commands : List NunCommand
-  deriving Inhabited
+  deriving Inhabited, Repr
 
 end Nunchaku
