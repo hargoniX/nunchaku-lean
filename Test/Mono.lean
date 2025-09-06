@@ -22,6 +22,10 @@ example  : [].map id ≠ ([] : List Nat) := by
   nunchaku
 
 set_option trace.nunchaku true in
+example (xs : List a) : xs = [] := by
+  nunchaku
+
+set_option trace.nunchaku true in
 example (xs : List α) : xs.map id ≠ xs := by
   nunchaku
 

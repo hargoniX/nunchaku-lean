@@ -445,18 +445,18 @@ where
     modify fun s => { s with newFacts := [] }
 
 structure SpecializeContext where
-  analysis : MonoAnalysisState
   solution : Std.HashMap FlowVariable (List GroundInput)
 
 structure SpecializeState where
   newEquations : Std.HashMap Name (List Expr) := {}
   specialisationCache : Std.HashMap (FlowVariable × GroundInput) Name := {}
 
-private abbrev SpecializeM := ReaderT SpecializeContext <| StateRefT SpecializeState TransforM
+private abbrev SpecializeM := ReaderT SpecializeContext <| StateRefT SpecializeState MonoAnalysisM
 
-private def SpecializeM.run (x : SpecializeM α) (ctx : SpecializeContext) :
-    TransforM (α × SpecializeState) :=
-  StateRefT'.run (ReaderT.run x ctx) {}
+private def SpecializeM.run (x : SpecializeM α) (ctx : SpecializeContext)
+    (mono : MonoAnalysisState) : TransforM (α × SpecializeState) := do
+  let (p, _) ← StateRefT'.run (StateRefT'.run (ReaderT.run x ctx) {}) mono
+  return p
 
 private partial def specialize (g : MVarId) : SpecializeM MVarId := do
   for (const, eqs) in (← TransforM.getEquations) do
@@ -468,9 +468,6 @@ private partial def specialize (g : MVarId) : SpecializeM MVarId := do
   let g ← mapMVarId g specialiseExpr
   return g
 where
-  getMonoArgPositions (const : Name) : SpecializeM (Array Nat) := do
-    return (← read).analysis.argPos[const]!
-
   partitionMonoArgPositions (const : Name) (args : Array Expr) :
       SpecializeM (Array Expr × Array (Expr × Nat)) := do
     let positions ← getMonoArgPositions const
@@ -597,6 +594,7 @@ where
     let expr ← Meta.mkConstWithFreshMVarLevels info.name
     let type ← Meta.inferType expr
     let positions ← getMonoArgPositions info.name
+    assert! positions.size = input.args.size
     let stencil := positions.zip input.args
     let instantiated ← specialiseConstTypeAux type stencil 0 0
     let final ← instantiateMVars instantiated
@@ -700,7 +698,7 @@ def transformation : Transformation MVarId MVarId LeanResult LeanResult where
         trace[nunchaku.mono] m!"Constraints: {constraints}"
         let solution := solveConstraints constraints (by simpa using h)
         trace[nunchaku.mono] m!"Solution: {solution.toList}"
-        let (g, st) ← (specialize g).run { analysis := monoAnalysis, solution }
+        let (g, st) ← (specialize g).run { solution } monoAnalysis
         TransforM.replaceEquations st.newEquations
         trace[nunchaku.mono] m!"Result: {g}"
         return (g, ())
