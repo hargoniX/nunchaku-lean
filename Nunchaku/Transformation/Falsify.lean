@@ -15,9 +15,11 @@ def transformation : Transformation Lean.MVarId Lean.MVarId LeanResult LeanResul
     name := "Falsify"
     encode g := g.withContext do
       if (← read).falsify then
-        let g ← Lean.Meta.mkFreshExprMVar (Lean.mkNot (← g.getType))
-        return (g.mvarId!, ())
+        let g := (← Lean.Meta.mkFreshExprMVar (Lean.mkNot (← g.getType))).mvarId!
+        trace[nunchaku.falsify] m!"Result: {g}"
+        return (g, ())
       else
+        trace[nunchaku.falsify] m!"Result: {g}"
         return (g, ())
     decode _ res := return res
   }

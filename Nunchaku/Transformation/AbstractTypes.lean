@@ -11,24 +11,12 @@ namespace Transformation
 namespace AbstractTypes
 
 open Lean
-/-
-          let levelParams := collectLevelParams {} (← decl.fvarId.getType) |>.params |>.toList
-          let name := sorry
-          let axiomDecl := {
-            name,
-            levelParams,
-            type := (← decl.fvarId.getType),
-            isUnsafe := true
-          }
-          addDecl <| .axiomDecl axiomDecl
-          -/
 
 def transformation : Transformation Lean.MVarId Lean.MVarId LeanResult LeanResult where
   st := Unit
   inner := {
     name := "Abstract Types"
     encode g := g.withContext do
-      -- TODO: Need to handle situations in which the type former depends on a local type
       let mut subst : Std.HashMap FVarId Expr := {}
       for decl in ← getLCtx do
         if decl.isImplementationDetail then
@@ -36,18 +24,17 @@ def transformation : Transformation Lean.MVarId Lean.MVarId LeanResult LeanResul
         if decl.isLet then
           throwError "Unsupported: let decls"
         let fvar := decl.fvarId
-        if ← Meta.isTypeFormer (mkFVar fvar) then
+        if (← fvar.getType) matches .sort (.succ ..) then
           trace[nunchaku.abstract] m!"Going to abstract {mkFVar fvar}"
-          let levelParams := collectLevelParams {} (← fvar.getType) |>.params |>.toList
           let name ← mkAuxDeclName (← fvar.getUserName)
           let axiomDecl := {
             name,
-            levelParams,
+            levelParams := [],
             type := (← decl.fvarId.getType),
             isUnsafe := false
           }
           addDecl <| .axiomDecl axiomDecl
-          subst := subst.insert decl.fvarId (mkConst name (levelParams.map .param))
+          subst := subst.insert decl.fvarId (mkConst name [])
 
       let newLCtx := subst.fold (init := ← getLCtx) (fun lctx fvar ax => lctx.replaceFVarId fvar ax)
       let (fvars, vs) := subst.fold (init := (#[], #[]))
@@ -55,8 +42,9 @@ def transformation : Transformation Lean.MVarId Lean.MVarId LeanResult LeanResul
       let newType := (← g.getType).replaceFVars fvars vs
       -- TODO: Possibly think about local instances
       Meta.withLCtx' newLCtx do
-        let g ← Meta.mkFreshExprMVar (some newType) .natural g.name
-        return (g.mvarId!, ())
+        let g := (← Meta.mkFreshExprMVar (some newType) .natural g.name).mvarId!
+        trace[nunchaku.abstract] m!"Result: {g}"
+        return (g, ())
     decode _ res := return res
   }
 

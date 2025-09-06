@@ -13,6 +13,8 @@ namespace Nunchaku
 initialize registerTraceClass `nunchaku
 initialize registerTraceClass `nunchaku.solver (inherited := true)
 initialize registerTraceClass `nunchaku.equations (inherited := true)
+initialize registerTraceClass `nunchaku.falsify (inherited := true)
+initialize registerTraceClass `nunchaku.elimlevels (inherited := true)
 initialize registerTraceClass `nunchaku.abstract (inherited := true)
 initialize registerTraceClass `nunchaku.mono (inherited := true)
 initialize registerTraceClass `nunchaku.output (inherited := true)
