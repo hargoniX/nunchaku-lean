@@ -1,5 +1,6 @@
 import Nunchaku.Util.Pipeline
 import Nunchaku.Util.Model
+import Nunchaku.Util.LocalContext
 import Std.Data.Iterators
 
 /-!
@@ -458,21 +459,13 @@ private def SpecializeM.run (x : SpecializeM α) (ctx : SpecializeContext) :
   StateRefT'.run (ReaderT.run x ctx) {}
 
 private partial def specialize (g : MVarId) : SpecializeM MVarId := do
-  for (const, inputs) in (← read).solution do
-    for input in inputs do
-      let name ← mkAuxDeclName const.function
-      modify fun s => { s with specialisationCache := s.specialisationCache.insert (const, input) name }
-
-  for (const, inputs) in (← read).solution do
-    for input in inputs do
-      specialiseConst const.function input
-
   for (const, eqs) in (← TransforM.getEquations) do
     if !(← read).solution.contains ⟨const⟩ then
       trace[nunchaku.mono] m!"Skipping specialisation of {const}"
       modify fun s => { s with newEquations := s.newEquations.insert const eqs }
 
-  -- TODO: traverse the goal
+  trace[nunchaku.mono] m!"Specialising in {g}"
+  let g ← mapMVarId g specialiseExpr
   return g
 where
   getMonoArgPositions (const : Name) : SpecializeM (Array Nat) := do
@@ -512,102 +505,116 @@ where
         | _ => throwError m!"Can't interpret {expr} as a ground type"
     | .mdata _ e => groundTypeOfExpr e
     | .proj .. | .lit .. | .sort .. | .bvar .. | .mvar .. | .forallE .. | .letE .. | .lam ..
-    | .fvar .. =>
-      throwError m!"Can't interpret {expr} as a ground type"
+    | .fvar .. => throwError m!"Can't interpret {expr} as a ground type"
 
-  specialiseExpr (expr : Expr) : SpecializeM Expr := do
+  specialiseExpr (expr : Expr) (subst : Meta.FVarSubst) : SpecializeM Expr := do
     match expr with
     | .app .. =>
       expr.withApp fun fn args => do
         match fn with
         | .const fn us =>
           if TransforM.isBuiltin fn then
-            let args ← args.mapM specialiseExpr
+            let args ← args.mapM (specialiseExpr · subst)
             return mkAppN (.const fn us) args
           else
             match ← getConstInfo fn with
             | .ctorInfo info =>
+              specialiseConst info.induct
               let (others, targets) ← partitionMonoArgPositions info.name args
               let pattern : FlowVariable × GroundInput :=
                 ⟨⟨info.induct⟩, ⟨← targets.mapM (fun (e, _) => groundTypeOfExpr e)⟩⟩
               let specialisedInductName := (← get).specialisationCache[pattern]!
-              let remainingArgs ← others.mapM specialiseExpr
+              let remainingArgs ← others.mapM (specialiseExpr · subst)
               let specialisedName ← specialisedCtorName specialisedInductName info.name
-              -- TODO: universe levels
               return mkAppN (.const specialisedName []) remainingArgs
             | .inductInfo info | .defnInfo info =>
+              specialiseConst fn
               let (others, targets) ← partitionMonoArgPositions info.name args
               let pattern : FlowVariable × GroundInput :=
                 ⟨⟨info.name⟩, ⟨← targets.mapM (fun (e, _) => groundTypeOfExpr e)⟩⟩
               let specialisedName := (← get).specialisationCache[pattern]!
-              let remainingArgs ← others.mapM specialiseExpr
-              -- TODO: universe levels
+              let remainingArgs ← others.mapM (specialiseExpr · subst)
               return mkAppN (.const specialisedName []) remainingArgs
             | .recInfo .. | .quotInfo .. | .opaqueInfo .. | .axiomInfo .. | .thmInfo .. =>
               throwError m!"Cannot monomorphise {expr}"
         | _ =>
-          let args ← args.mapM specialiseExpr
-          return mkAppN (← specialiseExpr fn) args
+          let args ← args.mapM (specialiseExpr · subst)
+          return mkAppN (← specialiseExpr fn subst) args
     | .lam .. =>
       Meta.lambdaBoundedTelescope expr 1 fun args body => do
         let arg := args[0]!
         let fvarId := arg.fvarId!
         let name ← fvarId.getUserName
         let bi ← fvarId.getBinderInfo
-        let newType ← specialiseExpr (← fvarId.getType)
+        let newType ← specialiseExpr (← fvarId.getType) subst
 
         Meta.withLocalDecl name bi newType fun replacedArg => do
-          let body := body.replaceFVarId fvarId replacedArg
-          Meta.mkLambdaFVars #[replacedArg] (← specialiseExpr body)
+          let newBody ← specialiseExpr body (subst.insert fvarId replacedArg)
+          Meta.mkLambdaFVars #[replacedArg] newBody
     | .forallE .. =>
       Meta.forallBoundedTelescope expr (some 1) fun args body => do
         let arg := args[0]!
         let fvarId := arg.fvarId!
         let name ← fvarId.getUserName
         let bi ← fvarId.getBinderInfo
-        let newType ← specialiseExpr (← fvarId.getType)
+        let newType ← specialiseExpr (← fvarId.getType) subst
 
         Meta.withLocalDecl name bi newType fun replacedArg => do
-          let body := body.replaceFVarId fvarId replacedArg
-          Meta.mkForallFVars #[replacedArg] (← specialiseExpr body)
+          let newBody ← specialiseExpr body (subst.insert fvarId replacedArg)
+          Meta.mkForallFVars #[replacedArg] newBody
     | .letE (nondep := nondep) .. =>
       Meta.letBoundedTelescope expr (some 1) fun args body => do
         let arg := args[0]!
         let fvarId := arg.fvarId!
         let name ← fvarId.getUserName
-        let newType ← specialiseExpr (← fvarId.getType)
-        let newValue ← specialiseExpr (← fvarId.getValue?).get!
+        let newType ← specialiseExpr (← fvarId.getType) subst
+        let newValue ← specialiseExpr (← fvarId.getValue?).get! subst
 
         Meta.withLetDecl name newType newValue (nondep := nondep) fun replacedArg => do
-          let body := body.replaceFVarId fvarId replacedArg
-          Meta.mkLetFVars #[replacedArg] (← specialiseExpr body)
-    | .mdata _ e => specialiseExpr e
+          let newBody ← specialiseExpr body (subst.insert fvarId replacedArg)
+          Meta.mkLetFVars #[replacedArg] newBody
+    | .mdata _ e => specialiseExpr e subst
     | .proj _ _ _ => throwError m!"Don't know how to specialise projection {expr}"
-    | .const .. | .lit .. | .sort .. | .fvar .. | .bvar .. | .mvar .. => return expr
+    | .fvar .. => return subst.apply expr
+    | .const .. | .lit .. | .sort .. | .bvar .. | .mvar .. => return expr
+
+  specialiseConstTypeAux (remainder : Expr) (stencil : Array (Nat × GroundTypeArg))
+      (stencilPos : Nat) (lastArgPos : Nat) : SpecializeM Expr := do
+    if h : stencilPos < stencil.size then
+      let (argPos, arg) := stencil[stencilPos]
+      Meta.forallBoundedTelescope remainder (some (argPos - lastArgPos - 1)) fun args body => do
+        let argExpr := arg.toExpr
+        let .forallE _ type body _ := body | unreachable!
+        if !(← Meta.isDefEq (← Meta.inferType argExpr) type) then
+          throwError m!"Failed to instantiate type argument {argExpr} for {type}"
+        let body := body.instantiate1 argExpr
+        let body ← specialiseConstTypeAux body stencil (stencilPos + 1) argPos
+        Meta.mkForallFVars args body
+    else
+      return remainder
 
   specialiseConstType (info : ConstantVal) (input : GroundInput) : SpecializeM Expr := do
-    Meta.forallTelescope info.type fun args out => do
-      let name := info.name
-      let (others, targets) ← partitionMonoArgPositions name args
-      let others := others.map Expr.fvarId!
-      let subst : Meta.FVarSubst := targets.foldl (init := {})
-        fun acc (arg, posIdx) => acc.insert arg.fvarId! input.args[posIdx]!.toExpr
+    let expr ← Meta.mkConstWithFreshMVarLevels info.name
+    let type ← Meta.inferType expr
+    let positions ← getMonoArgPositions info.name
+    let stencil := positions.zip input.args
+    let instantiated ← specialiseConstTypeAux type stencil 0 0
+    let final ← instantiateMVars instantiated
+    specialiseExpr final {}
 
-      let replacedOthers ← others.mapM fun other => do
-        let currType ← other.getType
-        let argFreeType := currType.applyFVarSubst subst
-        return (← other.getUserName, ← specialiseExpr argFreeType)
+  specialiseConst (name : Name) : SpecializeM Unit := do
+    let flow := FlowVariable.mk name
+    trace[nunchaku.mono] m!"Specialising {name}"
+    for input in (← read).solution[flow]! do
+      if (← get).specialisationCache.contains (flow, input) then
+        continue
+      let specName ← mkAuxDeclName name
+      modify fun s =>
+        { s with specialisationCache := s.specialisationCache.insert (flow, input) specName }
+      specialiseConstFor name input
+    trace[nunchaku.mono] m!"Specialising {name} done"
 
-
-      Meta.withLocalDeclsDND replacedOthers fun replacedOthers => do
-        let mut subst := subst
-        for (orig, replace) in others.iter.zip replacedOthers.iter do
-          subst := subst.insert orig replace
-        let out := out.applyFVarSubst subst
-        let out ← specialiseExpr out
-        Meta.mkForallFVars replacedOthers out
-
-  specialiseConst (name : Name) (input : GroundInput) : SpecializeM Unit := do
+  specialiseConstFor (name : Name) (input : GroundInput) : SpecializeM Unit := do
     trace[nunchaku.mono] m!"Specialising {name} for {input}"
 
     let info ← getConstInfo name
@@ -616,8 +623,9 @@ where
     | .defnInfo info => specialiseDefn info input
     | _ => unreachable!
 
+    trace[nunchaku.mono] m!"Specialising {name} for {input} done"
+
   specialiseInduct (info : InductiveVal) (input : GroundInput) : SpecializeM Unit := do
-    -- TODO: mutual specialisation
     if info.all.length != 1 then
       throwError m!"Can't monomorphise mutual inductives: {info.all}"
 
@@ -626,16 +634,13 @@ where
     let specType ← specialiseConstType info.toConstantVal input
     let newCtors ← info.ctors.mapM (specialiseCtor specName · input)
 
-    --let decl := {
-    --  name := specName,
-    --  type := specType,
-    --  ctors := newCtors
-    --}
-    ---- TODO
-    --let levels := []
-    --let nparams := info.numParams - (← getMonoArgPositions name).size
-    trace[nunchaku.mono] m!"Proposing {specType} and {newCtors.map (·.type)}"
-    --addDecl <| .inductDecl levels nparams [decl] false
+    let decl := {
+      name := specName,
+      type := specType,
+      ctors := newCtors
+    }
+    let nparams := info.numParams - (← getMonoArgPositions name).size
+    addDecl <| .inductDecl [] nparams [decl] false
 
   specialisedCtorName (inductSpecName : Name) (ctorName : Name) : SpecializeM Name := do
     let .str _ n := ctorName | throwError m!"Weird ctor name {ctorName}"
@@ -648,25 +653,20 @@ where
     let specType ← specialiseConstType info input
     return ⟨specName, specType⟩
 
-
   specialiseDefn (info : DefinitionVal) (input : GroundInput) : SpecializeM Unit := do
     let name := info.name
-    trace[nunchaku.mono] m!"Specialising def {name}"
     let specName := (← get).specialisationCache[(FlowVariable.mk name, input)]!
     let specType ← specialiseConstType info.toConstantVal input
-    trace[nunchaku.mono] m!"Proposing {specType}"
 
-    --let defn := {
-    --  name := specName,
-    --  -- TODO
-    --  levelParams := [],
-    --  type := specType,
-    --  value := ← Meta.mkSorry specType false,
-    --  hints := .opaque,
-    --  safety := .safe
-    --}
-    --addDecl <| .defnDecl defn
-
+    let defn := {
+      name := specName,
+      levelParams := [],
+      type := specType,
+      value := ← Meta.mkSorry specType false,
+      hints := .opaque,
+      safety := .safe
+    }
+    addDecl <| .defnDecl defn
 
     let equations ← TransforM.getEquationsFor name
     let newEqs ← equations.mapM (specialiseEquation name · input)
@@ -686,8 +686,7 @@ where
        specialised equivalents
     6. re-abstract over non specialised fvars
     -/
-    -- TODO
-    return eq
+    sorry
 
 def transformation : Transformation MVarId MVarId LeanResult LeanResult where
   st := Unit
@@ -703,6 +702,7 @@ def transformation : Transformation MVarId MVarId LeanResult LeanResult where
         trace[nunchaku.mono] m!"Solution: {solution.toList}"
         let (g, st) ← (specialize g).run { analysis := monoAnalysis, solution }
         TransforM.replaceEquations st.newEquations
+        trace[nunchaku.mono] m!"Result: {g}"
         return (g, ())
     decode _ res := return res
   }

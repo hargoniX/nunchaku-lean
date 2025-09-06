@@ -12,7 +12,7 @@ def MList.map (xs : MList α) (f : α → β) : MList β :=
   | .cons x xs => .cons (f x) (map xs f)
 
 set_option trace.nunchaku true in
-example  : MList.nil.map Nat.succ ≠ (.nil : MList Nat) := by
+example (α : Type) (xs : MList α) (f : α → α) : xs.map f ≠ xs := by
   nunchaku
 
 end Foo
