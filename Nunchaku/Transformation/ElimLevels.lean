@@ -30,13 +30,6 @@ def transformation : Transformation MVarId MVarId LeanResult LeanResult where
     name := "ElimLevels"
     encode g := g.withContext do
       let g ← mapMVarId g elimLevelParams
-      let equations ← TransforM.getEquations
-      let mut newEquations := {}
-      for (name, eqs) in equations do
-        let newEqs ← eqs.mapM (elimLevelParams · {})
-        newEquations := newEquations.insert name newEqs
-      TransforM.replaceEquations newEquations
-
       trace[nunchaku.elimlevels] m!"Result: {g}"
       return (g, ())
     decode _ res := return res

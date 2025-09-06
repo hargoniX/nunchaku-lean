@@ -84,6 +84,14 @@ def run (g : MVarId) (cfg : NunchakuConfig) (x : TransforM α) : MetaM α := do
 
   StateRefT'.run' (ReaderT.run x cfg) { equations }
 
+
+-- Our own sorry to avoid printing "this theorem relies on sorry"
+axiom sorryAx (α : Sort u) : α
+
+def mkSorry (type : Expr) : MetaM Expr := do
+  let u ← getLevel type
+  return mkApp (mkConst ``sorryAx [u]) type
+
 end TransforM
 
 end Nunchaku

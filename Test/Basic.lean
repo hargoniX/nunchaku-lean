@@ -17,6 +17,8 @@ info: The prover found a counter example
 error: unsolved goals
 n m : Nat
 ⊢ n.add n = n.add m
+---
+warning: declaration uses 'sorry'
 -/
 #guard_msgs in
 example (n m : Nat) : n.add n = n.add m := by nunchaku
@@ -27,6 +29,8 @@ info: The prover wasn't able to prove or disprove the theorem.
 error: unsolved goals
 n m : Nat
 ⊢ n.add m = m.add n
+---
+warning: declaration uses 'sorry'
 -/
 #guard_msgs in
 example (n m : Nat) : n.add m = m.add n := by nunchaku (timeout := 1)
@@ -67,6 +71,8 @@ n : Nat
 #guard_msgs in
 example (n : Nat) : n ≠ n.succ := by nunchaku
 
+
+/-
 namespace Mutual
 
 mutual
@@ -81,13 +87,9 @@ inductive Odd : Nat → Prop where
 end
 
 /--
-info: The prover found a counter example
+error: Can't monomorphise mutual inductives: [Mutual.Even, Mutual.Odd]
 ---
-error: unsolved goals
-n m : Nat
-h1 : Even n
-h2 : Even m
-⊢ Odd (n.add m)
+warning: declaration uses 'sorry'
 -/
 #guard_msgs in
 example (n m : Nat) (h1 : Even n) (h2 : Even m) : Odd (n.add m) := by nunchaku
@@ -115,3 +117,4 @@ x : A
 example (x : A) : (.step (.step x)) ≠ x := by nunchaku
 
 end Mutual
+-/

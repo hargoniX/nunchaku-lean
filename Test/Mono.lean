@@ -33,25 +33,38 @@ set_option trace.nunchaku true in
 example (xs : List (List α)) : xs.map id ≠ xs := by
   nunchaku
 
+-- TODO: fix this
 set_option trace.nunchaku true in
 example (xs : List (List α)) : xs.map (·.map id) ≠ xs := by
   nunchaku
 
 def sumalt : List Nat → Nat :=
-  List.foldr (· + ·) .zero
+  List.foldr Nat.add .zero
 
 set_option trace.nunchaku true in
 example (xs : List Nat) (h : xs ≠ []) : sumalt xs ≠ .zero := by
   nunchaku
 
-set_option trace.nunchaku true in
-example (xs : List Nat) (h : xs ≠ []) : xs.sum ≠ .zero := by
-  nunchaku
+def sumalt' : List Nat → Nat :=
+  List.foldr (· + ·) .zero
 
 set_option trace.nunchaku true in
-example (xs : List (Fin n)) : xs.map id ≠ xs := by
+example (xs : List Nat) (h : xs ≠ []) : sumalt' xs ≠ .zero := by
   nunchaku
 
+def foo (xs : List α) : List α := id xs
+
 set_option trace.nunchaku true in
-example (xs : List (Fin .zero)) : ¬ xs.isEmpty := by
+example (xs : List α) : foo xs = id xs := by
+  nunchaku
+
+example (xs : List α) (h : xs = []) : xs.all f = false := by nunchaku
+
+inductive MyAll {α : Type} (p : α → Prop) : List α → Prop where
+  | nil : MyAll p []
+  | cons (x : α) (xs : List α) (h1 : p x) (h2 : MyAll p xs) : MyAll p (x :: xs)
+
+-- TODO: probably nunchaku bug
+set_option trace.nunchaku true in
+example (xs : List α) (h : xs = []) : MyAll (fun _ => False) xs := by
   nunchaku

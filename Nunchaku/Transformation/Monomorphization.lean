@@ -180,6 +180,8 @@ private def getMonoArgPositions (const : Name) : MonoAnalysisM (Array Nat) := do
     return positions
 
 private def FlowInput.ofTypes (types : Array FlowTypeArg) : MonoAnalysisM FlowInput := do
+  if types.isEmpty then
+    return .vec #[]
   let firstType := types[0]!
   match firstType with
   | .index flowVar 0 =>
@@ -285,6 +287,15 @@ where
       let positions ← getMonoArgPositions const
       if !positions.isEmpty then
         throwError m!"Underapplied constant cannot be monomorphised: {expr}"
+
+      match ← getConstInfo const with
+      | .ctorInfo ctorInfo =>
+        addConstraint ⟨ctorInfo.induct⟩ (.vec #[])
+      | .inductInfo .. | .defnInfo .. =>
+        addConstraint ⟨const⟩ (.vec #[])
+      | .axiomInfo .. | .opaqueInfo .. => return ()
+      | .recInfo .. | .quotInfo .. | .thmInfo .. =>
+        throwError m!"Cannot monomorphise {expr}"
     | .app .. =>
       expr.withApp fun fn args => do
         args.forM collectExpr
@@ -293,11 +304,10 @@ where
           if TransforM.isBuiltin fn then
             return ()
           let monoArgPositions ← getMonoArgPositions fn
-          if monoArgPositions.isEmpty then
-            return ()
-          let last := monoArgPositions[monoArgPositions.size - 1]!
-          if args.size ≤ last then
-            throwError m!"Underapplied constant cannot be monomorphised: {expr}"
+          if !monoArgPositions.isEmpty then
+            let last := monoArgPositions[monoArgPositions.size - 1]!
+            if args.size ≤ last then
+              throwError m!"Underapplied constant cannot be monomorphised: {expr}"
           let flowTypes ← monoArgPositions.mapM (fun idx => flowTypeOfExpr args[idx]!)
           -- TODO: Maybe we have to collect in the ctors of an inductive type upon encountering an
           -- inductive type or one of its ctors
@@ -306,10 +316,11 @@ where
             let induct := ctorInfo.induct
             if (← getMonoArgPositions induct).size != monoArgPositions.size then
               throwError m!"Encountered inductive type with type indices or existentials: {expr}"
-            addConstraint ⟨ctorInfo.induct⟩ (← FlowInput.ofTypes flowTypes)
+            addConstraint ⟨induct⟩ (← FlowInput.ofTypes flowTypes)
           | .inductInfo .. | .defnInfo .. =>
             addConstraint ⟨fn⟩ (← FlowInput.ofTypes flowTypes)
-          | .recInfo .. | .quotInfo .. | .opaqueInfo .. | .axiomInfo .. | .thmInfo .. =>
+          | .opaqueInfo .. | .axiomInfo .. => return ()
+          | .recInfo .. | .quotInfo .. | .thmInfo .. =>
             throwError m!"Cannot monomorphise {expr}"
         | none => collectExpr fn
     | .lam .. =>
@@ -458,11 +469,28 @@ private def SpecializeM.run (x : SpecializeM α) (ctx : SpecializeContext)
   let (p, _) ← StateRefT'.run (StateRefT'.run (ReaderT.run x ctx) {}) mono
   return p
 
+private def metaLevels (e : Expr) : MetaM Expr := do
+  let params := Lean.collectLevelParams {} e |>.params
+  let mut map := {}
+  for param in params do
+    map := map.insert param (← Meta.mkFreshLevelMVar)
+  Core.transform e (post := post map)
+where
+  post (map : Std.HashMap Name Level) (e : Expr) : MetaM TransformStep := do
+    match e with
+    | .sort u =>
+      return .done <| .sort <| replaceParams u map
+    | .const name us =>
+      return .done <| .const name (us.map (replaceParams · map))
+    | _ => return .continue
+
+  replaceParams (l : Level) (map : Std.HashMap Name Level) : Level :=
+    l.substParams (fun p => some map[p]!)
+
 private partial def specialize (g : MVarId) : SpecializeM MVarId := do
-  for (const, eqs) in (← TransforM.getEquations) do
-    if !(← read).solution.contains ⟨const⟩ then
-      trace[nunchaku.mono] m!"Skipping specialisation of {const}"
-      modify fun s => { s with newEquations := s.newEquations.insert const eqs }
+  for (var, inputs) in (← read).solution do
+    for input in inputs do
+      specialiseConst var.function input
 
   trace[nunchaku.mono] m!"Specialising in {g}"
   let g ← mapMVarId g specialiseExpr
@@ -506,6 +534,29 @@ where
 
   specialiseExpr (expr : Expr) (subst : Meta.FVarSubst) : SpecializeM Expr := do
     match expr with
+    | .const const us =>
+      if TransforM.isBuiltin const then
+        return .const const us
+      let positions ← getMonoArgPositions const
+      if !positions.isEmpty then
+        throwError m!"Underapplied constant cannot be monomorphised: {expr}"
+
+      match ← getConstInfo const with
+      | .ctorInfo info =>
+
+        let pattern : FlowVariable × GroundInput := ⟨⟨info.induct⟩, ⟨#[]⟩⟩
+        specialiseConst info.induct pattern.2
+        let specialisedInductName := (← get).specialisationCache[pattern]!
+        let specialisedName ← specialisedCtorName specialisedInductName info.name
+        return .const specialisedName []
+      | .inductInfo info | .defnInfo info =>
+        let pattern : FlowVariable × GroundInput := ⟨⟨info.name⟩, ⟨#[]⟩⟩
+        specialiseConst const pattern.2
+        let specialisedName := (← get).specialisationCache[pattern]!
+        return .const specialisedName []
+      | .axiomInfo .. | .opaqueInfo .. => return expr
+      | .recInfo .. | .quotInfo .. | .thmInfo .. =>
+        throwError m!"Cannot monomorphise {expr}"
     | .app .. =>
       expr.withApp fun fn args => do
         match fn with
@@ -516,23 +567,26 @@ where
           else
             match ← getConstInfo fn with
             | .ctorInfo info =>
-              specialiseConst info.induct
               let (others, targets) ← partitionMonoArgPositions info.name args
               let pattern : FlowVariable × GroundInput :=
                 ⟨⟨info.induct⟩, ⟨← targets.mapM (fun (e, _) => groundTypeOfExpr e)⟩⟩
+              specialiseConst info.induct pattern.2
               let specialisedInductName := (← get).specialisationCache[pattern]!
               let remainingArgs ← others.mapM (specialiseExpr · subst)
               let specialisedName ← specialisedCtorName specialisedInductName info.name
               return mkAppN (.const specialisedName []) remainingArgs
             | .inductInfo info | .defnInfo info =>
-              specialiseConst fn
               let (others, targets) ← partitionMonoArgPositions info.name args
               let pattern : FlowVariable × GroundInput :=
                 ⟨⟨info.name⟩, ⟨← targets.mapM (fun (e, _) => groundTypeOfExpr e)⟩⟩
+              specialiseConst fn pattern.2
               let specialisedName := (← get).specialisationCache[pattern]!
               let remainingArgs ← others.mapM (specialiseExpr · subst)
               return mkAppN (.const specialisedName []) remainingArgs
-            | .recInfo .. | .quotInfo .. | .opaqueInfo .. | .axiomInfo .. | .thmInfo .. =>
+            | .axiomInfo .. | .opaqueInfo .. =>
+              let args ← args.mapM (specialiseExpr · subst)
+              return mkAppN (.const fn us) args
+            | .recInfo .. | .quotInfo .. | .thmInfo .. =>
               throwError m!"Cannot monomorphise {expr}"
         | _ =>
           let args ← args.mapM (specialiseExpr · subst)
@@ -573,7 +627,7 @@ where
     | .mdata _ e => specialiseExpr e subst
     | .proj _ _ _ => throwError m!"Don't know how to specialise projection {expr}"
     | .fvar .. => return subst.apply expr
-    | .const .. | .lit .. | .sort .. | .bvar .. | .mvar .. => return expr
+    | .lit .. | .sort .. | .bvar .. | .mvar .. => return expr
 
   specialiseConstTypeAux (remainder : Expr) (stencil : Array (Nat × GroundTypeArg))
       (stencilPos : Nat) (lastArgPos : Nat) : SpecializeM Expr := do
@@ -600,19 +654,15 @@ where
     let final ← instantiateMVars instantiated
     specialiseExpr final {}
 
-  specialiseConst (name : Name) : SpecializeM Unit := do
+  specialiseConst (name : Name) (input : GroundInput) : SpecializeM Unit := do
     let flow := FlowVariable.mk name
-    trace[nunchaku.mono] m!"Specialising {name}"
-    for input in (← read).solution[flow]! do
-      if (← get).specialisationCache.contains (flow, input) then
-        continue
+    if (← get).specialisationCache.contains (flow, input) then
+      return ()
+    else
       let specName ← mkAuxDeclName name
       modify fun s =>
         { s with specialisationCache := s.specialisationCache.insert (flow, input) specName }
-      specialiseConstFor name input
-    trace[nunchaku.mono] m!"Specialising {name} done"
 
-  specialiseConstFor (name : Name) (input : GroundInput) : SpecializeM Unit := do
     trace[nunchaku.mono] m!"Specialising {name} for {input}"
 
     let info ← getConstInfo name
@@ -631,6 +681,7 @@ where
     let specName := (← get).specialisationCache[(FlowVariable.mk name, input)]!
     let specType ← specialiseConstType info.toConstantVal input
     let newCtors ← info.ctors.mapM (specialiseCtor specName · input)
+    trace[nunchaku.mono] m!"Proposing {specType} {newCtors.map (·.type)}"
 
     let decl := {
       name := specName,
@@ -656,11 +707,13 @@ where
     let specName := (← get).specialisationCache[(FlowVariable.mk name, input)]!
     let specType ← specialiseConstType info.toConstantVal input
 
+    trace[nunchaku.mono] m!"Proposing {specType}"
+
     let defn := {
       name := specName,
       levelParams := [],
       type := specType,
-      value := ← Meta.mkSorry specType false,
+      value := ← TransforM.mkSorry specType,
       hints := .opaque,
       safety := .safe
     }
@@ -671,20 +724,24 @@ where
     modify fun s => { s with newEquations := s.newEquations.insert specName newEqs }
 
   specialiseEquation (name : Name) (eq : Expr) (input : GroundInput) :
-      SpecializeM Expr :=
-    /-
-    Equation is of form
-    ∀ ..., f args = body
+      SpecializeM Expr := do
+    if input.args.isEmpty then
+      specialiseExpr eq {}
+    else
+      let eq ← metaLevels eq
+      let stencil ←
+        Meta.forallTelescope eq fun forallArgs body => do
+          let some (_, lhs, rhs) := body.eq? | throwError m!"Equation is malformed: {eq}"
+          let (fn, args) := lhs.getAppFnArgs
+          assert! fn == name
+          let positions ← getMonoArgPositions fn
+          let specialiseArgs := positions.map (fun pos => forallArgs.findIdx (· == args[pos]!))
+          assert! positions.size = input.args.size
+          return positions.zip input.args
 
-    1. Telescope over args
-    2. fetch specialisation positions
-    3. based on that identify relevant fvars by inspecting `args`
-    4. build substitution from fvars to input and apply
-    5. replace all types, constructor calls and recursive function calls recursively with their
-       specialised equivalents
-    6. re-abstract over non specialised fvars
-    -/
-    sorry
+      let instantiated ← specialiseConstTypeAux eq stencil 0 0
+      let final ← instantiateMVars instantiated
+      specialiseExpr final {}
 
 def transformation : Transformation MVarId MVarId LeanResult LeanResult where
   st := Unit

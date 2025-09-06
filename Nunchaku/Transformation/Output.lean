@@ -115,9 +115,17 @@ where
     else
       return ()
 
-private def mangleName (name : Lean.Name) : String :=
-  let comps := name.components.map (fun c => c.toString.replace "p" "pp")
-  String.intercalate "p" comps
+private def mangleName (name : Lean.Name) : String := Id.run do
+  let comps := name.components.map (fun c => c.toString.replace "_" "__")
+  let base := "l_" ++ String.intercalate "_" comps
+  let mut out := ""
+  for char in base.toList do
+    if char.isAlphanum || char == '_' then
+      out := out.push char
+    else
+      let num := char.toNat
+      out := out ++ s!"u{num}"
+  return out
 
 private def mangleAssumptionName (fvarId : FVarId) : MetaM String := do
   return mangleName (← fvarId.getUserName)
