@@ -72,14 +72,14 @@ instance : ToFormat NunDataSpec where
     let firstCtor := ToFormat.format spec.ctors[0]!
     let ctors : Format := spec.ctors.tail.foldl (init := firstCtor) fun acc ctor =>
       acc ++ .line ++ "| " ++ ToFormat.format ctor
-    spec.name ++ " := " ++ .nest 2 (.line ++ ctors)
+    spec.name ++ " :=" ++ .nest 2 (.line ++ ctors)
 
 instance : ToFormat NunPropSpec where
   format spec :=
     let firstLaw := ToFormat.format spec.laws[0]!
     let laws : Format := spec.laws.tail.foldl (init := firstLaw) fun acc law =>
       acc ++ ";" ++ .line ++ ToFormat.format law
-    spec.name ++ " : " ++ ToFormat.format spec.type ++ " := " ++ .nest 2 (Format.line ++ laws)
+    spec.name ++ " : " ++ ToFormat.format spec.type ++ " :=" ++ .nest 2 (Format.line ++ laws)
 
 instance : ToFormat NunCommand where
   format problem :=
