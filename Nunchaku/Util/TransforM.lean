@@ -1,5 +1,8 @@
-import Lean.Meta.Match.MatchEqsExt
-import Nunchaku.Attr
+module
+
+import Lean.Meta.Eqns
+public import Nunchaku.Attr
+public meta import Nunchaku.Attr -- TODO: this should not be necessary
 
 /-!
 This module contains the definition of the `TransforM` monad which is the core
@@ -10,30 +13,30 @@ namespace Nunchaku
 
 open Lean Meta
 
-structure TransforM.State where
+public structure TransforM.State where
   equations : Std.HashMap Name (List Expr)
 
-abbrev TransforM := ReaderT NunchakuConfig <| StateRefT TransforM.State MetaM
+public abbrev TransforM := ReaderT NunchakuConfig <| StateRefT TransforM.State MetaM
 
 namespace TransforM
 
-private def builtins : Std.HashSet Name :=
+def builtins : Std.HashSet Name :=
   .ofList [``True, ``False, ``Not, ``And, ``Or, ``Eq, ``Ne, ``Iff, ``ite, ``Exists]
 
-def isBuiltin (n : Name) : Bool := builtins.contains n
+public def isBuiltin (n : Name) : Bool := builtins.contains n
 
-def getConfig : TransforM NunchakuConfig := do return (← read)
+public def getConfig : TransforM NunchakuConfig := do return (← read)
 
-def getEquations : TransforM (Std.HashMap Name (List Expr)) := do
+public def getEquations : TransforM (Std.HashMap Name (List Expr)) := do
   return (← get).equations
 
-def getEquationsFor (decl : Name) : TransforM (List Expr) := do
+public def getEquationsFor (decl : Name) : TransforM (List Expr) := do
   return (← get).equations.getD decl []
 
-def replaceEquations (equations : Std.HashMap Name (List Expr)) : TransforM Unit :=
+public def replaceEquations (equations : Std.HashMap Name (List Expr)) : TransforM Unit :=
   modify fun s => { s with equations }
 
-private def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) := do
+def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) := do
   let mut worklist : Array Name ← initializeWorklist g
   let mut defs : Std.HashMap Name (List Expr) := {}
   let mut visited : Std.HashSet Name := {}
@@ -74,7 +77,7 @@ where
       used := used ++ decl.type.getUsedConstants
     return used
 
-def run (g : MVarId) (cfg : NunchakuConfig) (x : TransforM α) : MetaM α := do
+public def run (g : MVarId) (cfg : NunchakuConfig) (x : TransforM α) : MetaM α := do
   let equations ← findEquations g
   trace[nunchaku.equations] "Collected equations:"
   for (name, eqns) in equations do
@@ -88,7 +91,7 @@ def run (g : MVarId) (cfg : NunchakuConfig) (x : TransforM α) : MetaM α := do
 -- Our own sorry to avoid printing "this theorem relies on sorry"
 axiom sorryAx (α : Sort u) : α
 
-def mkSorry (type : Expr) : MetaM Expr := do
+public def mkSorry (type : Expr) : MetaM Expr := do
   let u ← getLevel type
   return mkApp (mkConst ``sorryAx [u]) type
 

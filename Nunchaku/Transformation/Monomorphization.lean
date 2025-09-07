@@ -1,5 +1,7 @@
-import Nunchaku.Util.Pipeline
-import Nunchaku.Util.Model
+module
+
+public import Nunchaku.Util.Pipeline
+public import Nunchaku.Util.Model
 
 import Nunchaku.Transformation.Monomorphization.Collect
 import Nunchaku.Transformation.Monomorphization.Solve
@@ -19,9 +21,9 @@ open Lean
 
 open Collect Solve Specialise
 
-def transformation : Transformation MVarId MVarId LeanResult LeanResult where
-  st := Unit
-  inner := {
+public def transformation : Transformation MVarId MVarId LeanResult LeanResult where
+  st := private Unit
+  inner := private {
     name := "Monomorphisation"
     encode g := g.withContext do
       let (constraints, monoAnalysis) ← (collectConstraints g).run

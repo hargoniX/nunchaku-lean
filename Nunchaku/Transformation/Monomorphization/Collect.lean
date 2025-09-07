@@ -1,4 +1,6 @@
-import Nunchaku.Transformation.Monomorphization.Util
+module
+
+public import Nunchaku.Transformation.Monomorphization.Util
 
 namespace Nunchaku
 namespace Transformation
@@ -7,15 +9,15 @@ namespace Collect
 
 open Lean
 
-private structure CollectCtx where
+structure CollectCtx where
   flowFVars : FVarIdMap FlowTypeArg := {}
 
-private structure CollectState where
+structure CollectState where
   constraints : Std.HashSet FlowConstraint := {}
 
-private abbrev CollectM := ReaderT CollectCtx <| StateRefT CollectState MonoAnalysisM
+abbrev CollectM := ReaderT CollectCtx <| StateRefT CollectState MonoAnalysisM
 
-private def FlowInput.ofTypes (types : Array FlowTypeArg) : MonoAnalysisM FlowInput := do
+def FlowInput.ofTypes (types : Array FlowTypeArg) : MonoAnalysisM FlowInput := do
   if types.isEmpty then
     return .vec #[]
   let firstType := types[0]!
@@ -35,7 +37,7 @@ private def FlowInput.ofTypes (types : Array FlowTypeArg) : MonoAnalysisM FlowIn
       return .vec types
   | _ => return .vec types
 
-partial def collectConstraints (g : MVarId) : MonoAnalysisM (List FlowConstraint) := do
+public partial def collectConstraints (g : MVarId) : MonoAnalysisM (List FlowConstraint) := do
   let mut flowFVars := {}
   let (_, st) ← go g |>.run { flowFVars } |>.run {}
   return st.constraints.toList

@@ -1,4 +1,6 @@
-import Nunchaku.Transformation.Monomorphization.Util
+module
+
+public import Nunchaku.Transformation.Monomorphization.Util
 import Nunchaku.Util.LocalContext
 
 namespace Nunchaku
@@ -8,22 +10,22 @@ namespace Specialise
 
 open Lean
 
-structure SpecializeContext where
+public structure SpecializeContext where
   solution : Std.HashMap FlowVariable (List GroundInput)
 
-structure SpecializeState where
+public structure SpecializeState where
   newEquations : Std.HashMap Name (List Expr) := {}
   specialisationCache : Std.HashMap (FlowVariable × GroundInput) Name := {}
   nameIdx : Nat := 0
 
-private abbrev SpecializeM := ReaderT SpecializeContext <| StateRefT SpecializeState MonoAnalysisM
+public abbrev SpecializeM := ReaderT SpecializeContext <| StateRefT SpecializeState MonoAnalysisM
 
-private def SpecializeM.run (x : SpecializeM α) (ctx : SpecializeContext)
+public def SpecializeM.run (x : SpecializeM α) (ctx : SpecializeContext)
     (mono : MonoAnalysisState) : TransforM (α × SpecializeState) := do
   let (p, _) ← StateRefT'.run (StateRefT'.run (ReaderT.run x ctx) {}) mono
   return p
 
-private def metaLevels (e : Expr) : MetaM Expr := do
+def metaLevels (e : Expr) : MetaM Expr := do
   let params := Lean.collectLevelParams {} e |>.params
   let mut map := {}
   for param in params do
@@ -41,12 +43,12 @@ where
   replaceParams (l : Level) (map : Std.HashMap Name Level) : Level :=
     l.substParams (fun p => some map[p]!)
 
-private def mkFreshSpecName (name : Name) : SpecializeM Name := do
+def mkFreshSpecName (name : Name) : SpecializeM Name := do
   let idx := (← get).nameIdx
   modify fun s => { s with nameIdx := s.nameIdx + 1}
   return Name.str name s!"spec_{idx}"
 
-partial def specialize (g : MVarId) : SpecializeM MVarId := do
+public partial def specialize (g : MVarId) : SpecializeM MVarId := do
   for (var, inputs) in (← read).solution do
     for input in inputs do
       specialiseConst var.function input

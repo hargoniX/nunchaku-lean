@@ -1,3 +1,8 @@
+module
+
+public import Nunchaku.Util.Pipeline
+public import Nunchaku.Util.NunchakuSyntax
+public import Nunchaku.Util.Model
 import Nunchaku.Transformation.Falsify
 import Nunchaku.Transformation.Skolemization
 import Nunchaku.Transformation.ElimLevels
@@ -6,14 +11,12 @@ import Nunchaku.Transformation.Monomorphization
 import Nunchaku.Transformation.Approximation
 import Nunchaku.Transformation.Elimination
 import Nunchaku.Transformation.Output
-import Nunchaku.Util.Pipeline
-import Nunchaku.Util.NunchakuSyntax
-import Nunchaku.Util.Model
+
 
 namespace Nunchaku
 namespace Transformation
 
-def pipeline : Pipeline Lean.MVarId NunProblem NunResult LeanResult :=
+public def pipeline : Pipeline Lean.MVarId NunProblem NunResult LeanResult :=
   .compose Falsify.transformation <|
   .compose ElimLevels.transformation <|
   .compose AbstractTypes.transformation <|

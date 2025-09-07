@@ -1,11 +1,16 @@
-import Lean.Expr
-import Lean.Message
+module
+
+public import Lean.Expr
+public import Lean.Message
+
 /-!
 This module contains the definition of a Nunchaku result, including the kind of models
 nunchaku is capable of returning.
 -/
 
 namespace Nunchaku
+
+public section
 
 inductive SolverResult (α : Type) where
   | unsat
@@ -27,5 +32,7 @@ instance : Lean.ToMessageData LeanResult where
     | .sat _ => "The prover found a counter example"
 
 end LeanResult
+
+end
 
 end Nunchaku

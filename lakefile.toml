@@ -5,6 +5,8 @@ testRunner = "Test"
 
 [[lean_lib]]
 name = "Test"
+leanOptions = { experimental.module = true }
 
 [[lean_lib]]
 name = "Nunchaku"
+leanOptions = { experimental.module = true }

@@ -1,11 +1,15 @@
-import Lean.Meta.Basic
-import Nunchaku.Util.TransforM
+module
+
+public import Lean.Meta.Basic
+public import Nunchaku.Util.TransforM
 
 namespace Nunchaku
 namespace Transformation
 namespace Monomorphization
 
 open Lean
+
+public section
 
 structure FlowVariable where
   function : Name
@@ -163,6 +167,8 @@ def getMonoArgPositions (const : Name) : MonoAnalysisM (Array Nat) := do
     modifyThe MonoAnalysisState fun s => { s with argPos := s.argPos.insert const positions }
 
     return positions
+
+end
 
 end Monomorphization
 end Transformation

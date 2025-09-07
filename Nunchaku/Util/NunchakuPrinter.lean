@@ -1,4 +1,6 @@
-import Nunchaku.Util.NunchakuSyntax
+module
+
+public import Nunchaku.Util.NunchakuSyntax
 
 /-!
 This module contains the implementation of the Nunchaku pretty printer, used to dump Nunchaku
@@ -9,17 +11,17 @@ namespace Nunchaku
 
 open Std
 
-private partial def NunType.format (typ : NunType) : Std.Format :=
+partial def NunType.format (typ : NunType) : Std.Format :=
   match typ with
   | .prop => "prop"
   | .type => "type"
   | .const name => name
   | .arrow lhs rhs => "(" ++ lhs.format ++ " -> " ++ rhs.format ++ ")"
 
-instance : ToFormat NunType where
-  format := NunType.format
+public instance : ToFormat NunType where
+  format := private NunType.format
 
-private def NunTerm.format (term : NunTerm) : Std.Format :=
+def NunTerm.format (term : NunTerm) : Std.Format :=
   match term with
   | .var id => idToVar id
   | .const name => name
@@ -60,29 +62,29 @@ private def NunTerm.format (term : NunTerm) : Std.Format :=
 where
   idToVar (id : Nat) : Format := s!"var{id}"
 
-instance : ToFormat NunTerm where
-  format := NunTerm.format
+public instance : ToFormat NunTerm where
+  format := private NunTerm.format
 
-instance : ToFormat NunCtorSpec where
-  format spec :=
+public instance : ToFormat NunCtorSpec where
+  format spec := private
     spec.arguments.foldl (init := .text spec.name) fun acc arg => acc ++ " " ++ ToFormat.format arg
 
-instance : ToFormat NunDataSpec where
-  format spec :=
+public instance : ToFormat NunDataSpec where
+  format spec := private
     let firstCtor := ToFormat.format spec.ctors[0]!
     let ctors : Format := spec.ctors.tail.foldl (init := firstCtor) fun acc ctor =>
       acc ++ .line ++ "| " ++ ToFormat.format ctor
     spec.name ++ " :=" ++ .nest 2 (.line ++ ctors)
 
-instance : ToFormat NunPropSpec where
-  format spec :=
+public instance : ToFormat NunPropSpec where
+  format spec := private
     let firstLaw := ToFormat.format spec.laws[0]!
     let laws : Format := spec.laws.tail.foldl (init := firstLaw) fun acc law =>
       acc ++ ";" ++ .line ++ ToFormat.format law
     spec.name ++ " : " ++ ToFormat.format spec.type ++ " :=" ++ .nest 2 (Format.line ++ laws)
 
-instance : ToFormat NunCommand where
-  format problem :=
+public instance : ToFormat NunCommand where
+  format problem := private
     match problem with
     | .valDecl name typ => s!"val {name} : " ++ ToFormat.format typ ++ "."
     | .dataDecl specs =>
@@ -106,11 +108,12 @@ instance : ToFormat NunCommand where
     | .axiomDecl type => "axiom " ++ ToFormat.format type ++ "."
     | .goalDecl type => "goal " ++ ToFormat.format type ++ "."
 
-instance : ToFormat NunProblem where
-  format problem :=
+public instance : ToFormat NunProblem where
+  format problem := private
     problem.commands.foldl (init := "") (fun init cmd => init ++ ToFormat.format cmd ++ .line)
 
-instance : ToString NunProblem where
-  toString problem := ToFormat.format problem |>.pretty
+public instance : ToString NunProblem where
+  toString problem := private
+    ToFormat.format problem |>.pretty
 
 end Nunchaku

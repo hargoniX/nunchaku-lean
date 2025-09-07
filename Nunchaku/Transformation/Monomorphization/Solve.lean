@@ -1,4 +1,6 @@
-import Nunchaku.Transformation.Monomorphization.Util
+module
+
+public import Nunchaku.Transformation.Monomorphization.Util
 
 namespace Nunchaku
 namespace Transformation
@@ -7,7 +9,7 @@ namespace Solve
 
 open Lean
 
-def constraintsSolvable (constraints : List FlowConstraint) : Bool :=
+public def constraintsSolvable (constraints : List FlowConstraint) : Bool :=
   -- TODO
   true
 
@@ -33,7 +35,7 @@ private structure SolveState where
 
 private abbrev SolveM := ReaderT SolveCtx <| StateM SolveState
 
-partial def solveConstraints (constraints : List FlowConstraint)
+public partial def solveConstraints (constraints : List FlowConstraint)
     (_h : constraintsSolvable constraints) :
     Std.HashMap FlowVariable (List GroundInput) := Id.run do
   let mut facts := {}

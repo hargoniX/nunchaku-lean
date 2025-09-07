@@ -1,14 +1,16 @@
-import Lean.Meta.Basic
+module
+
+public import Lean.Meta.Basic
+public import Lean.Meta.Tactic.FVarSubst
 import Lean.Meta.Tactic.Util
-import Lean.Meta.Tactic.FVarSubst
 
 namespace Nunchaku
 
 open Lean Meta
 
 @[inline]
-partial def mapLCtx [MonadControlT MetaM m] [MonadLiftT MetaM m] [MonadError m] [Monad m] (lctx : LocalContext)
-    (f : Expr → FVarSubst → m Expr) : m (LocalContext × FVarSubst) := do
+partial def mapLCtx [MonadControlT MetaM m] [MonadLiftT MetaM m] [MonadError m] [Monad m]
+    (lctx : LocalContext) (f : Expr → FVarSubst → m Expr) : m (LocalContext × FVarSubst) := do
   go 0 lctx {} f
 where
   @[specialize]
@@ -33,8 +35,8 @@ where
       return (newLCtx, subst)
 
 @[specialize f]
-def mapMVarId [MonadControlT MetaM m] [MonadLiftT MetaM m] [MonadError m] [MonadLCtx m] [Monad m]
-    (g : MVarId) (f : Expr → FVarSubst → m Expr) : m MVarId :=
+public def mapMVarId [MonadControlT MetaM m] [MonadLiftT MetaM m] [MonadError m] [MonadLCtx m]
+    [Monad m] (g : MVarId) (f : Expr → FVarSubst → m Expr) : m MVarId :=
   g.withContext do
     let (newLCtx, subst) ← mapLCtx (← getLCtx) f
     let newType ← f (← g.getType) subst

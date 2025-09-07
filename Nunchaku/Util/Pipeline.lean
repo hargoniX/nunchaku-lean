@@ -1,5 +1,7 @@
+module
+
 import Lean.Meta.Basic
-import Nunchaku.Util.TransforM
+public import Nunchaku.Util.TransforM
 
 /-!
 This module contains the definition of an abstract notion of a reduction pipeline.
@@ -8,6 +10,8 @@ This module contains the definition of an abstract notion of a reduction pipelin
 namespace Nunchaku
 
 open Lean
+
+public section
 
 structure TransformationInner (a b c d st : Type) where
   name : String
@@ -42,5 +46,7 @@ def run (pipe : Pipeline a b c d) (x : a) : TransforM (b × (c → TransforM d))
     return (transformed, fullBack)
 
 end Pipeline
+
+end
 
 end Nunchaku

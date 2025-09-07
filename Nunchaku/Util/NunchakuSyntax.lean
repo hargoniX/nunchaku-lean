@@ -1,3 +1,5 @@
+module
+
 /-!
 This module contains the AST for Nunchaku problems. Note that the specific fragment of Nunchaku
 we are targeting is already fully monomorphized so there is no need to account for things like
@@ -5,6 +7,8 @@ generic types.
 -/
 
 namespace Nunchaku
+
+public section
 
 inductive NunType where
   | prop
@@ -175,5 +179,7 @@ structure NunProblem where
   -/
   commands : List NunCommand
   deriving Inhabited, Repr
+
+end
 
 end Nunchaku

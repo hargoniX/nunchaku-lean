@@ -1,8 +1,10 @@
-import Nunchaku.Util.Pipeline
-import Nunchaku.Util.NunchakuSyntax
+module
+
+public import Nunchaku.Util.Pipeline
+public import Nunchaku.Util.NunchakuSyntax
+public import Nunchaku.Util.Model
 import Nunchaku.Util.NunchakuBuilder
 import Nunchaku.Util.NunchakuPrinter
-import Nunchaku.Util.Model
 
 /-!
 This module contains the transformation for turning a monomorphized and dependently typed eliminated
@@ -15,14 +17,14 @@ namespace Output
 
 open Lean
 
-private inductive LeanIdentifier where
+inductive LeanIdentifier where
   | goal
   | assumption (fvar : FVarId)
   | const (name : Name)
   | proj (struct : Name) (idx : Nat)
   deriving BEq, Hashable, Repr, Inhabited
 
-private structure OutputContext where
+structure OutputContext where
   /--
   Identifies which part of the Lean context we are currently in to track dependencies
   -/
@@ -32,7 +34,7 @@ private structure OutputContext where
   -/
   goal : MVarId
 
-private structure OutputState where
+structure OutputState where
   /--
   If `id2 ∈ dependencies[id1]` then the commands of `id2` need to come before the ones of `id1`
   in the final Nunchaku problem.
@@ -56,30 +58,30 @@ private structure OutputState where
   idCounter : Nat := 0
 
 
-private abbrev OutputM := ReaderT OutputContext <| StateRefT OutputState TransforM
+abbrev OutputM := ReaderT OutputContext <| StateRefT OutputState TransforM
 
-private def withCurrentIdent (id : LeanIdentifier) (x : OutputM α) : OutputM α :=
+def withCurrentIdent (id : LeanIdentifier) (x : OutputM α) : OutputM α :=
   withReader (fun ctx => { ctx with currentIdent := id }) do
     x
 
-private def getCurrentIdent : OutputM LeanIdentifier := return (← read).currentIdent
+def getCurrentIdent : OutputM LeanIdentifier := return (← read).currentIdent
 
-private def isVisited (id : LeanIdentifier) : OutputM Bool := return (← get).visited.contains id
-private def markVisited (id : LeanIdentifier) : OutputM Unit :=
+def isVisited (id : LeanIdentifier) : OutputM Bool := return (← get).visited.contains id
+def markVisited (id : LeanIdentifier) : OutputM Unit :=
   modify fun s => { s with
     visited := s.visited.insert id,
     dependencies := s.dependencies.alter id (some <| Option.getD · []),
     commands := s.commands.alter id (some <| Option.getD · []),
   }
 
-private def addCommand (cmd : NunCommand) : OutputM Unit := do
+def addCommand (cmd : NunCommand) : OutputM Unit := do
   let id ← getCurrentIdent
   let alter
     | none => some [cmd]
     | some cmds => some (cmd :: cmds)
   modify fun s => { s with commands := s.commands.alter id alter }
 
-private def addCommands (cmds : List NunCommand) : OutputM Unit := do
+def addCommands (cmds : List NunCommand) : OutputM Unit := do
   let id ← getCurrentIdent
   let alter
     | none => some cmds
@@ -100,7 +102,7 @@ def addDepTo (ident : LeanIdentifier) : OutputM Unit := do
 def freshNunId : OutputM Nat := do
   modifyGet fun s => (s.idCounter, { s with idCounter := s.idCounter + 1})
 
-private partial def OutputM.run (idents : List LeanIdentifier) (goal : MVarId) (handle : OutputM Unit) :
+partial def OutputM.run (idents : List LeanIdentifier) (goal : MVarId) (handle : OutputM Unit) :
     TransforM OutputState := do
   let (_, st) ← StateRefT'.run (ReaderT.run go { currentIdent := .goal, goal }) { worklist := idents }
   return st
@@ -116,7 +118,7 @@ where
     else
       return ()
 
-private def mangleName (name : Lean.Name) : String := Id.run do
+def mangleName (name : Lean.Name) : String := Id.run do
   let comps := name.components.map (fun c => c.toString.replace "_" "__")
   let base := "l_" ++ String.intercalate "_" comps
   let mut out := ""
@@ -128,10 +130,10 @@ private def mangleName (name : Lean.Name) : String := Id.run do
       out := out ++ s!"u{num}"
   return out
 
-private def mangleAssumptionName (fvarId : FVarId) : MetaM String := do
+def mangleAssumptionName (fvarId : FVarId) : MetaM String := do
   return mangleName (← fvarId.getUserName)
 
-private partial def encodeType (expr : Lean.Expr) : OutputM NunType := do
+partial def encodeType (expr : Lean.Expr) : OutputM NunType := do
   let expr := (← instantiateMVars expr).consumeMData
   go expr
 where
@@ -167,10 +169,10 @@ where
       let encodedOutType ← encodeOutType output
       return .ofList (encodedArgsTypes.toList ++ [encodedOutType]) (by simp)
 
-private def getProjName (struct : Name) (idx : Nat) : String :=
+def getProjName (struct : Name) (idx : Nat) : String :=
   mangleName <| Name.str struct s!"proj_{idx}"
 
-private partial def encodeTerm (expr : Lean.Expr) : OutputM NunTerm := do
+partial def encodeTerm (expr : Lean.Expr) : OutputM NunTerm := do
   let expr ← instantiateMVars expr
   go expr {}
 where
@@ -266,7 +268,7 @@ where
       return .app (.const projName) (← go struct locals)
     | _ => throwError m!"Don't know how to encode term {expr}"
 
-private def arrowN (n : Nat) (type : Expr) : MetaM (Array Expr × Expr) :=
+def arrowN (n : Nat) (type : Expr) : MetaM (Array Expr × Expr) :=
   Meta.forallBoundedTelescope type n fun xs out => do
     unless xs.size = n do
       throwError "type {type} does not have {n} parameters"
@@ -277,11 +279,11 @@ private def arrowN (n : Nat) (type : Expr) : MetaM (Array Expr × Expr) :=
     return (types, out)
 
 
-private def encodePredCtor (ctor : Name) : OutputM NunTerm := do
+def encodePredCtor (ctor : Name) : OutputM NunTerm := do
   let info ← getConstInfoCtor ctor
   encodeTerm info.type
 
-private def encodeDataCtor (ctor : Name) : OutputM NunCtorSpec := do
+def encodeDataCtor (ctor : Name) : OutputM NunCtorSpec := do
   let info ← getConstInfoCtor ctor
   if info.numParams != 0 then
     throwError "Inductive data type should be fully monomorphic at this point"
@@ -293,7 +295,7 @@ private def encodeDataCtor (ctor : Name) : OutputM NunCtorSpec := do
 /--
 Transfers all dependencies of `orig` to `new` and makes `orig` depend on `new` only.
 -/
-private def transferDeps (orig : LeanIdentifier) (new : LeanIdentifier) : OutputM Unit := do
+def transferDeps (orig : LeanIdentifier) (new : LeanIdentifier) : OutputM Unit := do
   let origDeps := (← get).dependencies.getD orig []
 
   let alterOrig := fun _ => some [new]
@@ -302,7 +304,7 @@ private def transferDeps (orig : LeanIdentifier) (new : LeanIdentifier) : Output
   let alterNew := fun currDeps => some (origDeps ++ currDeps.getD [])
   modify fun s => { s with dependencies := s.dependencies.alter new alterNew }
 
-private def encodeDataType (val : InductiveVal) : OutputM Unit := do
+def encodeDataType (val : InductiveVal) : OutputM Unit := do
   let mutualTypes := val.all
   let rootType ← getCurrentIdent
   let encodedTypes ← mutualTypes.mapM fun typ => do
@@ -328,7 +330,7 @@ private def encodeDataType (val : InductiveVal) : OutputM Unit := do
   modify fun s => { s with dependencies := s.dependencies.alter rootType alterRoot }
   addCommand <| .dataDecl encodedTypes
 
-private def encodeIndPredicate (val : InductiveVal) : OutputM Unit := do
+def encodeIndPredicate (val : InductiveVal) : OutputM Unit := do
   let mutualTypes := val.all
   let rootType ← getCurrentIdent
   let encodedTypes ← mutualTypes.mapM fun typ => do
@@ -362,7 +364,7 @@ private def encodeIndPredicate (val : InductiveVal) : OutputM Unit := do
   modify fun s => { s with dependencies := s.dependencies.alter rootType alterRoot }
   addCommand <| .predDecl encodedTypes
 
-private def encodeProj (structName : Name) (idx : Nat) : OutputM Unit := do
+def encodeProj (structName : Name) (idx : Nat) : OutputM Unit := do
   addDepTo (.const structName)
   let inductInfo ← getConstInfoInduct structName
   assert! inductInfo.ctors.length == 1
@@ -380,7 +382,7 @@ private def encodeProj (structName : Name) (idx : Nat) : OutputM Unit := do
     addCommand <| .recDecl
       [{ name := getProjName structName idx, type := encodedType, laws := [encodedLaw] }]
 
-private def LeanIdentifier.encode : OutputM Unit := do
+def LeanIdentifier.encode : OutputM Unit := do
   match (← getCurrentIdent) with
   | .goal =>
     let statement ← (← read).goal.getType
@@ -445,14 +447,14 @@ private def LeanIdentifier.encode : OutputM Unit := do
     | .quotInfo _ => throwError "Cannot handle quotients"
   | .proj structName idx => encodeProj structName idx
 
-private structure TopoContext where
+structure TopoContext where
   deps : Std.HashMap LeanIdentifier (List LeanIdentifier)
   cmds : Std.HashMap LeanIdentifier (List NunCommand)
 
-private abbrev TopoM :=
+abbrev TopoM :=
   ReaderT TopoContext <| StateT (Std.HashMap LeanIdentifier Bool) <| Except String
 
-private partial def OutputState.toProblem (state : OutputState) : Except String NunProblem :=
+partial def OutputState.toProblem (state : OutputState) : Except String NunProblem :=
   let deps := state.dependencies
   let cmds := state.commands
   let worklist := state.dependencies.keys
@@ -485,7 +487,7 @@ where
     modify fun s => s.insert elem true
     return acc ++ (← read).cmds[elem]!
 
-def transformation : Transformation Lean.MVarId NunProblem NunResult LeanResult where
+public def transformation : Transformation Lean.MVarId NunProblem NunResult LeanResult where
   st := Unit
   inner := {
     name := "Output"
