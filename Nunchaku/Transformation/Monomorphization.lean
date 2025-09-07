@@ -462,6 +462,7 @@ structure SpecializeContext where
 structure SpecializeState where
   newEquations : Std.HashMap Name (List Expr) := {}
   specialisationCache : Std.HashMap (FlowVariable × GroundInput) Name := {}
+  nameIdx : Nat := 0
 
 private abbrev SpecializeM := ReaderT SpecializeContext <| StateRefT SpecializeState MonoAnalysisM
 
@@ -487,6 +488,11 @@ where
 
   replaceParams (l : Level) (map : Std.HashMap Name Level) : Level :=
     l.substParams (fun p => some map[p]!)
+
+private def mkFreshSpecName (name : Name) : SpecializeM Name := do
+  let idx := (← get).nameIdx
+  modify fun s => { s with nameIdx := s.nameIdx + 1}
+  return Name.str name s!"spec_{idx}"
 
 private partial def specialize (g : MVarId) : SpecializeM MVarId := do
   for (var, inputs) in (← read).solution do
@@ -667,7 +673,7 @@ where
       return ()
     else
       -- TODO: better name generator
-      let specName ← mkFreshUserName name
+      let specName ← mkFreshSpecName name
       modify fun s =>
         { s with specialisationCache := s.specialisationCache.insert (flow, input) specName }
 
