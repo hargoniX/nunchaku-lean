@@ -56,7 +56,7 @@ private def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) :=
             continue
           worklist := worklist.push name
     else
-      let used := constInfo.type.getUsedConstantsAsSet
+      let used := constInfo.getUsedConstantsAsSet
       for name in used do
         if visited.contains name || isBuiltin name then
           continue

@@ -163,3 +163,14 @@ set_option trace.nunchaku true in
 example (xs : List α) (h : xs = []) : MyAll (fun _ => False) xs := by
   nunchaku
   -/
+
+/-
+TODO: times out
+inductive MyEven : Nat → Prop where
+  | zero : MyEven Nat.zero
+  | succ : MyEven n → MyEven (Nat.zero.succ.succ + n)
+
+set_option trace.nunchaku true in
+example (n : Nat) : MyEven n := by nunchaku
+-/
+
