@@ -19,6 +19,7 @@ private inductive LeanIdentifier where
   | goal
   | assumption (fvar : FVarId)
   | const (name : Name)
+  | proj (struct : Name) (idx : Nat)
   deriving BEq, Hashable, Repr, Inhabited
 
 private structure OutputContext where
@@ -166,6 +167,9 @@ where
       let encodedOutType ← encodeOutType output
       return .ofList (encodedArgsTypes.toList ++ [encodedOutType]) (by simp)
 
+private def getProjName (struct : Name) (idx : Nat) : String :=
+  mangleName <| Name.str struct s!"proj_{idx}"
+
 private partial def encodeTerm (expr : Lean.Expr) : OutputM NunTerm := do
   let expr ← instantiateMVars expr
   go expr {}
@@ -256,8 +260,10 @@ where
         let encodedBody ← go body locals
         return .let argId encodedValue encodedBody
     | .mdata _ e => go e locals
-    -- TODO
-    | .proj .. => throwError "Missing support for projections"
+    | .proj structName idx struct =>
+      addDepTo (.proj structName idx)
+      let projName := getProjName structName idx
+      return .app (.const projName) (← go struct locals)
     | _ => throwError m!"Don't know how to encode term {expr}"
 
 private def arrowN (n : Nat) (type : Expr) : MetaM (Array Expr × Expr) :=
@@ -356,6 +362,24 @@ private def encodeIndPredicate (val : InductiveVal) : OutputM Unit := do
   modify fun s => { s with dependencies := s.dependencies.alter rootType alterRoot }
   addCommand <| .predDecl encodedTypes
 
+private def encodeProj (structName : Name) (idx : Nat) : OutputM Unit := do
+  addDepTo (.const structName)
+  let inductInfo ← getConstInfoInduct structName
+  assert! inductInfo.ctors.length == 1
+  let ctor := inductInfo.ctors[0]!
+  let ctorInfo ← getConstInfoCtor ctor
+  Meta.forallTelescope ctorInfo.type fun args out => do
+    let field := args[idx]!
+    let lhs := .proj structName idx (mkAppN (.const ctor []) args)
+    let rhs := field
+    let eq ← Meta.mkEq lhs rhs
+    let law ← Meta.mkForallFVars args eq
+    let type ← mkArrow out (← field.fvarId!.getType)
+    let encodedLaw ← encodeTerm law
+    let encodedType ← encodeType type
+    addCommand <| .recDecl
+      [{ name := getProjName structName idx, type := encodedType, laws := [encodedLaw] }]
+
 private def LeanIdentifier.encode : OutputM Unit := do
   match (← getCurrentIdent) with
   | .goal =>
@@ -419,6 +443,7 @@ private def LeanIdentifier.encode : OutputM Unit := do
       trace[nunchaku.output] m!"Ignoring {val.name} as it should be irrelevant"
       return ()
     | .quotInfo _ => throwError "Cannot handle quotients"
+  | .proj structName idx => encodeProj structName idx
 
 private structure TopoContext where
   deps : Std.HashMap LeanIdentifier (List LeanIdentifier)

@@ -348,7 +348,8 @@ where
         collectExpr body
     | .mdata _ e => collectExpr e
     | .proj _ _ struct =>
-      -- TODO: Maybe we have to collect in the inferred type of `struct`?
+      let structTy ← Meta.inferType struct
+      collectExpr structTy
       collectExpr struct
     | .lit .. | .sort .. | .fvar .. | .bvar .. | .mvar .. => return ()
 
@@ -625,7 +626,13 @@ where
           let newBody ← specialiseExpr body (subst.insert fvarId replacedArg)
           Meta.mkLetFVars #[replacedArg] newBody
     | .mdata _ e => specialiseExpr e subst
-    | .proj _ _ _ => throwError m!"Don't know how to specialise projection {expr}"
+    | .proj typeName idx struct =>
+      let structType ← Meta.inferType struct
+      let specialisedType ← specialiseExpr structType subst
+      let .const specialisedName [] := specialisedType | throwError m!"Cannot specialise {expr}"
+      let specialisedStruct ← specialiseExpr struct subst
+      -- Specialisation currently only modifies parameters -> proj indices are unaffected
+      return .proj specialisedName idx specialisedStruct
     | .fvar .. => return subst.apply expr
     | .lit .. | .sort .. | .bvar .. | .mvar .. => return expr
 
@@ -659,11 +666,12 @@ where
     if (← get).specialisationCache.contains (flow, input) then
       return ()
     else
-      let specName ← mkAuxDeclName name
+      -- TODO: better name generator
+      let specName ← mkFreshUserName name
       modify fun s =>
         { s with specialisationCache := s.specialisationCache.insert (flow, input) specName }
 
-    trace[nunchaku.mono] m!"Specialising {name} for {input}"
+      trace[nunchaku.mono] m!"Specialising {name} for {input} as {specName}"
 
     let info ← getConstInfo name
     match info with

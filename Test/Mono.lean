@@ -33,7 +33,6 @@ set_option trace.nunchaku true in
 example (xs : List (List α)) : xs.map id ≠ xs := by
   nunchaku
 
--- TODO: fix this
 set_option trace.nunchaku true in
 example (xs : List (List α)) : xs.map (·.map id) ≠ xs := by
   nunchaku
@@ -49,6 +48,10 @@ def sumalt' : List Nat → Nat :=
   List.foldr (· + ·) .zero
 
 set_option trace.nunchaku true in
+example (x y : Nat) : x + y ≠ x := by
+  nunchaku
+
+set_option trace.nunchaku true in
 example (xs : List Nat) (h : xs ≠ []) : sumalt' xs ≠ .zero := by
   nunchaku
 
@@ -58,7 +61,8 @@ set_option trace.nunchaku true in
 example (xs : List α) : foo xs = id xs := by
   nunchaku
 
-example (xs : List α) (h : xs = []) : xs.all f = false := by nunchaku
+example (xs : List α) (h : xs = []) : xs.all f = false := by
+  nunchaku
 
 inductive MyAll {α : Type} (p : α → Prop) : List α → Prop where
   | nil : MyAll p []
