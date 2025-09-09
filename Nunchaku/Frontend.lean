@@ -4,6 +4,7 @@ public import Lean.Meta.Basic
 public import Nunchaku.Attr
 public meta import Nunchaku.Util.Model
 import Nunchaku.Transformation
+meta import Nunchaku.Transformation
 import Nunchaku.Util.NunchakuPrinter
 import Lean.Elab.Tactic.BVDecide.External
 
