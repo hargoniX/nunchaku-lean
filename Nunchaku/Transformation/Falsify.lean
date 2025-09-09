@@ -1,5 +1,7 @@
-import Nunchaku.Util.Pipeline
-import Nunchaku.Util.Model
+module
+
+public import Nunchaku.Util.Pipeline
+public import Nunchaku.Util.Model
 
 /-!
 This module contains the transformation for negating the goal should that be necessary.
@@ -9,9 +11,9 @@ namespace Nunchaku
 namespace Transformation
 namespace Falsify
 
-def transformation : Transformation Lean.MVarId Lean.MVarId LeanResult LeanResult where
-  st := Unit
-  inner := {
+public def transformation : Transformation Lean.MVarId Lean.MVarId LeanResult LeanResult where
+  st := private Unit
+  inner := private {
     name := "Falsify"
     encode g := g.withContext do
       if (← read).falsify then

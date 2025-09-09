@@ -1,8 +1,12 @@
-import Lean
-import Nunchaku.Attr
+module
+
+public import Lean.Meta.Basic
+public import Nunchaku.Attr
+public meta import Nunchaku.Util.Model
 import Nunchaku.Transformation
-import Nunchaku.Util.Model
+meta import Nunchaku.Transformation
 import Nunchaku.Util.NunchakuPrinter
+import Lean.Elab.Tactic.BVDecide.External
 
 /-!
 This module contains the main entry point to the nunchaku tactic.
@@ -12,7 +16,7 @@ namespace Nunchaku
 
 open Lean Elab Tactic
 
-private def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
+def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
     MetaM NunResult := do
   IO.FS.withTempFile fun nunHandle nunPath => do
     withTraceNode `nunchaku.solver (fun _ => return "Serializing Nunchaku Problem") do
@@ -56,7 +60,7 @@ private def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
         else
           throwError s!"The external prover produced unexpected output, stdout:\n{stdout}stderr:\n{stderr}"
 
-def runNunchaku (g : MVarId) (cfg : NunchakuConfig) : MetaM LeanResult := do
+public def runNunchaku (g : MVarId) (cfg : NunchakuConfig) : MetaM LeanResult := do
   TransforM.run g cfg do
     withoutModifyingEnv do
       let (problem, back) ←
@@ -69,7 +73,7 @@ def runNunchaku (g : MVarId) (cfg : NunchakuConfig) : MetaM LeanResult := do
         back res
 
 @[tactic nunchakuStx]
-def evalNunchaku : Tactic
+public meta def evalNunchaku : Tactic
   | `(tactic| nunchaku $cfg:optConfig) => do
     let cfg ← elabNunchakuConfig cfg
     let res ← runNunchaku (← getMainGoal) cfg

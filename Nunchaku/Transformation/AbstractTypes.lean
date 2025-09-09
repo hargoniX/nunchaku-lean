@@ -1,5 +1,7 @@
-import Nunchaku.Util.Pipeline
-import Nunchaku.Util.Model
+module
+
+public import Nunchaku.Util.Pipeline
+public import Nunchaku.Util.Model
 
 /-!
 This module contains the transformation for abstracting free variables that are type formers into
@@ -12,9 +14,9 @@ namespace AbstractTypes
 
 open Lean
 
-def transformation : Transformation Lean.MVarId Lean.MVarId LeanResult LeanResult where
-  st := Unit
-  inner := {
+public def transformation : Transformation Lean.MVarId Lean.MVarId LeanResult LeanResult where
+  st := private Unit
+  inner := private {
     name := "Abstract Types"
     encode g := g.withContext do
       let mut subst : Std.HashMap FVarId Expr := {}
