@@ -183,6 +183,7 @@ def collectMVar (g : MVarId) : CollectM Unit := do
         let insertVars flowFVars :=
           flowArgs.foldl (init := flowFVars) (fun acc (fvar, flow) => acc.insert fvar flow)
         withReader (fun (ctx : CollectCtx) => { ctx with flowFVars := insertVars ctx.flowFVars }) do
+          -- TODO: this is probably a no-op, args are fvar and we ignore fvar
           args.forM collectExpr
           collectExpr rhs
 
