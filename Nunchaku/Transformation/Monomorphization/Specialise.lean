@@ -17,6 +17,7 @@ public structure SpecializeState where
   newEquations : Std.HashMap Name (List Expr) := {}
   specialisationCache : Std.HashMap (FlowVariable × GroundInput) Name := {}
   nameIdx : Nat := 0
+  exprCache : Std.HashMap Expr Expr := {}
 
 public abbrev SpecializeM := ReaderT SpecializeContext <| StateRefT SpecializeState MonoAnalysisM
 
@@ -106,6 +107,14 @@ def specialisedCtorName (inductSpecName : Name) (ctorName : Name) : MetaM Name :
 mutual
 
 partial def specialiseExpr (expr : Expr) (subst : Meta.FVarSubst) : SpecializeM Expr := do
+  if let some cached := (← get).exprCache[expr]? then
+    return cached
+  else
+    let finishedExpr ← specialiseExprRaw expr subst
+    modify fun s => { s with exprCache := s.exprCache.insert expr finishedExpr }
+    return finishedExpr
+
+partial def specialiseExprRaw (expr : Expr) (subst : Meta.FVarSubst) : SpecializeM Expr := do
   match expr with
   | .const const us =>
     if TransforM.isBuiltin const then

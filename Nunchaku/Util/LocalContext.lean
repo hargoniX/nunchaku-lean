@@ -10,7 +10,8 @@ open Lean Meta
 
 @[inline]
 partial def mapLCtx [MonadControlT MetaM m] [MonadLiftT MetaM m] [MonadError m] [Monad m]
-    (lctx : LocalContext) (f : Expr → FVarSubst → m Expr) : m (LocalContext × FVarSubst) := do
+    (lctx : LocalContext) (f : Expr → FVarSubst → m Expr) (processLetDecl : Bool) :
+    m (LocalContext × FVarSubst) := do
   go 0 lctx {} f
 where
   @[specialize]
@@ -26,8 +27,13 @@ where
           let newType ← f decl.type subst
           withLocalDecl decl.userName decl.binderInfo newType fun newDecl =>
             go (idx + 1) oldLCtx (subst.insert decl.fvarId newDecl) f
-      | some (.ldecl ..) =>
-        throwError m!"Let decls not supported"
+      | some decl@(.ldecl ..) =>
+        if decl.isLet && !processLetDecl then
+          throwError m!"Let decls not supported"
+        else
+          let newType ← f decl.type subst
+          withLocalDecl decl.userName decl.binderInfo newType fun newDecl =>
+            go (idx + 1) oldLCtx (subst.insert decl.fvarId newDecl) f
       | none => go (idx + 1) oldLCtx subst f
     else
       let lctx ← (getLCtx (m := MetaM))
@@ -36,9 +42,9 @@ where
 
 @[specialize f]
 public def mapMVarId [MonadControlT MetaM m] [MonadLiftT MetaM m] [MonadError m] [MonadLCtx m]
-    [Monad m] (g : MVarId) (f : Expr → FVarSubst → m Expr) : m MVarId :=
+    [Monad m] (g : MVarId) (f : Expr → FVarSubst → m Expr) (processLetDecl : Bool := false) : m MVarId :=
   g.withContext do
-    let (newLCtx, subst) ← mapLCtx (← getLCtx) f
+    let (newLCtx, subst) ← mapLCtx (← getLCtx) f processLetDecl
     let newType ← f (← g.getType) subst
     Meta.withLCtx' newLCtx do
       let g := (← Lean.Meta.mkFreshExprMVar newType).mvarId!

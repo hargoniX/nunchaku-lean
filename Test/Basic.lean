@@ -68,6 +68,35 @@ n : Nat
 example (n : Nat) : n ≠ n.succ := by nunchaku
 
 
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+n : Nat
+⊢ let m := n + Nat.zero.succ;
+  m = n
+-/
+#guard_msgs in
+example (n : Nat) :
+    let m := n + (.succ .zero)
+    m = n := by
+  nunchaku
+
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+n : Nat
+m : Nat := n + Nat.zero.succ
+⊢ m = n
+-/
+#guard_msgs in
+example (n : Nat) :
+    let m := n + (.succ .zero)
+    m = n := by
+  intro m
+  nunchaku
+
 /-
 namespace Mutual
 

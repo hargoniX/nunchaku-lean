@@ -23,8 +23,6 @@ public def transformation : Transformation Lean.MVarId Lean.MVarId LeanResult Le
       for decl in ← getLCtx do
         if decl.isImplementationDetail then
           continue
-        if decl.isLet then
-          throwError "Unsupported: let decls"
         let fvar := decl.fvarId
         if (← fvar.getType) matches .sort (.succ ..) then
           trace[nunchaku.abstract] m!"Going to abstract {mkFVar fvar}"

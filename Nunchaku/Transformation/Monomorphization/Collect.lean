@@ -14,6 +14,7 @@ structure CollectCtx where
 
 structure CollectState where
   constraints : Std.HashSet FlowConstraint := {}
+  seen : Std.HashSet Expr := {}
 
 abbrev CollectM := ReaderT CollectCtx <| StateRefT CollectState MonoAnalysisM
 
@@ -44,6 +45,11 @@ def addConstraint (flowVariable : FlowVariable) (input : FlowInput) : CollectM U
       return ()
   let constr := ⟨input, flowVariable⟩
   modify fun s => { s with constraints := s.constraints.insert constr }
+
+def alreadyVisited (e : Expr) : CollectM Bool := do
+  modifyGet fun { constraints, seen } =>
+    let (fresh, seen) := seen.containsThenInsert e
+    (fresh, { constraints, seen })
 
 partial def flowTypeOfExpr (expr : Expr) : CollectM FlowTypeArg := do
     match expr with
@@ -76,6 +82,8 @@ partial def flowTypeOfExpr (expr : Expr) : CollectM FlowTypeArg := do
       throwError m!"Can't interpret {expr} as a flow type"
 
 partial def collectExpr (expr : Expr) : CollectM Unit := do
+  if ← alreadyVisited expr then
+    return ()
   match expr with
   | .const const .. =>
     if TransforM.isBuiltin const then
@@ -157,7 +165,6 @@ def collectMVar (g : MVarId) : CollectM Unit := do
   for decl in ← getLCtx do
     if decl.isImplementationDetail then
       continue
-    if decl.isLet then throwError "Let declarations not supported"
     trace[nunchaku.mono] m!"Collecting constraints for {mkFVar decl.fvarId}"
     collectFVar decl.fvarId
 

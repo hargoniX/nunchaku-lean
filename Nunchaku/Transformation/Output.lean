@@ -496,7 +496,6 @@ public def transformation : Transformation Lean.MVarId NunProblem NunResult Lean
       for decl in ← getLCtx do
         if decl.isImplementationDetail then
           continue
-        if decl.isLet then throwError "Let declarations not supported"
         idents := .assumption decl.fvarId :: idents
       let state ← OutputM.run idents g LeanIdentifier.encode
       let problem ← IO.ofExcept state.toProblem

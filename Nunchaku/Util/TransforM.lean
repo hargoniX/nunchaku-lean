@@ -47,8 +47,7 @@ def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) := do
       continue
     visited := visited.insert elem
     let constInfo ← getConstInfo elem
-    -- HACK
-    if constInfo.isDefinition && elem != ``rfl then
+    if constInfo.isDefinition then
       let some eqns ← getEqnsFor? elem | throwError s!"Unable to find equations for {mkConst elem}"
       let eqns ← eqns.mapM fun eq => do inferType (← mkConstWithLevelParams eq)
       defs := defs.insert elem eqns.toList
@@ -72,9 +71,7 @@ where
     for decl in ← getLCtx do
       if decl.isImplementationDetail then
         continue
-      if decl.isLet then
-        throwError "Unsupported: let decls"
-      used := used ++ decl.type.getUsedConstants
+      used := used ++ decl.type.getUsedConstants ++ (decl.value?.map Expr.getUsedConstants).getD #[]
     return used
 
 public def run (g : MVarId) (cfg : NunchakuConfig) (x : TransforM α) : MetaM α := do
