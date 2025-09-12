@@ -6,3 +6,4 @@ public import Nunchaku.Util.NunchakuBuilder
 public import Nunchaku.Util.NunchakuPrinter
 public import Nunchaku.Util.Model
 public import Nunchaku.Util.TransforM
+public import Nunchaku.Util.AddDecls

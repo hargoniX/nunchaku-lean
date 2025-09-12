@@ -86,7 +86,7 @@ public def run (g : MVarId) (cfg : NunchakuConfig) (x : TransforM α) : MetaM α
 
 
 -- Our own sorry to avoid printing "this theorem relies on sorry"
-axiom sorryAx (α : Sort u) : α
+public axiom sorryAx (α : Sort u) : α
 
 public def mkSorry (type : Expr) : MetaM Expr := do
   let u ← getLevel type
