@@ -14,7 +14,8 @@ structure CollectCtx where
 
 structure CollectState where
   constraints : Std.HashSet FlowConstraint := {}
-  seen : Std.HashSet Expr := {}
+  seenExpr : Std.HashSet Expr := {}
+  seenConst : Std.HashSet Name := {}
 
 abbrev CollectM := ReaderT CollectCtx <| StateRefT CollectState MonoAnalysisM
 
@@ -46,10 +47,15 @@ def addConstraint (flowVariable : FlowVariable) (input : FlowInput) : CollectM U
   let constr := ⟨input, flowVariable⟩
   modify fun s => { s with constraints := s.constraints.insert constr }
 
-def alreadyVisited (e : Expr) : CollectM Bool := do
-  modifyGet fun { constraints, seen } =>
-    let (fresh, seen) := seen.containsThenInsert e
-    (fresh, { constraints, seen })
+def alreadyVisitedExpr (e : Expr) : CollectM Bool := do
+  modifyGet fun { constraints, seenExpr, seenConst } =>
+    let (fresh, seenExpr) := seenExpr.containsThenInsert e
+    (fresh, { constraints, seenExpr, seenConst })
+
+def alreadyVisitedConst (c : Name) : CollectM Bool := do
+  modifyGet fun { constraints, seenExpr, seenConst } =>
+    let (fresh, seenConst) := seenConst.containsThenInsert c
+    (fresh, { constraints, seenExpr, seenConst })
 
 partial def flowTypeOfExpr (expr : Expr) : CollectM FlowTypeArg := do
     match expr with
@@ -81,8 +87,76 @@ partial def flowTypeOfExpr (expr : Expr) : CollectM FlowTypeArg := do
     | .proj .. | .lit .. | .sort .. | .bvar .. | .mvar .. | .forallE .. | .letE .. | .lam .. =>
       throwError m!"Can't interpret {expr} as a flow type"
 
+mutual
+
+partial def collectConstType (info : ConstantVal) : CollectM Unit := do
+  Meta.forallTelescope info.type fun args out => do
+    let positions ← getMonoArgPositions info.name
+    let flowArgs := positions.map (fun pos => (args[pos]!.fvarId!, .index ⟨info.name⟩ pos))
+    let insertVars flowFVars :=
+      flowArgs.foldl (init := flowFVars) (fun acc (fvar, flow) => acc.insert fvar flow)
+    withReader (fun (ctx : CollectCtx) => { ctx with flowFVars := insertVars ctx.flowFVars }) do
+      args.forM fun arg => do
+        let type ← arg.fvarId!.getType
+        collectExpr type
+      collectExpr out
+
+partial def collectConst (const : Name) : CollectM Unit := do
+  if ← alreadyVisitedConst const then
+    return ()
+  match ← getConstInfo const with
+  | .inductInfo info =>
+    collectConstType info.toConstantVal
+    let inductPositions ← getMonoArgPositions const
+    for ctor in info.ctors do
+      -- If we introduce existentials this constraint needs to change
+      addConstraint ⟨const⟩ (.var ⟨ctor⟩)
+      let info ← getConstVal ctor
+      Meta.forallTelescope info.type fun args out => do
+        let positions ← getMonoArgPositions ctor
+        if positions.size != inductPositions.size then
+          throwError m!"Cannot monomorphise existential types in {ctor}"
+        -- TODO: consider deduplication with collectConstType
+        let flowArgs := positions.map (fun pos => (args[pos]!.fvarId!, .index ⟨ctor⟩ pos))
+        let insertVars flowFVars :=
+          flowArgs.foldl (init := flowFVars) (fun acc (fvar, flow) => acc.insert fvar flow)
+        withReader (fun (ctx : CollectCtx) => { ctx with flowFVars := insertVars ctx.flowFVars }) do
+          args.forM fun arg => do
+            let type ← arg.fvarId!.getType
+            collectExpr type
+          collectExpr out
+  | .defnInfo info =>
+    collectConstType info.toConstantVal
+    let positions ← getMonoArgPositions const
+    for eq in ← TransforM.getEquationsFor const do
+      Meta.forallTelescope eq fun args body => do
+        let some (_, lhs, rhs) := body.eq? | throwError m!"Equation is malformed: {eq}"
+        let (fn, fnArgs) := lhs.getAppFnArgs
+        assert! fn == const
+        let mut flowArgs := #[]
+        for pos in positions do
+          let fnArg := fnArgs[pos]!
+          if !fnArg.isFVar then
+            throwError m!"Equation lhs contains non fvar type argument: {eq}"
+          flowArgs := flowArgs.push (fnArg.fvarId!, .index ⟨const⟩ pos)
+
+        let insertVars flowFVars :=
+          flowArgs.foldl (init := flowFVars) (fun acc (fvar, flow) => acc.insert fvar flow)
+        withReader (fun (ctx : CollectCtx) => { ctx with flowFVars := insertVars ctx.flowFVars }) do
+          fnArgs.forM collectExpr
+          args.forM fun arg => do
+            let type ← arg.fvarId!.getType
+            collectExpr type
+          collectExpr rhs
+  | .axiomInfo info => collectConstType info.toConstantVal
+  | .opaqueInfo info => collectConstType info.toConstantVal
+  | .ctorInfo info => collectConst info.induct
+  | .recInfo .. | .quotInfo .. | .thmInfo .. =>
+    throwError m!"Cannot monomorphise {const}"
+
+
 partial def collectExpr (expr : Expr) : CollectM Unit := do
-  if ← alreadyVisited expr then
+  if ← alreadyVisitedExpr expr then
     return ()
   match expr with
   | .const const .. =>
@@ -92,14 +166,8 @@ partial def collectExpr (expr : Expr) : CollectM Unit := do
     if !positions.isEmpty then
       throwError m!"Underapplied constant cannot be monomorphised: {expr}"
 
-    match ← getConstInfo const with
-    | .ctorInfo ctorInfo =>
-      addConstraint ⟨ctorInfo.induct⟩ (.vec #[])
-    | .inductInfo .. | .defnInfo .. =>
-      addConstraint ⟨const⟩ (.vec #[])
-    | .axiomInfo .. | .opaqueInfo .. => return ()
-    | .recInfo .. | .quotInfo .. | .thmInfo .. =>
-      throwError m!"Cannot monomorphise {expr}"
+    collectConst const
+    addConstraint ⟨const⟩ (.vec #[])
   | .app .. =>
     expr.withApp fun fn args => do
       args.forM collectExpr
@@ -113,19 +181,8 @@ partial def collectExpr (expr : Expr) : CollectM Unit := do
           if args.size ≤ last then
             throwError m!"Underapplied constant cannot be monomorphised: {expr}"
         let flowTypes ← monoArgPositions.mapM (fun idx => flowTypeOfExpr args[idx]!)
-        -- TODO: Maybe we have to collect in the ctors of an inductive type upon encountering an
-        -- inductive type or one of its ctors
-        match ← getConstInfo fn with
-        | .ctorInfo ctorInfo =>
-          let induct := ctorInfo.induct
-          if (← getMonoArgPositions induct).size != monoArgPositions.size then
-            throwError m!"Encountered inductive type with type indices or existentials: {expr}"
-          addConstraint ⟨induct⟩ (← FlowInput.ofTypes flowTypes)
-        | .inductInfo .. | .defnInfo .. =>
-          addConstraint ⟨fn⟩ (← FlowInput.ofTypes flowTypes)
-        | .opaqueInfo .. | .axiomInfo .. => return ()
-        | .recInfo .. | .quotInfo .. | .thmInfo .. =>
-          throwError m!"Cannot monomorphise {expr}"
+        collectConst fn
+        addConstraint ⟨fn⟩ (← FlowInput.ofTypes flowTypes)
       | none => collectExpr fn
   | .lam .. =>
     Meta.lambdaTelescope expr fun vars body => do
@@ -157,6 +214,8 @@ partial def collectExpr (expr : Expr) : CollectM Unit := do
     collectExpr struct
   | .lit .. | .sort .. | .fvar .. | .bvar .. | .mvar .. => return ()
 
+end
+
 def collectFVar (fvar : FVarId) : CollectM Unit := do
     let type ← fvar.getType
     collectExpr (← instantiateMVars type)
@@ -170,29 +229,6 @@ def collectMVar (g : MVarId) : CollectM Unit := do
 
   trace[nunchaku.mono] m!"Collecting constraints for goal: {← g.getType}"
   collectExpr (← instantiateMVars (← g.getType))
-
-  let allEquations ← TransforM.getEquations
-  for (name, nameEquations) in allEquations do
-    for eq in nameEquations do
-      trace[nunchaku.mono] m!"Collecting constraints for equation: {eq}"
-      Meta.forallTelescope eq fun _ body => do
-        let some (_, lhs, rhs) := body.eq? | throwError m!"Equation is malformed: {eq}"
-        let (fn, args) := lhs.getAppFnArgs
-        assert! fn == name
-        let positions ← getMonoArgPositions fn
-        let mut flowArgs := #[]
-        for pos in positions do
-          let arg := args[pos]!
-          if !arg.isFVar then
-            throwError m!"Equation lhs contains non fvar type argument: {eq}"
-          flowArgs := flowArgs.push (arg.fvarId!, .index ⟨name⟩ pos)
-
-        let insertVars flowFVars :=
-          flowArgs.foldl (init := flowFVars) (fun acc (fvar, flow) => acc.insert fvar flow)
-        withReader (fun (ctx : CollectCtx) => { ctx with flowFVars := insertVars ctx.flowFVars }) do
-          -- TODO: this is probably a no-op, args are fvar and we ignore fvar
-          args.forM collectExpr
-          collectExpr rhs
 
 public partial def collectConstraints (g : MVarId) : MonoAnalysisM (List FlowConstraint) := do
   let mut flowFVars := {}
