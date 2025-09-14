@@ -1,6 +1,7 @@
 module
 
 import Lean.Meta.Eqns
+import Lean.Meta.Reduce
 public import Nunchaku.Attr
 public meta import Nunchaku.Attr -- TODO: this should not be necessary
 
@@ -36,6 +37,15 @@ public def getEquationsFor (decl : Name) : TransforM (List Expr) := do
 public def replaceEquations (equations : Std.HashMap Name (List Expr)) : TransforM Unit :=
   modify fun s => { s with equations }
 
+def preprocessEquation (eq : Expr) : MetaM Expr := do
+  Meta.forallTelescope eq fun args body => do
+    let mkApp3 (.const ``Eq [u]) α lhs rhs := body | throwError m!"Equation is malformed: {eq}"
+    let fnArgs := lhs.getAppArgs
+    let fnArgs ← fnArgs.mapM Meta.reduce
+    let lhs := mkAppN lhs.getAppFn fnArgs
+    let body := mkApp3 (.const ``Eq [u]) α lhs rhs
+    Meta.mkForallFVars args body
+
 def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) := do
   let mut worklist : Array Name ← initializeWorklist g
   let mut defs : Std.HashMap Name (List Expr) := {}
@@ -50,6 +60,7 @@ def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) := do
     if constInfo.isDefinition then
       let some eqns ← getEqnsFor? elem | throwError s!"Unable to find equations for {mkConst elem}"
       let eqns ← eqns.mapM fun eq => do inferType (← mkConstWithLevelParams eq)
+      let eqns ← eqns.mapM preprocessEquation
       defs := defs.insert elem eqns.toList
       for eq in eqns do
         let used := eq.getUsedConstantsAsSet
