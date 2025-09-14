@@ -97,7 +97,6 @@ example (n : Nat) :
   intro m
   nunchaku
 
-/-
 namespace Mutual
 
 mutual
@@ -112,12 +111,17 @@ inductive Odd : Nat → Prop where
 end
 
 /--
-error: Can't monomorphise mutual inductives: [Mutual.Even, Mutual.Odd]
+info: The prover found a counter example
 ---
-warning: declaration uses 'sorry'
+error: unsolved goals
+n m : Nat
+h1 : Even n
+h2 : Even m
+⊢ Odd (n.add m)
 -/
 #guard_msgs in
-example (n m : Nat) (h1 : Even n) (h2 : Even m) : Odd (n.add m) := by nunchaku
+example (n m : Nat) (h1 : Even n) (h2 : Even m) : Odd (n.add m) := by
+  nunchaku
 
 mutual
 
@@ -141,5 +145,56 @@ x : A
 #guard_msgs in
 example (x : A) : (.step (.step x)) ≠ x := by nunchaku
 
-end Mutual
+mutual
+
+def isEven (x : Nat) : Bool :=
+  match x with
+  | .zero => true
+  | .succ n => isOdd n
+
+def isOdd (n : Nat) : Bool :=
+  match n with
+  | .zero => false
+  | .succ n => isEven n
+
+end
+
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+n : Nat
+h : isEven n = true
+⊢ isEven n.succ = true
 -/
+#guard_msgs in
+example (n : Nat) (h : isEven n) : isEven n.succ := by
+  nunchaku
+
+mutual
+
+def IsEven (x : Nat) : Prop :=
+  match x with
+  | .zero => True
+  | .succ n => IsOdd n
+
+def IsOdd (n : Nat) : Prop :=
+  match n with
+  | .zero => False
+  | .succ n => IsEven n
+
+end
+
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+n : Nat
+h : IsEven n
+⊢ IsEven n.succ
+-/
+#guard_msgs in
+example (n : Nat) (h : IsEven n) : IsEven n.succ := by
+  nunchaku
+
+end Mutual

@@ -39,15 +39,19 @@ def zetaBetaReduce (e : Expr) : MetaM Expr := do
   let e ← Meta.zetaReduce e
   Core.betaReduce e
 
+def isNonPropTypeFormer (expr : Expr) : MetaM Bool := do
+  let some level ← Meta.typeFormerTypeLevel expr | return false
+  return level != 0
+
 def isTypeAlias (const : Name) : MetaM Bool := do
   let .defnInfo info ← getConstInfo const | return false
-  if !(← Meta.isTypeFormerType info.type) then return false
+  if !(← isNonPropTypeFormer info.type) then return false
   let reducedValue ← zetaBetaReduce info.value
   Meta.lambdaTelescope reducedValue fun _ body => do
     let body := body.consumeMData
     match body with
     | .fvar .. | .forallE .. | .sort .. => return true
-    | .const name .. => return (← Meta.isTypeFormerType (← getConstVal name).type)
+    | .const name .. => return (← isNonPropTypeFormer (← getConstVal name).type)
     | .proj .. => return false
     | .app .. => return body.getAppFn.isConst
     | .mdata .. | .lit .. | .mvar .. | .letE .. | .lam .. | .bvar .. => unreachable!
@@ -217,6 +221,7 @@ public def transformation : Transformation MVarId MVarId LeanResult LeanResult w
     encode g := do
       let (g, st) ← ComfortM.run <| encode g
       addDeclsScc st.decls
+      trace[nunchaku.elimcomfort] m!"Result: {g}"
       return (g, ())
     decode _ res := return res
   }

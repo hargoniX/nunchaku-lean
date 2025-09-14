@@ -18,6 +18,7 @@ public structure SpecializeState where
   specialisationCache : Std.HashMap (FlowVariable × GroundInput) Name := {}
   nameIdx : Nat := 0
   exprCache : Std.HashMap Expr Expr := {}
+  decls : List Declaration := {}
 
 public abbrev SpecializeM := ReaderT SpecializeContext <| StateRefT SpecializeState MonoAnalysisM
 
@@ -103,6 +104,9 @@ def instantiateStencilWith (remainder : Expr) (stencil : Array (Nat × GroundTyp
 def specialisedCtorName (inductSpecName : Name) (ctorName : Name) : MetaM Name := do
   let .str _ n := ctorName | throwError m!"Weird ctor name {ctorName}"
   return .str inductSpecName n
+
+def recordDecl (decl : Declaration) : SpecializeM Unit :=
+  modify fun s => { s with decls := decl :: s.decls }
 
 mutual
 
@@ -217,7 +221,8 @@ partial def specialiseExprRaw (expr : Expr) (subst : Meta.FVarSubst) : Specializ
   | .fvar .. => return subst.apply expr
   | .lit .. | .sort .. | .bvar .. | .mvar .. => return expr
 
-partial def specialiseConstType (info : ConstantVal) (input : GroundInput) : SpecializeM Expr := do
+partial def specialiseConstType (info : ConstantVal) (input : GroundInput) :
+    SpecializeM (Expr × Level) := do
   let expr ← Meta.mkConstWithFreshMVarLevels info.name
   let type ← Meta.inferType expr
   let positions ← getMonoArgPositions info.name
@@ -225,22 +230,21 @@ partial def specialiseConstType (info : ConstantVal) (input : GroundInput) : Spe
   let stencil := positions.zip input.args
   let instantiated ← instantiateStencilWith type stencil 0 0
   let final ← instantiateMVars instantiated
-  specialiseExpr final {}
+  let level ← Meta.getLevel final
+  let specialised ← specialiseExpr final {}
+  return (specialised, level)
 
 partial def specialiseCtor (inductSpecName : Name) (ctorName : Name) (input : GroundInput) :
     SpecializeM Constructor := do
   let info ← getConstVal ctorName
   let specName ← specialisedCtorName inductSpecName ctorName
-  let specType ← specialiseConstType info input
+  let (specType, _) ← specialiseConstType info input
   return ⟨specName, specType⟩
 
 partial def specialiseInduct (info : InductiveVal) (input : GroundInput) : SpecializeM Unit := do
-  if info.all.length != 1 then
-    throwError m!"Can't monomorphise mutual inductives: {info.all}"
-
   let name := info.name
   let specName := (← get).specialisationCache[(FlowVariable.mk name, input)]!
-  let specType ← specialiseConstType info.toConstantVal input
+  let (specType, _) ← specialiseConstType info.toConstantVal input
   let newCtors ← info.ctors.mapM (specialiseCtor specName · input)
   trace[nunchaku.mono] m!"Proposing {specType} {newCtors.map (·.type)}"
 
@@ -250,7 +254,7 @@ partial def specialiseInduct (info : InductiveVal) (input : GroundInput) : Speci
     ctors := newCtors
   }
   let nparams := info.numParams - (← getMonoArgPositions name).size
-  addDecl <| .inductDecl [] nparams [decl] false
+  recordDecl <| .inductDecl [] nparams [decl] false
 
 partial def specialiseEquation (name : Name) (eq : Expr) (input : GroundInput) :
     SpecializeM Expr := do
@@ -265,10 +269,37 @@ partial def specialiseEquation (name : Name) (eq : Expr) (input : GroundInput) :
     let final ← instantiateMVars instantiated
     specialiseExpr final {}
 
+partial def specialiseOpaque (info : OpaqueVal) (input : GroundInput) : SpecializeM Unit := do
+  let name := info.name
+  let specName := (← get).specialisationCache[(FlowVariable.mk name, input)]!
+  let (specType, u) ← specialiseConstType info.toConstantVal input
+
+  let defn := {
+    name := specName,
+    levelParams := [],
+    type := specType,
+    value := mkApp (mkConst ``TransforM.sorryAx [u]) specType,
+    isUnsafe := info.isUnsafe
+  }
+  recordDecl <| .opaqueDecl defn
+
+partial def specialiseAxiom (info : AxiomVal) (input : GroundInput) : SpecializeM Unit := do
+  let name := info.name
+  let specName := (← get).specialisationCache[(FlowVariable.mk name, input)]!
+  let (specType, _) ← specialiseConstType info.toConstantVal input
+
+  let defn := {
+    name := specName,
+    levelParams := [],
+    type := specType,
+    isUnsafe := info.isUnsafe
+  }
+  recordDecl <| .axiomDecl defn
+
 partial def specialiseDefn (info : DefinitionVal) (input : GroundInput) : SpecializeM Unit := do
   let name := info.name
   let specName := (← get).specialisationCache[(FlowVariable.mk name, input)]!
-  let specType ← specialiseConstType info.toConstantVal input
+  let (specType, u) ← specialiseConstType info.toConstantVal input
 
   trace[nunchaku.mono] m!"Proposing {specType}"
 
@@ -276,11 +307,11 @@ partial def specialiseDefn (info : DefinitionVal) (input : GroundInput) : Specia
     name := specName,
     levelParams := [],
     type := specType,
-    value := ← TransforM.mkSorry specType,
+    value := mkApp (mkConst ``TransforM.sorryAx [u]) specType,
     hints := .opaque,
     safety := .safe
   }
-  addDecl <| .defnDecl defn
+  recordDecl <| .defnDecl defn
 
   let equations ← TransforM.getEquationsFor name
   let newEqs ← equations.mapM (specialiseEquation name · input)
@@ -301,6 +332,9 @@ partial def specialiseConst (name : Name) (input : GroundInput) : SpecializeM Un
   match info with
   | .inductInfo info => specialiseInduct info input
   | .defnInfo info => specialiseDefn info input
+  | .ctorInfo .. => return ()
+  | .opaqueInfo info => specialiseOpaque info input
+  | .axiomInfo info => specialiseAxiom info input
   | _ => unreachable!
 
   trace[nunchaku.mono] m!"Specialising {name} for {input} done"
@@ -314,6 +348,7 @@ public partial def specialize (g : MVarId) : SpecializeM MVarId := do
 
   trace[nunchaku.mono] m!"Specialising in {g}"
   let g ← mapMVarId g specialiseExpr
+  TransforM.replaceEquations (← get).newEquations
   return g
 where
 

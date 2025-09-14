@@ -5,6 +5,7 @@ public import Nunchaku.Util.NunchakuSyntax
 public import Nunchaku.Util.Model
 import Nunchaku.Util.NunchakuBuilder
 import Nunchaku.Util.NunchakuPrinter
+import Lean.Util.SCC
 
 /-!
 This module contains the transformation for turning a monomorphized and dependently typed eliminated
@@ -18,105 +19,103 @@ namespace Output
 open Lean
 
 inductive LeanIdentifier where
-  | goal
+  | goal (g : MVarId)
   | assumption (fvar : FVarId)
   | const (name : Name)
-  | proj (struct : Name) (idx : Nat)
   deriving BEq, Hashable, Repr, Inhabited
 
-structure OutputContext where
-  /--
-  Identifies which part of the Lean context we are currently in to track dependencies
-  -/
-  currentIdent : LeanIdentifier
-  /--
-  The goal that we are serializing.
-  -/
-  goal : MVarId
+structure CollectState where
+  dependencies : Std.HashMap LeanIdentifier (List LeanIdentifier) := {}
+
+abbrev CollectM := StateRefT CollectState TransforM
+
+def addDependencies (ident : LeanIdentifier) (deps : List LeanIdentifier) : CollectM Unit :=
+  modify fun s => { s with dependencies := s.dependencies.insert ident deps }
+
+partial def constDependencies (name : Name) : TransforM (List Name) := do
+  match (← getConstInfo name) with
+  | .axiomInfo info | .opaqueInfo info => return Expr.getUsedConstants info.type |>.toList
+  | .defnInfo info =>
+    let tyConsts := Expr.getUsedConstantsAsSet info.type
+    let eqs ← TransforM.getEquationsFor info.name
+    let allConsts := eqs.foldl (init := tyConsts) fun acc eq =>
+      acc.insertMany eq.getUsedConstants
+    return allConsts.toList
+  | .inductInfo info =>
+    let tyConsts := Expr.getUsedConstantsAsSet info.type
+    let allConsts ← info.ctors.foldlM (init := tyConsts) fun acc ctor => do
+      let ctor ← getConstInfoCtor ctor
+      return acc.insertMany ctor.type.getUsedConstants
+    return allConsts.toList
+  | .ctorInfo info => constDependencies info.induct
+  | .recInfo .. | .thmInfo .. | .quotInfo .. =>
+    throwError m!"Cannot figure out dependencies for {name}"
+
+def exprDependencies (expr : Expr) : CollectM (List LeanIdentifier) := do
+  let (_, deps) ← expr.forEachWhere (fun e => e.isConst || e.isFVar || e.isProj) collect |>.run {}
+  return deps.toList
+where
+  collect (e : Expr) : StateRefT (Std.HashSet LeanIdentifier) CollectM Unit := do
+    match e with
+    | .const name .. => modify fun s => s.insert <| .const name
+    | .fvar fvar => modify fun s => s.insert <| .assumption fvar
+    | .proj structName .. => modify fun s => s.insert <| .const structName
+    | _ => return ()
+
+def identDependencies (item : LeanIdentifier) : CollectM (List LeanIdentifier) := do
+  match item with
+  | .goal g =>
+    let type ← g.getType
+    exprDependencies type
+  | .assumption fvar =>
+    let type ← fvar.getType
+    exprDependencies type
+  | .const name =>
+    let deps ← constDependencies name
+    return deps.map .const
+
+partial def collectDepGraph (g : MVarId) :
+    TransforM (Std.HashMap LeanIdentifier (List LeanIdentifier)) := do
+  let mut worklist := [.goal g]
+  for decl in ← getLCtx do
+    if decl.isImplementationDetail then
+      continue
+    worklist := .assumption decl.fvarId :: worklist
+  let (_, { dependencies, .. }) ← go worklist |>.run {}
+  return dependencies
+where
+  go (worklist : List LeanIdentifier) : CollectM Unit := do
+    match worklist with
+    | [] => return ()
+    | item :: worklist =>
+      if (← get).dependencies.contains item then
+        go worklist
+      else
+        let deps ← identDependencies item
+        let deps := deps.filter
+          fun
+            | .const name => !TransforM.isBuiltin name
+            | _ => true
+        addDependencies item deps
+        let newDeps ← deps.filterM fun dep => do
+          return !(← get).dependencies.contains dep
+        go (newDeps ++ worklist)
 
 structure OutputState where
-  /--
-  If `id2 ∈ dependencies[id1]` then the commands of `id2` need to come before the ones of `id1`
-  in the final Nunchaku problem.
-  -/
-  dependencies : Std.HashMap LeanIdentifier (List LeanIdentifier) := {}
-  /--
-  Worklist of remaining identifiers that need to be converted to Nunchaku commands.
-  -/
-  worklist : List LeanIdentifier
-  /--
-  Map from identifiers to Nunchaku commands that mirror their effect on the Nunchaku side.
-  -/
-  commands : Std.HashMap LeanIdentifier (List NunCommand) := {}
-  /--
-  Set of already visited identifiers in the fixpoint loop.
-  -/
-  visited : Std.HashSet LeanIdentifier := {}
+  commands : Array NunCommand := #[]
   /--
   Counter used for fresh nunchaku variable identifiers.
   -/
   idCounter : Nat := 0
 
 
-abbrev OutputM := ReaderT OutputContext <| StateRefT OutputState TransforM
-
-def withCurrentIdent (id : LeanIdentifier) (x : OutputM α) : OutputM α :=
-  withReader (fun ctx => { ctx with currentIdent := id }) do
-    x
-
-def getCurrentIdent : OutputM LeanIdentifier := return (← read).currentIdent
-
-def isVisited (id : LeanIdentifier) : OutputM Bool := return (← get).visited.contains id
-def markVisited (id : LeanIdentifier) : OutputM Unit :=
-  modify fun s => { s with
-    visited := s.visited.insert id,
-    dependencies := s.dependencies.alter id (some <| Option.getD · []),
-    commands := s.commands.alter id (some <| Option.getD · []),
-  }
+abbrev OutputM := StateRefT OutputState TransforM
 
 def addCommand (cmd : NunCommand) : OutputM Unit := do
-  let id ← getCurrentIdent
-  let alter
-    | none => some [cmd]
-    | some cmds => some (cmd :: cmds)
-  modify fun s => { s with commands := s.commands.alter id alter }
-
-def addCommands (cmds : List NunCommand) : OutputM Unit := do
-  let id ← getCurrentIdent
-  let alter
-    | none => some cmds
-    | some curr => some (cmds ++ curr)
-  modify fun s => { s with commands := s.commands.alter id alter }
-
-def addDepTo (ident : LeanIdentifier) : OutputM Unit := do
-  let currId ← getCurrentIdent
-  if currId == ident then
-    return
-  let alter
-    | none => some [ident]
-    | some curr => some (ident :: curr)
-  modify fun s => { s with dependencies := s.dependencies.alter currId alter }
-  if !(← get).visited.contains ident then
-    modify fun s => { s with worklist := ident :: s.worklist }
+  modify fun s => { s with commands := s.commands.push cmd }
 
 def freshNunId : OutputM Nat := do
   modifyGet fun s => (s.idCounter, { s with idCounter := s.idCounter + 1})
-
-partial def OutputM.run (idents : List LeanIdentifier) (goal : MVarId) (handle : OutputM Unit) :
-    TransforM OutputState := do
-  let (_, st) ← StateRefT'.run (ReaderT.run go { currentIdent := .goal, goal }) { worklist := idents }
-  return st
-where
-  go : OutputM Unit := do
-    if let ident :: worklist := (← get).worklist then
-      modify fun s => { s with worklist }
-      if !(← isVisited ident) then
-        withCurrentIdent ident do
-          handle
-        markVisited ident
-      go
-    else
-      return ()
 
 def mangleName (name : Lean.Name) : String := Id.run do
   let comps := name.components.map (fun c => c.toString.replace "_" "__")
@@ -146,12 +145,8 @@ where
         match type.consumeMData with
         | .sort 0 => return .prop
         | .sort (.succ _) => return .type
-        | .const name _ =>
-          addDepTo (.const name)
-          return .const (mangleName name)
-        | .fvar id =>
-          addDepTo (.assumption id)
-          return .const (← mangleAssumptionName id)
+        | .const name _ => return .const (mangleName name)
+        | .fvar id => return .const (← mangleAssumptionName id)
         | .forallE .. => go type
         | _ => throwError m!"Don't know how to encode {type} as output type"
       let encodedArgsTypes ← argsTypes.mapM encodeHeadType
@@ -159,12 +154,8 @@ where
         match type.consumeMData with
         | .sort 0 => return .prop
         | .sort (.succ _) => return .type
-        | .const name _ =>
-          addDepTo (.const name)
-          return .const (mangleName name)
-        | .fvar id =>
-          addDepTo (.assumption id)
-          return .const (← mangleAssumptionName id)
+        | .const name _ => return .const (mangleName name)
+        | .fvar id => return .const (← mangleAssumptionName id)
         | _ => throwError m!"Don't know how to encode {type} as output type"
       let encodedOutType ← encodeOutType output
       return .ofList (encodedArgsTypes.toList ++ [encodedOutType]) (by simp)
@@ -182,13 +173,10 @@ where
       if let some nunId := locals.get? fvarId then
         return .var nunId
       else
-        addDepTo (.assumption fvarId)
         return .const (← mangleAssumptionName fvarId)
     | .const ``True [] => return .builtin .true
     | .const ``False [] => return .builtin .false
-    | .const name _ =>
-      addDepTo (.const name)
-      return .const (mangleName name)
+    | .const name _ => return .const (mangleName name)
     | .app fn arg =>
       match_expr expr with
       | Not p => return .not (← go p locals)
@@ -263,7 +251,6 @@ where
         return .let argId encodedValue encodedBody
     | .mdata _ e => go e locals
     | .proj structName idx struct =>
-      addDepTo (.proj structName idx)
       let projName := getProjName structName idx
       return .app (.const projName) (← go struct locals)
     | _ => throwError m!"Don't know how to encode term {expr}"
@@ -278,7 +265,6 @@ def arrowN (n : Nat) (type : Expr) : MetaM (Array Expr × Expr) :=
         throwError "unexpected dependent type {t} in {type}"
     return (types, out)
 
-
 def encodePredCtor (ctor : Name) : OutputM NunTerm := do
   let info ← getConstInfoCtor ctor
   encodeTerm info.type
@@ -292,104 +278,81 @@ def encodeDataCtor (ctor : Name) : OutputM NunCtorSpec := do
   let mangled := mangleName ctor
   return { name := mangled, arguments := encodedArgs.toList }
 
-/--
-Transfers all dependencies of `orig` to `new` and makes `orig` depend on `new` only.
--/
-def transferDeps (orig : LeanIdentifier) (new : LeanIdentifier) : OutputM Unit := do
-  let origDeps := (← get).dependencies.getD orig []
-
-  let alterOrig := fun _ => some [new]
-  modify fun s => { s with dependencies := s.dependencies.alter orig alterOrig }
-
-  let alterNew := fun currDeps => some (origDeps ++ currDeps.getD [])
-  modify fun s => { s with dependencies := s.dependencies.alter new alterNew }
-
 def encodeDataType (val : InductiveVal) : OutputM Unit := do
   let mutualTypes := val.all
-  let rootType ← getCurrentIdent
   let encodedTypes ← mutualTypes.mapM fun typ => do
-    let thisType := .const typ
-    let cmd ←
-      withCurrentIdent thisType do
-        let mangled := mangleName typ
-        let val ← getConstInfoInduct typ
-        let ctors ← val.ctors.mapM encodeDataCtor
-        return { name := mangled, ctors }
+    let mangled := mangleName typ
+    let val ← getConstInfoInduct typ
+    let ctors ← val.ctors.mapM encodeDataCtor
+    return { name := mangled, ctors }
 
-    if typ != val.name then
-      markVisited thisType
-      transferDeps thisType rootType
-
-    return cmd
-
-  let filter := Std.HashSet.ofList <| val.all.map LeanIdentifier.const
-  let alterRoot :=
-    fun
-      | none => some []
-      | some deps => some <| deps.filter (!filter.contains ·)
-  modify fun s => { s with dependencies := s.dependencies.alter rootType alterRoot }
   addCommand <| .dataDecl encodedTypes
+
+  if isStructureLike (← getEnv) val.name then
+    assert! val.ctors.length == 1
+    let ctor := val.ctors[0]!
+    let ctorInfo ← getConstInfoCtor ctor
+    Meta.forallTelescope ctorInfo.type fun args out => do
+      for idx in 0...args.size do
+        let field := args[idx]!
+        let lhs := .proj val.name idx (mkAppN (.const ctor []) args)
+        let rhs := field
+        let eq ← Meta.mkEq lhs rhs
+        let law ← Meta.mkForallFVars args eq
+        let type ← mkArrow out (← field.fvarId!.getType)
+        let encodedLaw ← encodeTerm law
+        let encodedType ← encodeType type
+        addCommand <| .recDecl
+          [{ name := getProjName val.name idx, type := encodedType, laws := [encodedLaw] }]
 
 def encodeIndPredicate (val : InductiveVal) : OutputM Unit := do
   let mutualTypes := val.all
-  let rootType ← getCurrentIdent
   let encodedTypes ← mutualTypes.mapM fun typ => do
-    let thisType := .const typ
-    let cmd ←
-      withCurrentIdent thisType do
-        let val ← getConstInfoInduct typ
-        let args := val.numParams + val.numIndices
-        let (argTypes, outType) ← arrowN args val.type
-        if outType != .sort 0 then
-          throwError m!"Cannot encode non Prop inductive type with arguments {val.name}"
-        -- It's an inductive proposition
-        let mangledName := mangleName val.name
-        let encodedArgTypes ← argTypes.mapM encodeType
-        let encodedOutType ← encodeType outType
-        let encodedType := .ofList (encodedArgTypes.toList ++ [encodedOutType]) (by simp)
-        let laws ← val.ctors.mapM encodePredCtor
-        return { name := mangledName, type := encodedType, laws }
+    let val ← getConstInfoInduct typ
+    let args := val.numParams + val.numIndices
+    let (argTypes, outType) ← arrowN args val.type
+    if outType != .sort 0 then
+      throwError m!"Cannot encode non Prop inductive type with arguments {val.name}"
+    -- It's an inductive proposition
+    let mangledName := mangleName val.name
+    let encodedArgTypes ← argTypes.mapM encodeType
+    let encodedOutType ← encodeType outType
+    let encodedType := .ofList (encodedArgTypes.toList ++ [encodedOutType]) (by simp)
+    let laws ← val.ctors.mapM encodePredCtor
+    return { name := mangledName, type := encodedType, laws }
 
-    if typ != val.name then
-      markVisited thisType
-      transferDeps thisType rootType
-
-    return cmd
-
-  let filter := Std.HashSet.ofList <| val.all.map LeanIdentifier.const
-  let alterRoot :=
-    fun
-      | none => some []
-      | some deps => some <| deps.filter (!filter.contains ·)
-  modify fun s => { s with dependencies := s.dependencies.alter rootType alterRoot }
   addCommand <| .predDecl encodedTypes
 
-def encodeProj (structName : Name) (idx : Nat) : OutputM Unit := do
-  addDepTo (.const structName)
-  let inductInfo ← getConstInfoInduct structName
-  assert! inductInfo.ctors.length == 1
-  let ctor := inductInfo.ctors[0]!
-  let ctorInfo ← getConstInfoCtor ctor
-  Meta.forallTelescope ctorInfo.type fun args out => do
-    let field := args[idx]!
-    let lhs := .proj structName idx (mkAppN (.const ctor []) args)
-    let rhs := field
-    let eq ← Meta.mkEq lhs rhs
-    let law ← Meta.mkForallFVars args eq
-    let type ← mkArrow out (← field.fvarId!.getType)
-    let encodedLaw ← encodeTerm law
-    let encodedType ← encodeType type
-    addCommand <| .recDecl
-      [{ name := getProjName structName idx, type := encodedType, laws := [encodedLaw] }]
+def encodeDefn (defns : List DefinitionVal) : OutputM Unit := do
+  let encodedDefns ← defns.mapM fun defn => do
+    let eqns ← TransforM.getEquationsFor defn.name
+    let encodedEqns ← eqns.mapM encodeTerm
+    let encodedType ← encodeType defn.type
+    let mangled := mangleName defn.name
+    return { name := mangled, type := encodedType, laws := encodedEqns }
 
-def LeanIdentifier.encode : OutputM Unit := do
-  match (← getCurrentIdent) with
-  | .goal =>
-    let statement ← (← read).goal.getType
+  addCommand <| .recDecl encodedDefns
+
+def encodeInduct (val : InductiveVal) : OutputM Unit := do
+  match val.type with
+  | .sort (.succ _) =>
+    encodeDataType val
+  | _ =>
+    let args := val.numParams + val.numIndices
+    let (_, outType) ← arrowN args val.type
+    if outType != .sort 0 then
+      throwError m!"Cannot encode non Prop inductive type with arguments {val.name}"
+
+    encodeIndPredicate val
+
+def encodeComponent (component : List LeanIdentifier) : OutputM Unit := do
+  match component with
+  | [.goal goal] =>
+    let statement ← goal.getType
     trace[nunchaku.output] m!"Encoding the goal: {statement}"
     let encoded ← encodeTerm statement
     addCommand <| .goalDecl encoded
-  | .assumption fvar =>
+  | [.assumption fvar] =>
     trace[nunchaku.output] m!"Encoding fvar: {mkFVar fvar}"
     let type ← fvar.getType
     match ← Meta.inferType type with
@@ -403,11 +366,11 @@ def LeanIdentifier.encode : OutputM Unit := do
       let mangled := mangleName (← fvar.getUserName)
       addCommand <| .valDecl mangled encoded
     | ttype => throwError m!"Don't know how to handle {mkFVar fvar} : {type} : {ttype}"
-  | .const name =>
-    trace[nunchaku.output] m!"Encoding constant: {mkConst name}"
+  | [.const name] =>
+    trace[nunchaku.output] m!"Encoding constant: {name}"
     let constInfo ← getConstInfo name
     match constInfo with
-    | .axiomInfo val =>
+    | .axiomInfo val | .opaqueInfo val =>
       if (← Meta.inferType val.type).isProp then
         let encoded ← encodeTerm val.type
         addCommand <| .axiomDecl encoded
@@ -415,90 +378,42 @@ def LeanIdentifier.encode : OutputM Unit := do
         let encodedType ← encodeType val.type
         let mangled := mangleName name
         addCommand <| .valDecl mangled encodedType
-    | .opaqueInfo val =>
-      if (← Meta.inferType val.type).isProp then
-        let encoded ← encodeTerm val.type
-        addCommand <| .axiomDecl encoded
-      else
-        let encodedType ← encodeType val.type
-        let mangled := mangleName name
-        addCommand <| .valDecl mangled encodedType
-    | .defnInfo val =>
-      -- TODO: support for mutual recursion
-      let eqns ← TransforM.getEquationsFor name
-      let encodedEqns ← eqns.mapM encodeTerm
-      let encodedType ← encodeType val.type
-      let mangled := mangleName name
-      addCommand <| .recDecl [{ name := mangled, type := encodedType, laws := encodedEqns }]
-    | .inductInfo val =>
-      match val.type with
-      | .sort (.succ _) =>
-        encodeDataType val
-      | _ =>
-        let args := val.numParams + val.numIndices
-        let (_, outType) ← arrowN args val.type
-        if outType != .sort 0 then
-          throwError m!"Cannot encode non Prop inductive type with arguments {name}"
-
-        encodeIndPredicate val
+    | .defnInfo val => encodeDefn [val]
+    | .inductInfo val => encodeInduct val
     | .thmInfo val | .ctorInfo val | .recInfo val =>
       trace[nunchaku.output] m!"Ignoring {val.name} as it should be irrelevant"
       return ()
     | .quotInfo _ => throwError "Cannot handle quotients"
-  | .proj structName idx => encodeProj structName idx
+  | .const name :: remainder =>
+    trace[nunchaku.output] m!"Encoding mutual component with {name}"
+    let constInfo ← getConstInfo name
+    match constInfo with
+    | .defnInfo val =>
+      let remainder ← remainder.mapM fun ident => do
+        let .const name := ident |
+          throwError m!"Non definition in mutual definition block {val.name}"
+        getConstInfoDefn name
+      let vals := val :: remainder
+      encodeDefn vals
+    | .inductInfo val =>
+      -- inductive types are already organized as SCCs through the `.all` field
+      encodeInduct val
+    | _ => throwError m!"Cannot handle mutual {name}"
+  | _ => unreachable!
 
-structure TopoContext where
-  deps : Std.HashMap LeanIdentifier (List LeanIdentifier)
-  cmds : Std.HashMap LeanIdentifier (List NunCommand)
 
-abbrev TopoM :=
-  ReaderT TopoContext <| StateT (Std.HashMap LeanIdentifier Bool) <| Except String
-
-partial def OutputState.toProblem (state : OutputState) : Except String NunProblem :=
-  let deps := state.dependencies
-  let cmds := state.commands
-  let worklist := state.dependencies.keys
-  go worklist (Array.emptyWithCapacity cmds.size) |>.run { deps, cmds } |>.run' {}
-where
-  go (worklist : List LeanIdentifier) (acc : Array NunCommand) : TopoM NunProblem := do
-    match worklist with
-    | [] =>
-      let acc := acc ++ (← read).cmds[LeanIdentifier.goal]!
-      return { commands := acc.toList }
-    | elem :: worklist =>
-      let acc ← visit elem acc
-      go worklist acc
-
-  visit (elem : LeanIdentifier) (acc : Array NunCommand) : TopoM (Array NunCommand) := do
-    if elem == .goal then
-      return acc
-
-    if let some mark := (← get)[elem]? then
-      match mark with
-      | true => return acc
-      | false => throw "Graph has a cycle"
-
-    modify fun s => s.insert elem false
-
-    let mut acc := acc
-    for predecessor in (← read).deps[elem]! do
-      acc ← visit predecessor acc
-
-    modify fun s => s.insert elem true
-    return acc ++ (← read).cmds[elem]!
+def encode (components : List (List LeanIdentifier)) : OutputM Unit := do
+  components.forM encodeComponent
 
 public def transformation : Transformation Lean.MVarId NunProblem NunResult LeanResult where
   st := Unit
   inner := {
     name := "Output"
     encode g := g.withContext do
-      let mut idents := [.goal]
-      for decl in ← getLCtx do
-        if decl.isImplementationDetail then
-          continue
-        idents := .assumption decl.fvarId :: idents
-      let state ← OutputM.run idents g LeanIdentifier.encode
-      let problem ← IO.ofExcept state.toProblem
+      let dependencies ← collectDepGraph g
+      let components := SCC.scc dependencies.keys (dependencies[·]!)
+      let (_, { commands, .. }) ← encode components |>.run {}
+      let problem := { commands := commands.toList }
       return (problem, ())
     decode _ res := do
       match res with

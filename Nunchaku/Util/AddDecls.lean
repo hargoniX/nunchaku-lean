@@ -7,9 +7,6 @@ namespace Nunchaku
 
 open Lean Core
 
-#check SCC.scc
-#check addDecl
-
 def declarationName (decl : Declaration) : Name :=
   match decl with
   | .axiomDecl val | .defnDecl val |  .opaqueDecl val => val.name
@@ -32,25 +29,25 @@ def declarationDependencies (decl : Declaration) : TransforM (List Name) := do
     return allConsts.toList
   | .inductDecl .. | .mutualDefnDecl ..  | .thmDecl .. | .quotDecl .. => unreachable!
 
-def accumulateComponent (component : List Declaration) : TransforM Declaration := do
+def addComponent (component : List Declaration) : TransforM Unit := do
+  trace[nunchaku] m!"Adding {component.map (·.getTopLevelNames)}"
   match component with
   | [] => unreachable!
-  | [decl] => return decl
+  | [decl] => addDecl decl
   | decl :: decls =>
     match decl with
     | .inductDecl lparams nparams [ty] isUnsafe =>
       let types ← decls.foldlM (init := [ty]) fun acc decl => do
         let .inductDecl _ _ [ty] _ := decl | throwError "Invalid inductive while folding"
         return ty :: acc
-      return .inductDecl lparams nparams types isUnsafe
-    | .defnDecl val =>
-      let defns ← decls.foldlM (init := [val]) fun acc decl => do
-        let .defnDecl decl := decl | throwError "Invalid def while folding"
-        return decl :: acc
-      return .mutualDefnDecl defns
+      addDecl <| .inductDecl lparams nparams types isUnsafe
+    | .defnDecl .. =>
+      -- We're not actually adding bodies or anything so we can just add them 1 by 1
+      addDecl decl
+      decls.forM (liftM ∘ addDecl)
     | _ => throwError m!"Can't work with mutual decls {decl.getNames}"
 
-public def addDeclsScc (decls : List Declaration) : TransforM Unit := do
+def declsScc (decls : List Declaration) : TransforM (List (List Declaration)) := do
   let mut declMap : Std.HashMap Name Declaration := {}
   let mut declDependencies : Std.HashMap Name (List Name) := {}
   for decl in decls do
@@ -63,7 +60,10 @@ public def addDeclsScc (decls : List Declaration) : TransforM Unit := do
     declDependencies := declDependencies.insert declName deps
 
   let components := SCC.scc declMap.keys declDependencies.get!
-  let decls ← components.mapM (fun comp => comp.map (declMap[·]!) |> accumulateComponent)
-  decls.forM (liftM ∘ Lean.addDecl)
+  return components.map (fun comp => comp.map (declMap[·]!))
+
+public def addDeclsScc (decls : List Declaration) : TransforM Unit := do
+  let components ← declsScc decls
+  components.forM addComponent
 
 end Nunchaku

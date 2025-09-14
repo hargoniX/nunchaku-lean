@@ -2,6 +2,7 @@ module
 
 public import Nunchaku.Util.Pipeline
 public import Nunchaku.Util.Model
+import Nunchaku.Util.AddDecls
 
 import Nunchaku.Transformation.Monomorphization.Collect
 import Nunchaku.Transformation.Monomorphization.Solve
@@ -34,7 +35,7 @@ public def transformation : Transformation MVarId MVarId LeanResult LeanResult w
         let solution := solveConstraints constraints (by simpa using h)
         trace[nunchaku.mono] m!"Solution: {solution.toList}"
         let (g, st) ← (specialize g).run { solution } monoAnalysis
-        TransforM.replaceEquations st.newEquations
+        addDeclsScc st.decls
         trace[nunchaku.mono] m!"Result: {g}"
         return (g, ())
     decode _ res := return res
