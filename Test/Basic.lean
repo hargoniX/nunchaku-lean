@@ -209,3 +209,65 @@ example (n : Nat) : IsEven n ↔ isOdd n := by
   nunchaku
 
 end Mutual
+
+def isZero (n : Nat) : Bool :=
+  match n with
+  | 0 => true
+  | _ + 1 => false
+
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+n : Nat
+⊢ isZero n = true
+-/
+#guard_msgs in
+example (n : Nat) : isZero n := by
+  nunchaku
+
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+a b : Nat
+⊢ a.ble b = true ↔ a.beq b = true
+-/
+#guard_msgs in
+example (a b : Nat) : Nat.ble a b ↔ Nat.beq a b := by
+  nunchaku
+
+
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+a b : Nat
+⊢ a.blt b = true ↔ a < b
+-/
+#guard_msgs in
+example (a b : Nat) : Nat.blt a b ↔ a < b := by
+  nunchaku
+
+
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+n m k : Nat
+⊢ n + m = n + k → m ≠ k
+-/
+#guard_msgs in
+example {n m k : Nat} : n + m = n + k → m ≠ k := by
+  nunchaku
+
+/-
+TODO: CVC4 currently straight up gives up on this. However if we specialised instances
+(should lean or nunchaku do that?) it just works.
+
+
+set_option trace.nunchaku true in
+example {n m : Nat} : n < m → n ≤ m := by
+  nunchaku
+  -/
+

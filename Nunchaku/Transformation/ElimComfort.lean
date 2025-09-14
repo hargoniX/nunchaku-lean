@@ -83,6 +83,9 @@ def mkFreshName (name : Name) : ComfortM Name := do
 def recordDecl (decl : Declaration) : ComfortM Unit :=
   modify fun s => { s with decls := decl :: s.decls }
 
+def maxLit : Nat := 4096
+
+
 mutual
 
 partial def elimConst (const : Name) : ComfortM Name := do
@@ -148,10 +151,24 @@ partial def elimComfortExpr (e : Expr) : ComfortM Expr := do
   let e ← zetaBetaReduce e
   Core.transform e (pre := pre)
 where
+  aux (n : Nat) (zero succ : Name) (acc : Expr) : Expr :=
+    match n with
+    | 0 => acc
+    | n + 1 => aux n zero succ (mkApp (mkConst succ) acc)
+
   pre (e : Expr) : ComfortM TransformStep := do
-    let .const name us := e | return .continue
-    let name ← elimConst name
-    return .done <| .const name us
+    match e with
+    | .const name us =>
+      let name ← elimConst name
+      return .done <| .const name us
+    | .lit (.natVal n) =>
+      if n > maxLit then
+        throwError m!"Nat literal too large for unary encoding {n}"
+      let zero ← elimConst ``Nat.zero
+      let succ ← elimConst ``Nat.succ
+      let expr := aux n zero succ (mkConst zero)
+      return .done expr
+    | _ => return .continue
 
 end
 
