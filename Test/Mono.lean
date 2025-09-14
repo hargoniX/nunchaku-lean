@@ -177,11 +177,11 @@ h : xs = []
 example (xs : List α) (h : xs = []) : xs.all f = false := by
   nunchaku
 
+/-
 inductive MyAll {α : Type} (p : α → Prop) : List α → Prop where
   | nil : MyAll p []
   | cons (x : α) (xs : List α) (h1 : p x) (h2 : MyAll p xs) : MyAll p (x :: xs)
 
-/-
 -- TODO: probably nunchaku bug
 set_option trace.nunchaku true in
 example (xs : List α) (h : xs = []) : MyAll (fun _ => False) xs := by
@@ -197,3 +197,150 @@ set_option trace.nunchaku true in
 example (n : Nat) : MyEven n := by nunchaku
 -/
 -/
+
+/--
+info: The prover is convinced that the theorem is true.
+---
+error: unsolved goals
+α✝ : Type u_1
+β✝ : Type u_2
+f : α✝ → β✝ → α✝
+b : α✝
+⊢ List.foldl f b [] = b
+-/
+#guard_msgs in
+example : [].foldl f b = b := by
+  nunchaku
+
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+α : Type u_1
+as bs : List α
+a b : α
+h : as.concat a = bs.concat b
+⊢ ¬(as = bs ∧ a = b)
+-/
+#guard_msgs in
+example {as bs : List α} {a b : α} (h : as.concat a = bs.concat b) :
+    ¬ (as = bs ∧ a = b) := by
+  nunchaku
+
+
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+α : Type u_1
+lt : α → α → Bool
+inst✝ : BEq α
+a : α
+as : List α
+⊢ (a :: as).lex [] lt = true
+-/
+#guard_msgs in
+example [BEq α] {a} {as : List α} : List.lex (a :: as) [] lt = true := by
+  nunchaku
+
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+α : Type u_1
+β : Type u_2
+x : α
+xs : List α
+f : α → List β
+⊢ List.flatMap f (x :: xs) = List.flatMap f xs
+-/
+#guard_msgs in
+example {x : α} {xs : List α} {f : α → List β} :
+    List.flatMap f (x :: xs) = List.flatMap f xs := by
+  nunchaku
+
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+α : Type u_1
+a : α
+as bs : List α
+⊢ a ∈ as → ¬a ∈ as ++ bs
+-/
+#guard_msgs in
+example {a : α} {as : List α} (bs : List α) : a ∈ as → ¬ a ∈ as ++ bs := by
+  nunchaku
+
+
+/-
+
+TODO: This has additional pre preconditions in the equation → requires more stuff
+
+set_option trace.nunchaku true in
+example [BEq α] : List.isSuffixOf ([] : List α) l = false := by
+  nunchaku
+
+example [BEq α] {l : List α} : (l != []) = l.isEmpty := by
+  nunchaku
+-/
+
+/-
+TODO: don't have access to equations for some reason
+
+example {p : α → Bool} {as : List α} {bs : List α} :
+    List.filterTR.loop p as bs = bs ++ List.filter p as := by
+  nunchaku
+  -/
+
+/-
+
+TODO: don't traverse into bodies of theorems
+
+set_option trace.nunchaku true in
+example {a : Nat} {as : List Nat} : List.elem a as = false ↔ a ∈ as := by
+  nunchaku
+
+-/
+
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+α : Type u_1
+β : Type u_2
+f : α → β
+a b : α
+⊢ List.map f [a] = [f b]
+-/
+#guard_msgs in
+example {f : α → β} {a b : α} : List.map f [a] = [f b] := by
+  nunchaku
+
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+α✝ : Type u_1
+f : α✝ → α✝
+l : List α✝
+b : α✝
+h : b ∈ List.map f l
+⊢ ∃ a, b ∈ l ∧ f a = b
+-/
+#guard_msgs in
+example (h : b ∈ List.map f l) : ∃ a, b ∈ l ∧ f a = b := by
+  nunchaku
+
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+α : Type u_1
+a : α
+l : List α
+⊢ a ∈ l ↔ ∃ s t, l = s ++ t
+-/
+#guard_msgs in
+example {a : α} {l : List α} : a ∈ l ↔ ∃ s t : List α, l = s ++ t := by
+  nunchaku
