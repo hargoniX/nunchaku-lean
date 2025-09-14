@@ -197,4 +197,15 @@ h : IsEven n
 example (n : Nat) (h : IsEven n) : IsEven n.succ := by
   nunchaku
 
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+n : Nat
+⊢ IsEven n ↔ isOdd n = true
+-/
+#guard_msgs in
+example (n : Nat) : IsEven n ↔ isOdd n := by
+  nunchaku
+
 end Mutual
