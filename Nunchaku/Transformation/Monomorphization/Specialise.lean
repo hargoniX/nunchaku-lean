@@ -65,22 +65,22 @@ def partitionMonoArgPositions (const : Name) (args : Array Expr) :
 
 partial def groundTypeOfExpr (expr : Expr) : MonoAnalysisM GroundTypeArg := do
   match expr with
-  | .const const us =>
+  | .const const _ =>
     let positions ← getMonoArgPositions const
     if !positions.isEmpty then
       throwError m!"Underapplied constant cannot be used as ground type: {expr}"
-    return .const const us #[]
+    return .const const #[]
   | .app .. =>
     expr.withApp fun fn args => do
       match fn with
-      | .const fn us =>
+      | .const fn _ =>
         if TransforM.isBuiltin fn then
           throwError m!"Can't interpret {expr} as a ground type"
         let monoArgPositions ← getMonoArgPositions fn
         if monoArgPositions.isEmpty then
-          return .const fn us #[]
+          return .const fn #[]
         let groundTypes ← monoArgPositions.mapM (fun idx => groundTypeOfExpr args[idx]!)
-        return .const fn us groundTypes
+        return .const fn groundTypes
       | _ => throwError m!"Can't interpret {expr} as a ground type"
   | .mdata _ e => groundTypeOfExpr e
   | .proj .. | .lit .. | .sort .. | .bvar .. | .mvar .. | .forallE .. | .letE .. | .lam ..
@@ -91,7 +91,7 @@ def instantiateStencilWith (remainder : Expr) (stencil : Array (Nat × GroundTyp
   if h : stencilPos < stencil.size then
     let (argPos, arg) := stencil[stencilPos]
     Meta.forallBoundedTelescope remainder (some (argPos - lastArgPos - 1)) fun args body => do
-      let argExpr := arg.toExpr
+      let argExpr ← arg.toExpr
       let .forallE _ type body _ := body | unreachable!
       if !(← Meta.isDefEq (← Meta.inferType argExpr) type) then
         throwError m!"Failed to instantiate type argument {argExpr} for {type}"

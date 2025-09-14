@@ -63,25 +63,25 @@ partial def flowTypeOfExpr (expr : Expr) : CollectM FlowTypeArg := do
       let some flow := (← read).flowFVars.get? fvarId
         | throwError m!"Can't interpret {expr} as a flow type"
       return flow
-    | .const const us =>
+    | .const const _ =>
       let positions ← getMonoArgPositions const
       if !positions.isEmpty then
         throwError m!"Underapplied constant cannot be used as flow type: {expr}"
-      return .const const us #[]
+      return .const const #[]
     | .app .. =>
       expr.withApp fun fn args => do
         match fn with
-        | .const fn us =>
+        | .const fn _ =>
           if TransforM.isBuiltin fn then
             throwError m!"Can't interpret {expr} as a flow type"
           let monoArgPositions ← getMonoArgPositions fn
           if monoArgPositions.isEmpty then
-            return .const fn us #[]
+            return .const fn #[]
           let last := monoArgPositions[monoArgPositions.size - 1]!
           if args.size ≤ last then
             throwError m!"Can't interpret {expr} as a flow type"
           let flowTypes ← monoArgPositions.mapM (fun idx => flowTypeOfExpr args[idx]!)
-          return .const fn us flowTypes
+          return .const fn flowTypes
         | _ => throwError m!"Can't interpret {expr} as a flow type"
     | .mdata _ e => flowTypeOfExpr e
     | .proj .. | .lit .. | .sort .. | .bvar .. | .mvar .. | .forallE .. | .letE .. | .lam .. =>

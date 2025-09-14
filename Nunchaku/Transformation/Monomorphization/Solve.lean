@@ -56,7 +56,7 @@ mutual
 
 def partiallyInstantiateFlowType (arg : FlowTypeArg) (fact : GroundConstraint) : FlowTypeArg :=
   match arg with
-  | .const name us args => .const name us (partiallyInstantiate args fact)
+  | .const name args => .const name (partiallyInstantiate args fact)
   | .index var idx =>
     if var == fact.dst then
       fact.src.args[idx]! |>.toFlowTypeArg

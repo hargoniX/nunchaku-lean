@@ -151,17 +151,15 @@ example (xs : List Nat) (h : xs ≠ []) : sumalt' xs ≠ .zero := by
 
 def foo (xs : List α) : List α := id xs
 
---/--
---info: The prover is convinced that the theorem is true.
------
---error: unsolved goals
---α : Type u_1
---xs : List α
---⊢ foo xs = id xs
----/
---#guard_msgs in
-set_option Elab.async false
-set_option trace.nunchaku true in
+/--
+info: The prover is convinced that the theorem is true.
+---
+error: unsolved goals
+α : Type u_1
+xs : List α
+⊢ foo xs = id xs
+-/
+#guard_msgs in
 example (xs : List α) : foo xs = id xs := by
   nunchaku
 
@@ -183,6 +181,7 @@ inductive MyAll {α : Type} (p : α → Prop) : List α → Prop where
   | nil : MyAll p []
   | cons (x : α) (xs : List α) (h1 : p x) (h2 : MyAll p xs) : MyAll p (x :: xs)
 
+/-
 -- TODO: probably nunchaku bug
 set_option trace.nunchaku true in
 example (xs : List α) (h : xs = []) : MyAll (fun _ => False) xs := by
@@ -197,4 +196,4 @@ inductive MyEven : Nat → Prop where
 set_option trace.nunchaku true in
 example (n : Nat) : MyEven n := by nunchaku
 -/
-
+-/

@@ -29,13 +29,13 @@ inductive FlowTypeArg where
   /--
   A (potentially polymorphic) type with arguments.
   -/
-  | const (name : Name) (us : List Level) (args : Array FlowTypeArg)
+  | const (name : Name) (args : Array FlowTypeArg)
   deriving Inhabited, BEq, Hashable
 
 def FlowTypeArg.findTypeVar (type : FlowTypeArg) : Option FlowVariable :=
   match type with
   | .index var .. => some var
-  | .const _ _ args => Id.run do
+  | .const _ args => Id.run do
     for arg in args do
       if let some var := findTypeVar arg then
         return some var
@@ -53,7 +53,7 @@ where
   go (ty : FlowTypeArg) : MessageData :=
     match ty with
     | .index var idx => m!"{var}_({idx})"
-    | .const name us args => m!"{name}.{us} {args.map go}"
+    | .const name args => m!"{name} {args.map go}"
 
 /--
 The inputs into a flow variable.
@@ -94,7 +94,7 @@ inductive GroundTypeArg where
   /--
   A list of ground type arguments applied to a constant are ground.
   -/
-  | const (name : Name) (us : List Level) (args : Array GroundTypeArg)
+  | const (name : Name) (args : Array GroundTypeArg)
   deriving Inhabited, BEq, Hashable
 
 instance : ToMessageData GroundTypeArg where
@@ -102,7 +102,7 @@ instance : ToMessageData GroundTypeArg where
 where
   go (arg : GroundTypeArg) : MessageData :=
     match arg with
-    | .const name us args => m!"{toMessageData name}.{us} {args.map go}"
+    | .const name args => m!"{toMessageData name} {args.map go}"
 
 /--
 An assignment to a vector of type variables.
@@ -124,7 +124,7 @@ structure GroundConstraint where
 
 def FlowTypeArg.toGroundTypeArg (type : FlowTypeArg) : Option GroundTypeArg := do
   match type with
-  | .const name us args => return .const name us (← args.mapM FlowTypeArg.toGroundTypeArg)
+  | .const name args => return .const name (← args.mapM FlowTypeArg.toGroundTypeArg)
   | .index .. => none
 
 def FlowInput.toGroundInput (inp : FlowInput) : Option GroundInput := do
@@ -135,11 +135,11 @@ def FlowInput.toGroundInput (inp : FlowInput) : Option GroundInput := do
 
 def GroundTypeArg.toFlowTypeArg (arg : GroundTypeArg) : FlowTypeArg :=
   match arg with
-  | .const name us args => .const name us (args.map GroundTypeArg.toFlowTypeArg)
+  | .const name args => .const name (args.map GroundTypeArg.toFlowTypeArg)
 
-partial def GroundTypeArg.toExpr (arg : GroundTypeArg) : Expr :=
+partial def GroundTypeArg.toExpr (arg : GroundTypeArg) : MetaM Expr := do
   match arg with
-  | .const name us args => mkAppN (.const name us) (args.map GroundTypeArg.toExpr)
+  | .const name args => Meta.mkAppOptM name (← args.mapM fun arg => return some (← arg.toExpr))
 
 
 structure MonoAnalysisState where
