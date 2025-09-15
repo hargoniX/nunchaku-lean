@@ -56,24 +56,30 @@ def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) := do
     if visited.contains elem || isBuiltin elem then
       continue
     visited := visited.insert elem
+    trace[nunchaku.equations] m!"Working {elem}"
     let constInfo ← getConstInfo elem
-    if constInfo.isDefinition then
+    match constInfo with
+    | .defnInfo .. =>
+      -- A theorem in disguise!
+      if ← Meta.isProof (← mkConstWithLevelParams constInfo.name) then
+        let used := constInfo.type.getUsedConstants
+        worklist := worklist ++ used
+        continue
       let some eqns ← getEqnsFor? elem | throwError s!"Unable to find equations for {mkConst elem}"
       let eqns ← eqns.mapM fun eq => do inferType (← mkConstWithLevelParams eq)
       let eqns ← eqns.mapM preprocessEquation
       defs := defs.insert elem eqns.toList
       for eq in eqns do
-        let used := eq.getUsedConstantsAsSet
-        for name in used do
-          if visited.contains name then
-            continue
-          worklist := worklist.push name
-    else
-      let used := constInfo.getUsedConstantsAsSet
-      for name in used do
-        if visited.contains name || isBuiltin name then
-          continue
-        worklist := worklist.push name
+        let used := eq.getUsedConstants
+        worklist := worklist ++ used
+    | .inductInfo .. | .axiomInfo .. | .opaqueInfo .. | .recInfo .. | .ctorInfo .. =>
+      -- TODO: Don't traverse into theorems here
+      let used := constInfo.getUsedConstantsAsSet.toArray
+      worklist := worklist ++ used
+    | .thmInfo info =>
+      let used := info.type.getUsedConstantsAsSet.toArray
+      worklist := worklist ++ used
+    | .quotInfo .. => throwError "No quotient support"
 
   return defs
 where
