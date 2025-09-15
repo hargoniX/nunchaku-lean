@@ -177,16 +177,24 @@ h : xs = []
 example (xs : List α) (h : xs = []) : xs.all f = false := by
   nunchaku
 
-/-
 inductive MyAll {α : Type} (p : α → Prop) : List α → Prop where
   | nil : MyAll p []
-  | cons (x : α) (xs : List α) (h1 : p x) (h2 : MyAll p xs) : MyAll p (x :: xs)
+  | cons (x : α) (h1 : p x) (xs : List α) (h2 : MyAll p xs) : MyAll p (x :: xs)
 
--- TODO: probably nunchaku bug
-set_option trace.nunchaku true in
+/--
+info: The prover is convinced that the theorem is true.
+---
+error: unsolved goals
+α : Type
+xs : List α
+h : xs = []
+⊢ MyAll (fun x => False) xs
+-/
+#guard_msgs in
 example (xs : List α) (h : xs = []) : MyAll (fun _ => False) xs := by
   nunchaku
 
+/-
 /-
 TODO: times out
 inductive MyEven : Nat → Prop where

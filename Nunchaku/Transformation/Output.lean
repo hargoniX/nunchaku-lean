@@ -267,7 +267,42 @@ def arrowN (n : Nat) (type : Expr) : MetaM (Array Expr × Expr) :=
 
 def encodePredCtor (ctor : Name) : OutputM NunTerm := do
   let info ← getConstInfoCtor ctor
-  encodeTerm info.type
+  /-
+  Nunchaku expects our ctors to be of the form
+  forall xs, cond => Pred ys
+  While in Lean we have two additional freedoms:
+  1. Conditions and data can be mixed in the quantifiers
+  2. Conditions are separated with → instead of ∧
+
+  Thus the following transformation does two things:
+  1. Quantifiers quantify over all values first
+  2. Then one large conjunct of all conditions
+  3. Then the conclusion
+  4. Then call normal type encoder
+
+  Note that this transformation is only generally possible because we have eliminated dependent
+  types and should thus have no dependency on proofs in our types.
+  -/
+  let processed ←
+    Meta.forallTelescope info.type fun args concl => do
+      let mut values := #[]
+      let mut props := #[]
+      for arg in args do
+        if ← Meta.isProp (← arg.fvarId!.getType) then
+          props := props.push arg
+        else
+          values := values.push arg
+
+      trace[nunchaku] m!"{values}, {props}, {concl}"
+      if h : 0 < props.size then
+        let cond ← props[1:].foldlM (init := ← props[0].fvarId!.getType) fun acc prop => do
+          let prop ← prop.fvarId!.getType
+          return mkAnd acc prop
+        let body ← mkArrow cond concl
+        Meta.mkForallFVars values body
+      else
+        Meta.mkForallFVars values concl
+  encodeTerm processed
 
 def encodeDataCtor (ctor : Name) : OutputM NunCtorSpec := do
   let info ← getConstInfoCtor ctor
