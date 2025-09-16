@@ -362,3 +362,19 @@ l : List α
 #guard_msgs in
 example {a : α} {l : List α} : a ∈ l ↔ ∃ s t : List α, l = s ++ t := by
   nunchaku
+
+namespace FunFlow
+
+/--
+info: The prover found a counter example
+---
+error: unsolved goals
+α β : Type
+f : α → β
+⊢ (some f).isNone = true
+-/
+#guard_msgs in
+example {α β : Type} (f : α → β) : (some f).isNone := by
+  nunchaku
+
+end FunFlow

@@ -62,6 +62,8 @@ def partiallyInstantiateFlowType (arg : FlowTypeArg) (fact : GroundConstraint) :
       fact.src.args[idx]! |>.toFlowTypeArg
     else
       .index var idx
+  | .func dom codom =>
+    .func (partiallyInstantiateFlowType dom fact) (partiallyInstantiateFlowType codom fact)
 
 def partiallyInstantiate (args : Array FlowTypeArg) (fact : GroundConstraint) : Array FlowTypeArg :=
   args.map (partiallyInstantiateFlowType · fact)

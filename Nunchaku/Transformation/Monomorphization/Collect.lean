@@ -84,7 +84,11 @@ partial def flowTypeOfExpr (expr : Expr) : CollectM FlowTypeArg := do
           return .const fn flowTypes
         | _ => throwError m!"Can't interpret {expr} as a flow type"
     | .mdata _ e => flowTypeOfExpr e
-    | .proj .. | .lit .. | .sort .. | .bvar .. | .mvar .. | .forallE .. | .letE .. | .lam .. =>
+    | .forallE _ dom codom _ =>
+      if !expr.isArrow then
+        throwError m!"Can't interpret {expr} as a flow type"
+      return .func (← flowTypeOfExpr dom) (← flowTypeOfExpr codom)
+    | .proj .. | .lit .. | .sort .. | .bvar .. | .mvar .. | .letE .. | .lam .. =>
       throwError m!"Can't interpret {expr} as a flow type"
 
 mutual

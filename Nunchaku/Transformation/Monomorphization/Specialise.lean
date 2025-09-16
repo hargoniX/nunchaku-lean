@@ -83,7 +83,11 @@ partial def groundTypeOfExpr (expr : Expr) : MonoAnalysisM GroundTypeArg := do
         return .const fn groundTypes
       | _ => throwError m!"Can't interpret {expr} as a ground type"
   | .mdata _ e => groundTypeOfExpr e
-  | .proj .. | .lit .. | .sort .. | .bvar .. | .mvar .. | .forallE .. | .letE .. | .lam ..
+  | .forallE _ dom codom _ =>
+    if !expr.isArrow then
+      throwError m!"Can't interpret {expr} as a flow type"
+    return .func (← groundTypeOfExpr dom) (← groundTypeOfExpr codom)
+  | .proj .. | .lit .. | .sort .. | .bvar .. | .mvar .. | .letE .. | .lam ..
   | .fvar .. => throwError m!"Can't interpret {expr} as a ground type"
 
 def instantiateStencilWith (remainder : Expr) (stencil : Array (Nat × GroundTypeArg))
