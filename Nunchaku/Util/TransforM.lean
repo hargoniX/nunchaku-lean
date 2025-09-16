@@ -4,6 +4,7 @@ import Lean.Meta.Eqns
 import Lean.Meta.Reduce
 public import Nunchaku.Attr
 public meta import Nunchaku.Attr -- TODO: this should not be necessary
+import Lean.Meta.Match.MatchEqsExt
 
 /-!
 This module contains the definition of the `TransforM` monad which is the core
@@ -65,13 +66,19 @@ def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) := do
         let used := constInfo.type.getUsedConstants
         worklist := worklist ++ used
         continue
-      let some eqns ← getEqnsFor? elem | throwError s!"Unable to find equations for {mkConst elem}"
-      let eqns ← eqns.mapM fun eq => do inferType (← mkConstWithLevelParams eq)
-      let eqns ← eqns.mapM preprocessEquation
-      defs := defs.insert elem eqns.toList
-      for eq in eqns do
-        let used := eq.getUsedConstants
-        worklist := worklist ++ used
+      else
+        let eqns ←
+          if ← Meta.isMatcher constInfo.name then
+            pure (← Match.getEquationsFor constInfo.name).eqnNames
+          else
+            let some eqns ← getEqnsFor? elem | throwError s!"Unable to find equations for {mkConst elem}"
+            pure eqns
+        let eqns ← eqns.mapM fun eq => do inferType (← mkConstWithLevelParams eq)
+        let eqns ← eqns.mapM preprocessEquation
+        defs := defs.insert elem eqns.toList
+        for eq in eqns do
+          let used := eq.getUsedConstants
+          worklist := worklist ++ used
     | .inductInfo .. | .axiomInfo .. | .opaqueInfo .. | .recInfo .. | .ctorInfo .. =>
       -- TODO: Don't traverse into theorems here
       let used := constInfo.getUsedConstantsAsSet.toArray
@@ -92,22 +99,20 @@ where
     return used
 
 public def run (g : MVarId) (cfg : NunchakuConfig) (x : TransforM α) : MetaM α := do
-  let equations ← findEquations g
-  trace[nunchaku.equations] "Collected equations:"
-  for (name, eqns) in equations do
-    trace[nunchaku.equations] m!"- {name}"
-    for eq in eqns do
-      trace[nunchaku.equations] m!"  - {eq}"
+  let equations ←
+    withTraceNode `nunchaku.equations (fun _ => return m!"Looking for equations") do
+      findEquations g
+  withTraceNode `nunchaku.equations (fun _ => return m!"Collected Equations") do
+    for (name, eqns) in equations do
+      trace[nunchaku.equations] m!"- {name}"
+      for eq in eqns do
+        trace[nunchaku.equations] m!"  - {eq}"
 
   StateRefT'.run' (ReaderT.run x cfg) { equations }
 
 
 -- Our own sorry to avoid printing "this theorem relies on sorry"
-public axiom sorryAx (α : Sort u) : α
-
-public def mkSorry (type : Expr) : MetaM Expr := do
-  let u ← getLevel type
-  return mkApp (mkConst ``sorryAx [u]) type
+public meta axiom sorryAx (α : Sort u) : α
 
 end TransforM
 

@@ -1,4 +1,5 @@
-import Nunchaku
+module
+import all Nunchaku
 
 /--
 info: The prover found a counter example

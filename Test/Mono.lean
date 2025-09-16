@@ -1,4 +1,5 @@
-import Nunchaku
+module
+import all Nunchaku
 
 namespace Bar
 
@@ -302,13 +303,22 @@ example {p : α → Bool} {as : List α} {bs : List α} :
   -/
 
 /-
+TODO: handle nested matches
+section
 
-TODO: don't traverse into bodies of theorems
+instance (priority := high) : BEq Nat where
+  beq := Nat.beq
+
+def myelem (a : Nat) : (l : List Nat) → Bool
+  | []    => false
+  | b::bs => if a = b then true else myelem a bs
 
 set_option trace.nunchaku true in
-example {a : Nat} {as : List Nat} : List.elem a as = false ↔ a ∈ as := by
+example {a : Nat} {as : List Nat} : myelem a as = false ↔ a ∈ as := by
   nunchaku
 
+
+end
 -/
 
 /--
