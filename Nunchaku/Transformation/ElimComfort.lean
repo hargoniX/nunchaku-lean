@@ -26,7 +26,6 @@ namespace ElimComfort
 open Lean
 
 structure ComfortState where
-  nameIdx : Nat := 0
   decls : List Declaration := {}
   consts : Std.HashMap Name Name := {}
 
@@ -72,11 +71,8 @@ def recordName (orig : Name) (new : Name) : ComfortM Unit :=
 def getNewName! (orig : Name) : ComfortM Name := do
   return (← get).consts[orig]!
 
--- TODO: generalize with specialize
 def mkFreshName (name : Name) : ComfortM Name := do
-  let idx := (← get).nameIdx
-  let freshName := Name.str name s!"_{idx}"
-  modify fun s => { s with nameIdx := s.nameIdx + 1 }
+  let freshName ← TransforM.mkFreshName name
   recordName name freshName
   return freshName
 
@@ -205,7 +201,7 @@ where
         0
       else
         max (killParamsAux l) r
-    | .param _ => 0
+    | .param _ => 1
     | .mvar .. => unreachable!
 
 def encode (g : MVarId) : ComfortM MVarId := g.withContext do

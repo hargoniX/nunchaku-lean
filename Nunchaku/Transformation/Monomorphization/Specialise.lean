@@ -16,7 +16,6 @@ public structure SpecializeContext where
 public structure SpecializeState where
   newEquations : Std.HashMap Name (List Expr) := {}
   specialisationCache : Std.HashMap (FlowVariable × GroundInput) Name := {}
-  nameIdx : Nat := 0
   exprCache : Std.HashMap Expr Expr := {}
   decls : List Declaration := {}
 
@@ -44,11 +43,6 @@ where
 
   replaceParams (l : Level) (map : Std.HashMap Name Level) : Level :=
     l.substParams (fun p => some map[p]!)
-
-def mkFreshSpecName (name : Name) : SpecializeM Name := do
-  let idx := (← get).nameIdx
-  modify fun s => { s with nameIdx := s.nameIdx + 1}
-  return Name.str name s!"spec_{idx}"
 
 def partitionMonoArgPositions (const : Name) (args : Array Expr) :
     MonoAnalysisM (Array Expr × Array (Expr × Nat)) := do
@@ -326,7 +320,7 @@ partial def specialiseConst (name : Name) (input : GroundInput) : SpecializeM Un
   if (← get).specialisationCache.contains (flow, input) then
     return ()
   else
-    let specName ← mkFreshSpecName name
+    let specName ← TransforM.mkFreshName name (pref := "spec_")
     modify fun s =>
       { s with specialisationCache := s.specialisationCache.insert (flow, input) specName }
 

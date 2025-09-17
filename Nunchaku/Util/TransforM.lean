@@ -17,6 +17,7 @@ open Lean Meta
 
 public structure TransforM.State where
   equations : Std.HashMap Name (List Expr)
+  nameIdx : Nat := 0
 
 public abbrev TransforM := ReaderT NunchakuConfig <| StateRefT TransforM.State MetaM
 
@@ -97,6 +98,11 @@ where
         continue
       used := used ++ decl.type.getUsedConstants ++ (decl.value?.map Expr.getUsedConstants).getD #[]
     return used
+
+public def mkFreshName (name : Name) (pref : String := "") : TransforM Name := do
+  let idx := (← get).nameIdx
+  modify fun s => { s with nameIdx := s.nameIdx + 1}
+  return Name.str name s!"{pref}{idx}"
 
 public def run (g : MVarId) (cfg : NunchakuConfig) (x : TransforM α) : MetaM α := do
   let equations ←
