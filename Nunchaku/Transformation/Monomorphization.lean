@@ -34,8 +34,7 @@ public def transformation : Transformation MVarId MVarId LeanResult LeanResult w
         trace[nunchaku.mono] m!"Constraints: {constraints}"
         let solution := solveConstraints constraints (by simpa using h)
         trace[nunchaku.mono] m!"Solution: {solution.toList}"
-        let (g, st) ← (specialize g).run { solution } monoAnalysis
-        addDeclsScc st.decls
+        let g ← (specialize g).run { solution } monoAnalysis
         trace[nunchaku.mono] m!"Result: {g}"
         return (g, ())
     decode _ res := return res

@@ -2,6 +2,7 @@ module
 
 public import Nunchaku.Transformation.Monomorphization.Util
 import Nunchaku.Util.LocalContext
+import Nunchaku.Util.AddDecls
 
 namespace Nunchaku
 namespace Transformation
@@ -17,13 +18,12 @@ public structure SpecializeState where
   newEquations : Std.HashMap Name (List Expr) := {}
   specialisationCache : Std.HashMap (FlowVariable × GroundInput) Name := {}
   exprCache : Std.HashMap Expr Expr := {}
-  decls : List Declaration := {}
 
 public abbrev SpecializeM := ReaderT SpecializeContext <| StateRefT SpecializeState MonoAnalysisM
 
 public def SpecializeM.run (x : SpecializeM α) (ctx : SpecializeContext)
-    (mono : MonoAnalysisState) : TransforM (α × SpecializeState) := do
-  let (p, _) ← StateRefT'.run (StateRefT'.run (ReaderT.run x ctx) {}) mono
+    (mono : MonoAnalysisState) : TransforM α := do
+  let ((p, _), _) ← StateRefT'.run (StateRefT'.run (ReaderT.run x ctx) {}) mono
   return p
 
 def levelParamsAsMeta (e : Expr) : MetaM Expr := do
@@ -102,9 +102,6 @@ def instantiateStencilWith (remainder : Expr) (stencil : Array (Nat × GroundTyp
 def specialisedCtorName (inductSpecName : Name) (ctorName : Name) : MetaM Name := do
   let .str _ n := ctorName | throwError m!"Weird ctor name {ctorName}"
   return .str inductSpecName n
-
-def recordDecl (decl : Declaration) : SpecializeM Unit :=
-  modify fun s => { s with decls := decl :: s.decls }
 
 mutual
 
@@ -252,7 +249,7 @@ partial def specialiseInduct (info : InductiveVal) (input : GroundInput) : Speci
     ctors := newCtors
   }
   let nparams := info.numParams - (← getMonoArgPositions name).size
-  recordDecl <| .inductDecl [] nparams [decl] false
+  TransforM.recordDecl <| .inductDecl [] nparams [decl] false
 
 partial def specialiseEquation (name : Name) (eq : Expr) (input : GroundInput) :
     SpecializeM Expr := do
@@ -279,7 +276,7 @@ partial def specialiseOpaque (info : OpaqueVal) (input : GroundInput) : Speciali
     value := mkApp (mkConst ``TransforM.sorryAx [u]) specType,
     isUnsafe := info.isUnsafe
   }
-  recordDecl <| .opaqueDecl defn
+  TransforM.recordDecl <| .opaqueDecl defn
 
 partial def specialiseAxiom (info : AxiomVal) (input : GroundInput) : SpecializeM Unit := do
   let name := info.name
@@ -292,7 +289,7 @@ partial def specialiseAxiom (info : AxiomVal) (input : GroundInput) : Specialize
     type := specType,
     isUnsafe := info.isUnsafe
   }
-  recordDecl <| .axiomDecl defn
+  TransforM.recordDecl <| .axiomDecl defn
 
 partial def specialiseDefn (info : DefinitionVal) (input : GroundInput) : SpecializeM Unit := do
   let name := info.name
@@ -309,7 +306,7 @@ partial def specialiseDefn (info : DefinitionVal) (input : GroundInput) : Specia
     hints := .opaque,
     safety := .safe
   }
-  recordDecl <| .defnDecl defn
+  TransforM.recordDecl <| .defnDecl defn
 
   let equations ← TransforM.getEquationsFor name
   let newEqs ← equations.mapM (specialiseEquation name · input)
@@ -347,8 +344,8 @@ public partial def specialize (g : MVarId) : SpecializeM MVarId := do
   trace[nunchaku.mono] m!"Specialising in {g}"
   let g ← mapMVarId g specialiseExpr
   TransforM.replaceEquations (← get).newEquations
+  TransforM.addDecls
   return g
-where
 
 end Specialise
 end Monomorphization

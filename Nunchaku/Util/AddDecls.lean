@@ -66,4 +66,16 @@ public def addDeclsScc (decls : List Declaration) : TransforM Unit := do
   let components ← declsScc decls
   components.forM addComponent
 
+namespace TransforM
+
+public def recordDecl (decl : Declaration) : TransforM Unit :=
+  modify fun s => { s with freshDecls := decl :: s.freshDecls }
+
+public def addDecls : TransforM Unit := do
+  let decls := (← get).freshDecls
+  addDeclsScc decls
+  modify fun s => { s with freshDecls := [] }
+
+end TransforM
+
 end Nunchaku

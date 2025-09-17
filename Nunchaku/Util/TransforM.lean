@@ -18,6 +18,7 @@ open Lean Meta
 public structure TransforM.State where
   equations : Std.HashMap Name (List Expr)
   nameIdx : Nat := 0
+  freshDecls : List Declaration := []
 
 public abbrev TransforM := ReaderT NunchakuConfig <| StateRefT TransforM.State MetaM
 
@@ -115,7 +116,6 @@ public def run (g : MVarId) (cfg : NunchakuConfig) (x : TransforM α) : MetaM α
         trace[nunchaku.equations] m!"  - {eq}"
 
   StateRefT'.run' (ReaderT.run x cfg) { equations }
-
 
 -- Our own sorry to avoid printing "this theorem relies on sorry"
 public meta axiom sorryAx (α : Sort u) : α

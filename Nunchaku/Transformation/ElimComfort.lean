@@ -26,13 +26,12 @@ namespace ElimComfort
 open Lean
 
 structure ComfortState where
-  decls : List Declaration := {}
   consts : Std.HashMap Name Name := {}
 
 abbrev ComfortM := StateRefT ComfortState TransforM
 
-def ComfortM.run (x : ComfortM α) : TransforM (α × ComfortState) :=
-  StateRefT'.run x {}
+def ComfortM.run (x : ComfortM α) : TransforM α :=
+  StateRefT'.run' x {}
 
 def zetaBetaReduce (e : Expr) : MetaM Expr := do
   let e ← Meta.zetaReduce e
@@ -65,19 +64,19 @@ where
       | throwError m!"Failed to unfold type alias {expr}"
     return .visit expr
 
-def recordName (orig : Name) (new : Name) : ComfortM Unit :=
+def recordName (orig : Name) (new : Name) : ComfortM Unit := do
   modify fun s => { s with consts := s.consts.insert orig new }
 
 def getNewName! (orig : Name) : ComfortM Name := do
-  return (← get).consts[orig]!
+  if (← get).consts.contains orig then
+    return (← get).consts[orig]!
+  else
+    throwError m!"Didn't find new name for {orig}"
 
 def mkFreshName (name : Name) : ComfortM Name := do
   let freshName ← TransforM.mkFreshName name
   recordName name freshName
   return freshName
-
-def recordDecl (decl : Declaration) : ComfortM Unit :=
-  modify fun s => { s with decls := decl :: s.decls }
 
 def maxLit : Nat := 4096
 
@@ -104,7 +103,7 @@ partial def elimConst (const : Name) : ComfortM Name := do
       hints := info.hints,
       safety := .safe
     }
-    recordDecl <| .defnDecl decl
+    TransforM.recordDecl <| .defnDecl decl
     return freshName
   | .inductInfo info =>
     let freshName ← mkFreshName const
@@ -120,7 +119,7 @@ partial def elimConst (const : Name) : ComfortM Name := do
       type := type,
       ctors := ctors
     }
-    recordDecl <| .inductDecl info.levelParams info.numParams [decl] info.isUnsafe
+    TransforM.recordDecl <| .inductDecl info.levelParams info.numParams [decl] info.isUnsafe
     return freshName
 
   | .axiomInfo info | .opaqueInfo info | .thmInfo info =>
@@ -132,14 +131,12 @@ partial def elimConst (const : Name) : ComfortM Name := do
       type := type,
       isUnsafe := false
     }
-    recordDecl <| .axiomDecl decl
+    TransforM.recordDecl <| .axiomDecl decl
     return freshName
   | .ctorInfo info =>
     discard <| elimConst info.induct
     getNewName! const
-  | .recInfo info =>
-    discard <| elimConst info.getMajorInduct
-    getNewName! const
+  | .recInfo .. => throwError m!"Cannot handle recursor {const}"
   | .quotInfo .. => return const
 
 partial def elimComfortExpr (e : Expr) : ComfortM Expr := do
@@ -225,6 +222,7 @@ def encode (g : MVarId) : ComfortM MVarId := g.withContext do
       newEquations := newEquations.insert newName eqs
 
     TransforM.replaceEquations newEquations
+    TransforM.addDecls
     return g
 
 public def transformation : Transformation MVarId MVarId LeanResult LeanResult where
@@ -232,8 +230,7 @@ public def transformation : Transformation MVarId MVarId LeanResult LeanResult w
    inner := private {
     name := "ElimComfort"
     encode g := do
-      let (g, st) ← ComfortM.run <| encode g
-      addDeclsScc st.decls
+      let g ← ComfortM.run <| encode g
       trace[nunchaku.elimcomfort] m!"Result: {g}"
       return (g, ())
     decode _ res := return res
