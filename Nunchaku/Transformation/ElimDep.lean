@@ -31,7 +31,7 @@ def shouldElim (e : Expr) (elimAdditional : Bool) : MetaM Bool := do
 def argStencil (info : ConstantVal) : DepM (Array Nat) := do
   if let some stencil := (← get).argCache[info.name]? then
     return stencil
-  
+
   let stencil ← Meta.forallTelescope info.type fun args dom => do
     let elimAdditional ←
       match dom with
@@ -69,9 +69,39 @@ def elimExpr (expr : Expr) (subst : Meta.FVarSubst) : DepM Expr := do
       return .const const us
     sorry
   | .app .. => sorry
-  | .lam .. => sorry
-  | .forallE .. => sorry
-  | .letE .. => sorry
+  | .lam .. =>
+    Meta.lambdaBoundedTelescope expr 1 fun args body => do
+      let arg := args[0]!
+      if ← Meta.isProof arg then
+        elimExpr body subst
+      else
+        let fvarId := arg.fvarId!
+        let name ← fvarId.getUserName
+        let bi ← fvarId.getBinderInfo
+        let newType ← elimExpr (← fvarId.getType) subst
+
+        Meta.withLocalDecl name bi newType fun replacedArg => do
+          let newBody ← elimExpr body (subst.insert fvarId replacedArg)
+          Meta.mkLambdaFVars #[replacedArg] newBody
+  | .forallE .. =>
+    -- TODO: not sure if we can do the same as lam and let here, seems trickier
+    -- after all we don't want to throw away things such as implications inside of certain
+    -- propositional expressions that we keep...
+    sorry
+  | .letE (nondep := nondep) .. =>
+    Meta.letBoundedTelescope expr (some 1) fun args body => do
+      let arg := args[0]!
+      if ← Meta.isProof arg then
+        elimExpr body subst
+      else
+        let fvarId := arg.fvarId!
+        let name ← fvarId.getUserName
+        let newType ← elimExpr (← fvarId.getType) subst
+        let newValue ← elimExpr (← fvarId.getValue?).get! subst
+
+        Meta.withLetDecl name newType newValue (nondep := nondep) fun replacedArg => do
+          let newBody ← elimExpr body (subst.insert fvarId replacedArg)
+          Meta.mkLetFVars #[replacedArg] newBody
   | .mdata _ e => elimExpr e subst
   | .proj .. => sorry
   | .fvar .. => return subst.apply expr
