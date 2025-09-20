@@ -24,142 +24,8 @@ def zetaBetaReduce (e : Expr) : MetaM Expr := do
   let e ← Meta.zetaReduce e
   Core.betaReduce e
 
-def isNonPropTypeFormer (expr : Expr) : MetaM Bool := do
-  let some level ← Meta.typeFormerTypeLevel expr | return false
-  return level != 0
-
-def isTypeAlias (const : Name) : MetaM Bool := do
-  let .defnInfo info ← getConstInfo const | return false
-  if !(← isNonPropTypeFormer info.type) then return false
-  let reducedValue ← zetaBetaReduce info.value
-  Meta.lambdaTelescope reducedValue fun _ body => do
-    let body := body.consumeMData
-    match body with
-    | .fvar .. | .forallE .. | .sort .. => return true
-    | .const name .. => return (← isNonPropTypeFormer (← getConstVal name).type)
-    | .proj .. => return false
-    | .app .. => return body.getAppFn.isConst
-    | .mdata .. | .lit .. | .mvar .. | .letE .. | .lam .. | .bvar .. => unreachable!
-
-def unfoldTypeAliases (e : Expr) : MetaM Expr := do
-  Meta.transform e (pre := pre)
-where
-  pre (expr : Expr) : MetaM TransformStep := do
-    let .const name _ := expr.getAppFn | return .continue
-    if ! (← isTypeAlias name) then return .continue
-    let some expr ← Meta.unfoldDefinition? expr (ignoreTransparency := true)
-      | throwError m!"Failed to unfold type alias {expr}"
-    return .visit expr
-
-def recordName (orig : Name) (new : Name) : ComfortM Unit := do
-  modify fun s => { s with consts := s.consts.insert orig new }
-
-def getNewName! (orig : Name) : ComfortM Name := do
-  if (← get).consts.contains orig then
-    return (← get).consts[orig]!
-  else
-    throwError m!"Didn't find new name for {orig}"
-
-def mkFreshName (name : Name) : ComfortM Name := do
-  let freshName ← TransforM.mkFreshName name
-  recordName name freshName
-  return freshName
-
-def maxLit : Nat := 2^16
-
-
-mutual
-
-partial def elimConst (const : Name) : ComfortM Name := do
-  if let some name := (← get).consts[const]? then
-    return name
-
-  if TransforM.isBuiltin const then
-    return const
-
-  match ← getConstInfo const with
-  | .defnInfo info =>
-    let freshName ← mkFreshName const
-    let u ← Meta.getLevel info.type
-    let type ← elimComfortExpr info.type true {}
-    let decl := {
-      name := freshName,
-      levelParams := info.levelParams,
-      type := type,
-      value := mkApp (mkConst ``TransforM.sorryAx [u]) type,
-      hints := info.hints,
-      safety := .safe
-    }
-    TransforM.recordDecl <| .defnDecl decl
-    return freshName
-  | .inductInfo info =>
-    let freshName ← mkFreshName const
-    let ctors ← info.ctors.mapM fun ctorName => do
-      let .str _ n := ctorName | throwError m!"Weird ctor name {ctorName}"
-      let freshCtorName := .str freshName n
-      recordName ctorName freshCtorName
-      let type ← elimComfortExpr (← getConstVal ctorName).type true {}
-      return { name := freshCtorName, type := type }
-    let type ← elimComfortExpr info.type true {}
-    let decl := {
-      name := freshName,
-      type := type,
-      ctors := ctors
-    }
-    TransforM.recordDecl <| .inductDecl info.levelParams info.numParams [decl] info.isUnsafe
-    return freshName
-
-  | .axiomInfo info | .opaqueInfo info | .thmInfo info =>
-    let freshName ← mkFreshName const
-    let type ← elimComfortExpr info.type true {}
-    let decl := {
-      name := freshName,
-      levelParams := info.levelParams,
-      type := type,
-      isUnsafe := false
-    }
-    TransforM.recordDecl <| .axiomDecl decl
-    return freshName
-  | .ctorInfo info =>
-    discard <| elimConst info.induct
-    getNewName! const
-  | .recInfo .. => throwError m!"Cannot handle recursor {const}"
-  | .quotInfo .. => return const
-
-partial def elimComfortExpr (e : Expr) (phase2 : Bool) (subst : Meta.FVarSubst) :
-    ComfortM Expr := do
-  let e ← unfoldTypeAliases e
-  let e ← zetaBetaReduce e
-  if phase2 then
-    Core.transform e (pre := pre)
-  else
-    return e
-where
-  aux (n : Nat) (zero succ : Name) (acc : Expr) : Expr :=
-    match n with
-    | 0 => acc
-    | n + 1 => aux n zero succ (mkApp (mkConst succ) acc)
-
-  pre (e : Expr) : ComfortM TransformStep := do
-    match e with
-    | .const name us =>
-      let name ← elimConst name
-      return .done <| .const name us
-    | .lit (.natVal n) =>
-      if n > maxLit then
-        throwError m!"Nat literal too large for unary encoding {n}"
-      let zero ← elimConst ``Nat.zero
-      let succ ← elimConst ``Nat.succ
-      let expr := aux n zero succ (mkConst zero)
-      return .done expr
-    | .fvar .. => return .done <| subst.apply e
-    | _ => return .continue
-
-end
-
 /--
 This function eliminates:
-- unfolds all type alises
 - universe parameters by instanting them with 1
 - applies ζ and β reduction
 -/
@@ -193,50 +59,15 @@ where
     | .param _ => 1
     | .mvar .. => unreachable!
 
-def encode1 (g : MVarId) : ComfortM MVarId := g.withContext do
+def encode (g : MVarId) : ComfortM MVarId := g.withContext do
   mapMVarId g elimComfortUniv (processLetDecl := true)
 
-public def transformation1 : Transformation MVarId MVarId LeanResult LeanResult where
+public def transformation : Transformation MVarId MVarId LeanResult LeanResult where
    st := private Unit
    inner := private {
-    name := "ElimComfort Part 1"
+    name := "ElimComfort"
     encode g := do
-      let g ← ComfortM.run <| encode1 g
-      trace[nunchaku.elimcomfort] m!"Result: {g}"
-      return (g, ())
-    decode _ res := return res
-  }
-
-def encode2 (g : MVarId) : ComfortM MVarId := do
-  let g ← mapMVarId g (elimComfortExpr · true)
-  g.withContext do
-    let mut lets := #[]
-    for decl in ← getLCtx do
-      if decl.isImplementationDetail then
-        continue
-      if decl.isLet then
-        lets := lets.push decl.fvarId
-    let g ← g.tryClearMany lets
-
-    let equations ← TransforM.getEquations
-    let mut newEquations := {}
-    for (name, eqs) in equations do
-      if ← isTypeAlias name then
-        continue
-      let eqs ← eqs.mapM (elimComfortExpr · true {})
-      let newName := (← get).consts.getD name name
-      newEquations := newEquations.insert newName eqs
-
-    TransforM.replaceEquations newEquations
-    TransforM.addDecls
-    return g
-
-public def transformation2 : Transformation MVarId MVarId LeanResult LeanResult where
-   st := private Unit
-   inner := private {
-    name := "ElimComfort Part 2"
-    encode g := do
-      let g ← ComfortM.run <| encode2 g
+      let g ← ComfortM.run <| encode g
       trace[nunchaku.elimcomfort] m!"Result: {g}"
       return (g, ())
     decode _ res := return res

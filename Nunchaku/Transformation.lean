@@ -18,10 +18,9 @@ namespace Transformation
 
 public def pipeline : Pipeline Lean.MVarId NunProblem NunResult LeanResult :=
   .compose Falsify.transformation <|
-  .compose ElimComfort.transformation1 <|
+  .compose ElimComfort.transformation<|
   .compose AbstractTypes.transformation <|
-  --.compose ElimDep.transformation <|
-  .compose ElimComfort.transformation2 <|
+  .compose ElimDep.transformation <|
   .compose Monomorphization.transformation <|
   .tip Output.transformation
 
