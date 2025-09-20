@@ -6,19 +6,6 @@ import Nunchaku.Util.LocalContext
 import Nunchaku.Util.AddDecls
 import Lean.Meta.Tactic.Clear
 
-/-!
-This module contains the transformation for eliminating comfort features from Lean, in particular:
-- universe parameters by instantiating them with `0`
-- let declarations by ζ reduction
-- lambdas by lambda lifting TODO
-
-TODO: currently this is only done in the goal and in equations, we might also need to do this in
-other type definitions
-
-TODO: right before emitting the raw problem to nunchaku we might be better of globally sharing with
-lets so we don't produce an exponential problem.
--/
-
 namespace Nunchaku
 namespace Transformation
 namespace ElimComfort
@@ -78,7 +65,7 @@ def mkFreshName (name : Name) : ComfortM Name := do
   recordName name freshName
   return freshName
 
-def maxLit : Nat := 4096
+def maxLit : Nat := 2^16
 
 
 mutual
@@ -94,7 +81,7 @@ partial def elimConst (const : Name) : ComfortM Name := do
   | .defnInfo info =>
     let freshName ← mkFreshName const
     let u ← Meta.getLevel info.type
-    let type ← elimComfortExpr info.type
+    let type ← elimComfortExpr info.type true {}
     let decl := {
       name := freshName,
       levelParams := info.levelParams,
@@ -111,9 +98,9 @@ partial def elimConst (const : Name) : ComfortM Name := do
       let .str _ n := ctorName | throwError m!"Weird ctor name {ctorName}"
       let freshCtorName := .str freshName n
       recordName ctorName freshCtorName
-      let type ← elimComfortExpr (← getConstVal ctorName).type
+      let type ← elimComfortExpr (← getConstVal ctorName).type true {}
       return { name := freshCtorName, type := type }
-    let type ← elimComfortExpr info.type
+    let type ← elimComfortExpr info.type true {}
     let decl := {
       name := freshName,
       type := type,
@@ -124,7 +111,7 @@ partial def elimConst (const : Name) : ComfortM Name := do
 
   | .axiomInfo info | .opaqueInfo info | .thmInfo info =>
     let freshName ← mkFreshName const
-    let type ← elimComfortExpr info.type
+    let type ← elimComfortExpr info.type true {}
     let decl := {
       name := freshName,
       levelParams := info.levelParams,
@@ -139,10 +126,14 @@ partial def elimConst (const : Name) : ComfortM Name := do
   | .recInfo .. => throwError m!"Cannot handle recursor {const}"
   | .quotInfo .. => return const
 
-partial def elimComfortExpr (e : Expr) : ComfortM Expr := do
+partial def elimComfortExpr (e : Expr) (phase2 : Bool) (subst : Meta.FVarSubst) :
+    ComfortM Expr := do
   let e ← unfoldTypeAliases e
   let e ← zetaBetaReduce e
-  Core.transform e (pre := pre)
+  if phase2 then
+    Core.transform e (pre := pre)
+  else
+    return e
 where
   aux (n : Nat) (zero succ : Name) (acc : Expr) : Expr :=
     match n with
@@ -161,6 +152,7 @@ where
       let succ ← elimConst ``Nat.succ
       let expr := aux n zero succ (mkConst zero)
       return .done expr
+    | .fvar .. => return .done <| subst.apply e
     | _ => return .continue
 
 end
@@ -168,14 +160,14 @@ end
 /--
 This function eliminates:
 - unfolds all type alises
-- universe parameters by instanting them with `0`
+- universe parameters by instanting them with 1
 - applies ζ and β reduction
 -/
 def elimComfortUniv (e : Expr) (subst : Meta.FVarSubst) : ComfortM Expr := do
-  let e ← elimComfortExpr e
-  Meta.transform e (pre := pre subst)
+  let e ← zetaBetaReduce e
+  Meta.transform e (pre := pre)
 where
-  pre (subst : Meta.FVarSubst) (e : Expr) : ComfortM TransformStep := do
+  pre (e : Expr) : ComfortM TransformStep := do
     match e with
     | .sort u =>
       return .done <| .sort <| killParams u
@@ -201,8 +193,22 @@ where
     | .param _ => 1
     | .mvar .. => unreachable!
 
-def encode (g : MVarId) : ComfortM MVarId := g.withContext do
-  let g ← mapMVarId g elimComfortUniv (processLetDecl := true)
+def encode1 (g : MVarId) : ComfortM MVarId := g.withContext do
+  mapMVarId g elimComfortUniv (processLetDecl := true)
+
+public def transformation1 : Transformation MVarId MVarId LeanResult LeanResult where
+   st := private Unit
+   inner := private {
+    name := "ElimComfort Part 1"
+    encode g := do
+      let g ← ComfortM.run <| encode1 g
+      trace[nunchaku.elimcomfort] m!"Result: {g}"
+      return (g, ())
+    decode _ res := return res
+  }
+
+def encode2 (g : MVarId) : ComfortM MVarId := do
+  let g ← mapMVarId g (elimComfortExpr · true)
   g.withContext do
     let mut lets := #[]
     for decl in ← getLCtx do
@@ -217,7 +223,7 @@ def encode (g : MVarId) : ComfortM MVarId := g.withContext do
     for (name, eqs) in equations do
       if ← isTypeAlias name then
         continue
-      let eqs ← eqs.mapM (liftM ∘ elimComfortExpr)
+      let eqs ← eqs.mapM (elimComfortExpr · true {})
       let newName := (← get).consts.getD name name
       newEquations := newEquations.insert newName eqs
 
@@ -225,12 +231,12 @@ def encode (g : MVarId) : ComfortM MVarId := g.withContext do
     TransforM.addDecls
     return g
 
-public def transformation : Transformation MVarId MVarId LeanResult LeanResult where
+public def transformation2 : Transformation MVarId MVarId LeanResult LeanResult where
    st := private Unit
    inner := private {
-    name := "ElimComfort"
+    name := "ElimComfort Part 2"
     encode g := do
-      let g ← ComfortM.run <| encode g
+      let g ← ComfortM.run <| encode2 g
       trace[nunchaku.elimcomfort] m!"Result: {g}"
       return (g, ())
     decode _ res := return res
