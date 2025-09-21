@@ -3,6 +3,7 @@ public import Nunchaku.Util.Pipeline
 public import Nunchaku.Util.Model
 import Nunchaku.Util.LocalContext
 import Nunchaku.Util.AddDecls
+import Lean.Meta.CollectFVars
 
 namespace Nunchaku
 namespace Transformation
@@ -128,7 +129,7 @@ partial def elimExpr' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) : D
     Meta.lambdaBoundedTelescope expr 1 fun args body => do
       let arg := args[0]!
       if ← Meta.isProof arg then
-        elimExpr' body inProp subst
+        elimValueOrPop' body subst
       else
         let fvarId := arg.fvarId!
         let name ← fvarId.getUserName
@@ -136,7 +137,7 @@ partial def elimExpr' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) : D
         let newType ← elimValue' (← fvarId.getType) subst
 
         Meta.withLocalDecl name bi newType fun replacedArg => do
-          let newBody ← elimExpr' body inProp (subst.insert fvarId replacedArg)
+          let newBody ← elimValueOrPop' body (subst.insert fvarId replacedArg)
           Meta.mkLambdaFVars #[replacedArg] newBody
   | .forallE .. =>
     Meta.forallBoundedTelescope expr (some 1) fun args body => do
@@ -169,8 +170,8 @@ partial def elimExpr' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) : D
   | .mdata _ e => elimExpr' e inProp subst
   | .proj typeName idx struct =>
     let struct ← elimValue' struct subst
-    let typeName ← elimConst typeName
     let idx ← correctProjIndex typeName idx
+    let typeName ← elimConst typeName
     return .proj typeName idx struct
   | .fvar .. => return subst.apply expr
   | .lit (.natVal n) =>
@@ -217,11 +218,10 @@ partial def elimProp (expr : Expr) (subst : Meta.FVarSubst) : DepM Expr := do
   elimProp' expr subst
 
 @[inline]
-partial def elimForall (expr : Expr) (dropArg : Nat → Expr → DepM Bool)
+partial def elimForall' (args : Array Expr) (body : Expr) (dropArg : Nat → Expr → DepM Bool)
     (argHandler : Expr → Meta.FVarSubst → DepM Expr)
     (bodyHandler : Expr → Meta.FVarSubst → DepM Expr) : DepM Expr := do
-  Meta.forallTelescope expr fun args body => do
-    go args body 0 #[] {}
+  go args body 0 #[] {}
 where
   @[specialize]
   go (args : Array Expr) (body : Expr) (idx : Nat) (acc : Array Expr) (subst : Meta.FVarSubst) :
@@ -241,6 +241,13 @@ where
     let newBody ← bodyHandler body subst
     let newExpr ← Meta.mkForallFVars acc newBody
     return newExpr
+
+@[inline]
+partial def elimForall (expr : Expr) (dropArg : Nat → Expr → DepM Bool)
+    (argHandler : Expr → Meta.FVarSubst → DepM Expr)
+    (bodyHandler : Expr → Meta.FVarSubst → DepM Expr) : DepM Expr := do
+  Meta.forallTelescope expr fun args body => do
+    elimForall' args body dropArg argHandler bodyHandler
 
 partial def elimConstType (expr : Expr) (stencil : Array Nat) : DepM Expr := do
   -- TODO: quadratic
@@ -321,7 +328,18 @@ partial def elimInduct (info : InductiveVal) : DepM Unit := do
     --let inv := sorry
     --TransforM.recordDecl <| .inductDecl sorry sorry [inv] false
 
-partial def elimEquation (eq : Expr) : DepM Expr := return eq--sorry
+partial def elimEquation (eq : Expr) : DepM Expr := do
+  trace[nunchaku.elimdep] m!"Working eq {eq}"
+  Meta.forallTelescope eq fun args body => do
+    let (_, { fvarSet, .. }) ← body.collectFVars |>.run {}
+    let shouldDrop := fun _ arg => do
+      if ← Meta.isProof arg then
+        return fvarSet.contains arg.fvarId!
+      else
+        return false
+    let res ← elimForall' args body shouldDrop elimValueOrProp elimProp
+    trace[nunchaku.elimdep] m!"New equation: {res}"
+    return res
 
 partial def elimDefn (info : DefinitionVal) : DepM Unit := do
   let name := info.name
