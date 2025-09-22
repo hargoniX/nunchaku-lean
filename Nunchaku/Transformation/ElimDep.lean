@@ -126,6 +126,89 @@ where
       | throwError m!"Failed to unfold type alias {expr}"
     return .visit expr
 
+@[inline]
+partial def elimForall' [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadLiftT DepM m]
+    (args : Array Expr) (body : Expr)
+    (dropArg : Nat → Expr → m Bool)
+    (argHandler : Expr → Meta.FVarSubst → m Expr)
+    (bodyHandler : Expr → Meta.FVarSubst → Array Expr → m Expr) (subst : Meta.FVarSubst := {}) :
+    m Expr := do
+  go args body 0 #[] subst
+where
+  @[specialize]
+  go (args : Array Expr) (body : Expr) (idx : Nat) (acc : Array Expr) (subst : Meta.FVarSubst) :
+      m Expr := do
+    if h : idx < args.size then
+      let arg := args[idx]
+      if ← dropArg idx arg then
+        go args body (idx + 1) acc subst
+      else
+        let arg := args[idx]
+        let fvar := arg.fvarId!
+        let newType ← argHandler (← fvar.getType) subst
+        Meta.withLocalDecl (← fvar.getUserName) (← fvar.getBinderInfo) newType fun newArg => do
+          let subst := subst.insert fvar newArg
+          go args body (idx + 1) (acc.push newArg) subst
+    else
+      let newBody ← bodyHandler body subst acc
+      let newExpr ← Meta.mkForallFVars acc newBody
+      return newExpr
+
+@[inline]
+partial def elimForall [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadLiftT DepM m]
+    (expr : Expr) (dropArg : Nat → Expr → m Bool)
+    (argHandler : Expr → Meta.FVarSubst → m Expr)
+    (bodyHandler : Expr → Meta.FVarSubst → Array Expr → m Expr)
+    (subst : Meta.FVarSubst := {}) : m Expr := do
+  Meta.forallTelescope expr fun args body => do
+    elimForall' args body dropArg argHandler bodyHandler subst
+
+@[inline]
+partial def elimExtendForall' [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadLiftT DepM m]
+    (args : Array Expr) (body : Expr) (dropArg : Nat → Expr → m Bool)
+    (argHandler : Expr → Meta.FVarSubst → m Expr)
+    (extender : Expr → Meta.FVarSubst → FVarId → m (Option Expr))
+    (bodyHandler : Expr → Meta.FVarSubst → Array Expr → m Expr)
+    (subst : Meta.FVarSubst := {}) : m Expr := do
+  go args body 0 #[] #[] subst
+where
+  @[specialize]
+  go (args : Array Expr) (body : Expr) (idx : Nat) (allFVars : Array Expr)
+      (changedFVars : Array Expr) (subst : Meta.FVarSubst) : m Expr := do
+    if h : idx < args.size then
+      let arg := args[idx]
+      if ← dropArg idx arg then
+        go args body (idx + 1) allFVars changedFVars subst
+      else
+        let arg := args[idx]
+        let fvar := arg.fvarId!
+        let origType ← fvar.getType
+        let newType ← argHandler origType subst
+        Meta.withLocalDecl (← fvar.getUserName) (← fvar.getBinderInfo) newType fun newArg => do
+          let subst := subst.insert fvar newArg
+          let allFVars := allFVars.push newArg
+          let changedFVars := changedFVars.push newArg
+          if let some additional ← extender origType subst newArg.fvarId! then
+            Meta.withLocalDecl `h .default additional fun additionalArg => do
+            let allFVars := allFVars.push additionalArg
+            go args body (idx + 1) allFVars changedFVars subst
+          else
+            go args body (idx + 1) allFVars changedFVars subst
+    else
+      let newBody ← bodyHandler body subst changedFVars
+      let newExpr ← Meta.mkForallFVars allFVars newBody
+      return newExpr
+
+@[inline]
+partial def elimExtendForall [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadLiftT DepM m]
+    (expr : Expr) (dropArg : Nat → Expr → m Bool)
+    (argHandler : Expr → Meta.FVarSubst → m Expr)
+    (extender : Expr → Meta.FVarSubst → FVarId → m (Option Expr))
+    (bodyHandler : Expr → Meta.FVarSubst → Array Expr → m Expr)
+    (subst : Meta.FVarSubst := {}) : m Expr := do
+  Meta.forallTelescope expr fun args body => do
+    elimExtendForall' args body dropArg argHandler extender bodyHandler subst
+
 mutual
 
 /--
@@ -271,82 +354,16 @@ partial def elimProp (expr : Expr) (subst : Meta.FVarSubst) : DepM Expr := do
   let expr ← unfoldTypeAliases expr
   elimProp' expr subst
 
-@[inline]
-partial def elimForall' (args : Array Expr) (body : Expr) (dropArg : Nat → Expr → DepM Bool)
-    (argHandler : Expr → Meta.FVarSubst → DepM Expr)
-    (bodyHandler : Expr → Meta.FVarSubst → DepM Expr) : DepM Expr := do
-  go args body 0 #[] {}
-where
-  @[specialize]
-  go (args : Array Expr) (body : Expr) (idx : Nat) (acc : Array Expr) (subst : Meta.FVarSubst) :
-      DepM Expr := do
-    if h : idx < args.size then
-      let arg := args[idx]
-      if ← dropArg idx arg then
-        go args body (idx + 1) acc subst
-      else
-        let arg := args[idx]
-        let fvar := arg.fvarId!
-        let newType ← argHandler (← fvar.getType) subst
-        Meta.withLocalDecl (← fvar.getUserName) (← fvar.getBinderInfo) newType fun newArg => do
-          let subst := subst.insert fvar newArg
-          go args body (idx + 1) (acc.push newArg) subst
-    else
-      let newBody ← bodyHandler body subst
-      let newExpr ← Meta.mkForallFVars acc newBody
-      return newExpr
-
-@[inline]
-partial def elimForall (expr : Expr) (dropArg : Nat → Expr → DepM Bool)
-    (argHandler : Expr → Meta.FVarSubst → DepM Expr)
-    (bodyHandler : Expr → Meta.FVarSubst → DepM Expr) : DepM Expr := do
-  Meta.forallTelescope expr fun args body => do
-    elimForall' args body dropArg argHandler bodyHandler
-
-@[inline]
-partial def elimExtendForall' (args : Array Expr) (body : Expr) (dropArg : Nat → Expr → DepM Bool)
-    (argHandler : Expr → Meta.FVarSubst → DepM Expr)
-    (extender : Expr → Meta.FVarSubst → FVarId → DepM (Option Expr))
-    (bodyHandler : Expr → Meta.FVarSubst → Array Expr → DepM Expr) : DepM Expr := do
-  go args body 0 #[] #[] {}
-where
-  @[specialize]
-  go (args : Array Expr) (body : Expr) (idx : Nat) (allFVars : Array Expr)
-      (changedFVars : Array Expr) (subst : Meta.FVarSubst) : DepM Expr := do
-    if h : idx < args.size then
-      let arg := args[idx]
-      if ← dropArg idx arg then
-        go args body (idx + 1) allFVars changedFVars subst
-      else
-        let arg := args[idx]
-        let fvar := arg.fvarId!
-        let origType ← fvar.getType
-        let newType ← argHandler origType subst
-        Meta.withLocalDecl (← fvar.getUserName) (← fvar.getBinderInfo) newType fun newArg => do
-          let subst := subst.insert fvar newArg
-          let allFVars := allFVars.push newArg
-          let changedFVars := changedFVars.push newArg
-          if let some additional ← extender origType subst newArg.fvarId! then
-            Meta.withLocalDecl `h .default additional fun additionalArg => do
-            let allFVars := allFVars.push additionalArg
-            go args body (idx + 1) allFVars changedFVars subst
-          else
-            go args body (idx + 1) allFVars changedFVars subst
-    else
-      let newBody ← bodyHandler body subst changedFVars
-      let newExpr ← Meta.mkForallFVars allFVars newBody
-      return newExpr
-
 partial def elimConstType (expr : Expr) (stencil : Array Nat) : DepM Expr := do
   -- TODO: quadratic
-  elimForall expr (fun idx _ => return stencil.contains idx) elimValue elimValue
+  elimForall expr (fun idx _ => return stencil.contains idx) elimValue (fun b s _ => elimValue b s)
 
 partial def elimPropCtor (inductElimName : Name) (inductStencil : Array Nat) (ctorName : Name) :
     DepM Constructor := do
   let info ← getConstVal ctorName
   let elimName ← elimCtorName inductElimName ctorName
   let elimType ← elimForall info.type (fun _ _ => return false) elimValueOrProp
-    fun body subst =>
+    fun body subst _ =>
       body.withApp fun origInduct args => do
         let .const _ us := origInduct | throwError m!"Weird ctor: {ctorName}"
         let mut freshArgs := #[]
@@ -368,7 +385,7 @@ partial def elimValueCtor (inductElimName : Name) (inductStencil : Array Nat) (c
   let stencil ← argStencil info
   -- TODO: quadratic
   let elimType ← elimForall info.type (fun idx _ => return stencil.contains idx) elimValue
-    fun body subst =>
+    fun body subst _ =>
       body.withApp fun origInduct args => do
         let .const _ us := origInduct | throwError m!"Weird ctor: {ctorName}"
         let mut freshArgs := #[]
@@ -423,7 +440,7 @@ partial def elimEquation (eq : Expr) : DepM Expr := do
         return fvarSet.contains arg.fvarId!
       else
         return false
-    let res ← elimForall' args body shouldDrop elimValueOrProp elimProp
+    let res ← elimForall' args body shouldDrop elimValueOrProp (fun b s _ => elimProp b s)
     trace[nunchaku.elimdep] m!"New equation: {res}"
     return res
 
@@ -515,7 +532,7 @@ partial def ctorToInvariant (inductInvName : Name) (inductStencil : Array Nat) (
       body
       (fun _ _ => return false)
       elimValueOrProp
-      invariantFor
+      invariantForFVar
       handleBody
   return ⟨elimName, elimType⟩
 
@@ -530,7 +547,7 @@ partial def invariantForInduct (info : InductiveVal) : DepM Name := do
     let valueTy ← Meta.mkAppM name args
     Meta.withLocalDecl `ind .default valueTy fun arg =>
       let args := args.push arg
-      elimForall' args (.sort 0) (fun _ arg => isProof arg) elimValue (fun e _ => return e)
+      elimForall' args (.sort 0) (fun _ arg => isProof arg) elimValue (fun e _ _ => return e)
 
   let stencil ← argStencil info.toConstantVal
 
@@ -547,7 +564,11 @@ partial def invariantForInduct (info : InductiveVal) : DepM Name := do
   TransforM.recordDecl <| .inductDecl info.levelParams nparams [decl] false
   return invName
 
-partial def invariantFor (oldType : Expr) (subst : Meta.FVarSubst) (newFVar : FVarId) :
+partial def invariantForFVar (oldType : Expr) (subst : Meta.FVarSubst) (newFVar : FVarId) :
+    DepM (Option Expr) :=
+  invariantFor oldType subst (mkFVar newFVar)
+
+partial def invariantFor (oldType : Expr) (subst : Meta.FVarSubst) (target : Expr) :
     DepM (Option Expr) := do
   if ← isProp oldType then
     return none
@@ -568,15 +589,22 @@ partial def invariantFor (oldType : Expr) (subst : Meta.FVarSubst) (newFVar : FV
           return none
         else
           return some <| (← elimValueOrPop' arg subst)
-      let args := args.push (mkFVar newFVar)
+      let args := args.push target
       return mkAppN (.const invInduct us) args
-  | .forallE .. => throwError "Can't handle function invariants yet"
+  | .forallE .. =>
+    if ← Meta.isTypeFormerType oldType then
+      return none
+
+    elimForall (m := OptionT DepM) oldType (subst := subst)
+      (fun _ e => Meta.isProof e)
+      (fun value subst => elimValue value subst)
+      fun dom subst args => invariantFor dom subst (mkAppN target args)
   | _ => return none
 
 end
 
 def elim (g : MVarId) : DepM MVarId := do
-  let g ← mapExtendMVarId g elimValueOrProp invariantFor
+  let g ← mapExtendMVarId g elimValueOrProp invariantForFVar
   TransforM.replaceEquations (← get).newEquations
   TransforM.addDecls
   return g
