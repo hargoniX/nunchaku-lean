@@ -2,7 +2,7 @@ module
 
 public import Lean.Meta.Basic
 public import Lean.Meta.Tactic.FVarSubst
-import Lean.Meta.Tactic.Util
+public import Lean.Meta.Tactic.Util
 
 namespace Nunchaku
 

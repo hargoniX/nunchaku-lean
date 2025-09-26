@@ -10,3 +10,4 @@ leanOptions = { experimental.module = true }
 [[lean_lib]]
 name = "Nunchaku"
 leanOptions = { experimental.module = true }
+precompileModules = true

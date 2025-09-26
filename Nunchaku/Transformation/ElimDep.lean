@@ -407,29 +407,31 @@ partial def elimInduct (info : InductiveVal) : DepM Unit := do
   let newType ← elimConstType info.type stencil
   let nparams := info.numParams - stencil.countP (· < info.numParams)
   if ← Meta.isPropFormerType info.type then
-    let newCtors ← info.ctors.mapM (elimPropCtor elimName stencil)
+    let newCtors ← info.ctors.map
+  --if ← Meta.isPropFormerType info.type then
+  --  let newCtors ← info.ctors.mapM (elimPropCtor elimName stencil)
 
-    let decl := {
-      name := elimName,
-      type := newType,
-      ctors := newCtors
-    }
+  --  let decl := {
+  --    name := elimName,
+  --    type := newType,
+  --    ctors := newCtors
+  --  }
 
-    TransforM.recordDecl <| .inductDecl info.levelParams nparams [decl] false
-  else
-    let newCtors ← info.ctors.mapM (elimValueCtor elimName stencil)
+  --  TransforM.recordDecl <| .inductDecl info.levelParams nparams [decl] false
+  --else
+  --  let newCtors ← info.ctors.mapM (elimValueCtor elimName stencil)
 
-    let decl := {
-      name := elimName,
-      type := newType,
-      ctors := newCtors
-    }
+  --  let decl := {
+  --    name := elimName,
+  --    type := newType,
+  --    ctors := newCtors
+  --  }
 
-    trace[nunchaku.elimdep] m!"Proposing {newType} {newCtors.map (·.type)}"
+  --  trace[nunchaku.elimdep] m!"Proposing {newType} {newCtors.map (·.type)}"
 
-    TransforM.recordDecl <| .inductDecl info.levelParams nparams [decl] false
+  --  TransforM.recordDecl <| .inductDecl info.levelParams nparams [decl] false
 
-    discard <| invariantForInduct info
+  --  discard <| invariantForInduct info
 
 partial def elimEquation (eq : Expr) : DepM Expr := do
   trace[nunchaku.elimdep] m!"Working eq {eq}"
