@@ -1,5 +1,4 @@
-module
-import all Nunchaku
+import Nunchaku
 
 
 structure Foo where
@@ -29,4 +28,13 @@ producer : Nat → Foo
 example (producer : Nat → Foo) : (producer .zero).x = (producer .zero).y := by
   nunchaku
 
--- TODO: something with type params
+/--
+info: The prover wasn't able to prove or disprove the theorem.
+---
+error: unsolved goals
+xs : List Foo
+⊢ ∀ (x : Foo), x ∈ xs → x.x = x.y
+-/
+#guard_msgs in
+example (xs : List Foo) : ∀ x ∈ xs, x.x = x.y := by
+  nunchaku

@@ -1,5 +1,4 @@
-module
-import all Nunchaku
+import Nunchaku
 
 namespace Bar
 
@@ -82,6 +81,7 @@ xs : List α
 ⊢ List.map id xs ≠ xs
 -/
 #guard_msgs in
+set_option trace.nunchaku true in
 example (xs : List α) : xs.map id ≠ xs := by
   nunchaku
 
@@ -263,11 +263,12 @@ xs : List α
 f : α → List β
 ⊢ List.flatMap f (x :: xs) = List.flatMap f xs
 -/
-#guard_msgs in
+--#guard_msgs in
+set_option trace.nunchaku true in
 example {x : α} {xs : List α} {f : α → List β} :
     List.flatMap f (x :: xs) = List.flatMap f xs := by
   nunchaku
-
+#exit
 /--
 info: The prover found a counter example
 ---
@@ -376,5 +377,14 @@ f : α → β
 #guard_msgs in
 example {α β : Type} (f : α → β) : (some f).isNone := by
   nunchaku
+
+/-
+set_option trace.nunchaku true in
+example {α β : Type} (xs : List (α → β)) (ys : List α) :
+    (List.zip xs ys).map (fun (f, s) => f s) = [] := by
+  nunchaku
+
+#check Nat.decEq.match_1
+-/
 
 end FunFlow
