@@ -22,6 +22,7 @@ inductive ArgKind where
   | proof
   | prop
   | type
+  | typeformer
   deriving Inhabited, Repr, DecidableEq
 
 namespace ArgKind
@@ -30,6 +31,9 @@ def isValue (k : ArgKind) : Bool := k matches .value
 def isProof (k : ArgKind) : Bool := k matches .proof
 def isProp (k : ArgKind) : Bool := k matches .prop
 def isType (k : ArgKind) : Bool := k matches .type
+
+def isInductiveErasable (k : ArgKind) : Bool :=
+  k.isProof || k.isValue
 
 end ArgKind
 
@@ -72,6 +76,32 @@ def isProp (e : Expr) : DepM Bool := do
       modify fun s => { s with exprKindCache := s.exprKindCache.insert e .other }
       return false
 
+def isNonPropTypeFormer (expr : Expr) : MetaM Bool := do
+  let some level ← Meta.typeFormerTypeLevel expr | return false
+  return level != 0
+
+def isTypeAlias (const : Name) : MetaM Bool := do
+  let .defnInfo info ← getConstInfo const | return false
+  if !(← isNonPropTypeFormer info.type) then return false
+  Meta.lambdaTelescope info.value fun _ body => do
+    let body := body.consumeMData
+    match body with
+    | .fvar .. | .forallE .. | .sort .. => return true
+    | .const name .. => return (← isNonPropTypeFormer (← getConstVal name).type)
+    | .proj .. => return false
+    | .app .. => return body.getAppFn.isConst
+    | .mdata .. | .lit .. | .mvar .. | .letE .. | .lam .. | .bvar .. => unreachable!
+
+def unfoldTypeAliases (e : Expr) : MetaM Expr := do
+  Meta.transform e (pre := pre)
+where
+  pre (expr : Expr) : MetaM TransformStep := do
+    let .const name _ := expr.getAppFn | return .continue
+    if ! (← isTypeAlias name) then return .continue
+    let some expr ← Meta.unfoldDefinition? expr (ignoreTransparency := true)
+      | throwError m!"Failed to unfold type alias {expr}"
+    return .visit expr
+
 def argStencil (info : ConstantVal) : DepM (Array ArgKind) := do
   if let some stencil := (← get).argCache[info.name]? then
     return stencil
@@ -81,12 +111,15 @@ def argStencil (info : ConstantVal) : DepM (Array ArgKind) := do
     for idx in 0...args.size do
       let arg := args[idx]!
       let argType ← Meta.inferType arg
+      let argType ← unfoldTypeAliases argType
       if ← isProof arg then
         drop := drop.push .proof
       else if ← Meta.isPropFormerType argType then
         drop := drop.push .prop
       else if argType.isType then
         drop := drop.push .type
+      else if ← Meta.isTypeFormerType argType then
+        drop := drop.push .typeformer
       else
         drop := drop.push .value
 
@@ -118,32 +151,6 @@ def correctProjIndex (typeName : Name) (idx : Nat) : DepM Nat := do
   return idx - offset
 
 def maxLit : Nat := 2^16
-
-def isNonPropTypeFormer (expr : Expr) : MetaM Bool := do
-  let some level ← Meta.typeFormerTypeLevel expr | return false
-  return level != 0
-
-def isTypeAlias (const : Name) : MetaM Bool := do
-  let .defnInfo info ← getConstInfo const | return false
-  if !(← isNonPropTypeFormer info.type) then return false
-  Meta.lambdaTelescope info.value fun _ body => do
-    let body := body.consumeMData
-    match body with
-    | .fvar .. | .forallE .. | .sort .. => return true
-    | .const name .. => return (← isNonPropTypeFormer (← getConstVal name).type)
-    | .proj .. => return false
-    | .app .. => return body.getAppFn.isConst
-    | .mdata .. | .lit .. | .mvar .. | .letE .. | .lam .. | .bvar .. => unreachable!
-
-def unfoldTypeAliases (e : Expr) : MetaM Expr := do
-  Meta.transform e (pre := pre)
-where
-  pre (expr : Expr) : MetaM TransformStep := do
-    let .const name _ := expr.getAppFn | return .continue
-    if ! (← isTypeAlias name) then return .continue
-    let some expr ← Meta.unfoldDefinition? expr (ignoreTransparency := true)
-      | throwError m!"Failed to unfold type alias {expr}"
-    return .visit expr
 
 @[inline]
 partial def elimForall' [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadLiftT DepM m]
@@ -286,13 +293,29 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
     expr.withApp fun fn args => do
       match fn with
       | .const fn us =>
-        if TransforM.isBuiltin fn then
-          let args ← args.mapM (elimValueOrProp' · subst)
-          return mkAppN (.const fn us) args
-        else
+        let defaultBehavior := do
           let fn ← elimConst fn
           let args ← args.filterMapM (elimValuePropNoProof · subst)
           return mkAppN (.const fn us) args
+        if TransforM.isBuiltin fn then
+          let args ← args.mapM (elimValueOrProp' · subst)
+          return mkAppN (.const fn us) args
+        else if !inProp then
+          if let .inductInfo info ← getConstInfo fn then
+            let fn ← elimConst fn
+            let stencil ← argStencil info.toConstantVal
+            let mut newArgs := #[]
+            for idx in 0...args.size do
+              match stencil[idx]! with
+              | .proof | .value => continue
+              | _ => 
+                let arg := args[idx]!
+                newArgs := newArgs.push (← elimValueOrProp' arg subst)
+            return mkAppN (.const fn us) newArgs
+          else
+            defaultBehavior
+        else
+          defaultBehavior
       | _ =>
         let fn ← elimValue' fn subst
         let args ← args.filterMapM (elimValuePropNoProof · subst)
@@ -321,6 +344,18 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
         let name ← fvarId.getUserName
         let bi ← fvarId.getBinderInfo
         let newType ← elimValueOrProp' (← fvarId.getType) subst
+
+        -- TODO: If we have quantified propositonal hypotheses we need to additionally introduce
+        -- pre conditions.
+        -- If we don't we overapproximate the strength of our hypotheses. Note that we already
+        -- categorically ignore props above
+        -- TODO: this fix also needs to be applied to inductive propositions
+        /-
+        Idea for inductive propositions: All of the rules are essentially just universally
+        quantified statements of the form `∀ values, pred → Ind (f values)` as such we can fix them
+        by turning them into `∀ values, inv values ∧ pred → Ind (f values)` if the inductive
+        predicate has type parameters
+        -/
 
         Meta.withLocalDecl name bi newType fun replacedArg => do
           let newBody ← elimExpr' body inProp (subst.insert fvarId replacedArg)
@@ -422,7 +457,7 @@ partial def elimValueCtor (inductElimName : Name) (inductStencil : Array ArgKind
         let .const _ us := origInduct | throwError m!"Weird ctor: {ctorName}"
         let mut freshArgs := #[]
         for idx in 0...args.size do
-          if inductStencil[idx]!.isProof then
+          if inductStencil[idx]!.isInductiveErasable then
             continue
           let arg ← elimValue args[idx]! subst
           freshArgs := freshArgs.push arg
@@ -435,9 +470,9 @@ partial def elimInduct (info : InductiveVal) : DepM Unit := do
   let name := info.name
   let elimName := (← get).constCache[name]!
   let stencil ← argStencil info.toConstantVal
-  let newType ← elimConstType info.type stencil
-  let nparams := info.numParams - stencil[0...info.numParams].toArray.countP ArgKind.isProof
   if ← Meta.isPropFormerType info.type then
+    let newType ← elimConstType info.type stencil
+    let nparams := info.numParams - stencil[0...info.numParams].toArray.countP ArgKind.isProof
     let newCtors ← info.ctors.mapM (elimPropCtor elimName stencil)
 
     let decl := {
@@ -448,6 +483,12 @@ partial def elimInduct (info : InductiveVal) : DepM Unit := do
 
     TransforM.recordDecl <| .inductDecl info.levelParams nparams [decl] false
   else
+    let newType ← elimForall info.type
+      (fun idx _ => return stencil[idx]!.isInductiveErasable)
+      elimValue
+      (fun b s _ => elimValue b s)
+    let nparams :=
+      info.numParams - stencil[0...info.numParams].toArray.countP ArgKind.isInductiveErasable
     let newCtors ← info.ctors.mapM (elimValueCtor elimName stencil)
 
     let decl := {
@@ -544,8 +585,8 @@ partial def elimConst (name : Name) : DepM Name := do
     trace[nunchaku.elimdep] m!"Done working {name}"
     return (← get).constCache[name]!
 
-partial def ctorToInvariant (inductInvName : Name) (inductStencil : Array ArgKind) (ctorName : Name)
-    : DepM Constructor := do
+partial def ctorToInvariant (inductInvName : Name) (inductStencil : Array ArgKind)
+    (ctorName : Name) : DepM Constructor := do
   let info ← getConstVal ctorName
   let ctorStencil ← argStencil info
   let elimName ← elimCtorName inductInvName ctorName
@@ -588,7 +629,7 @@ where
               throwError m!"Couldn't find proposition for type variable, likely existential"
             let prop := subst.apply (mkFVar prop)
             newArgs := newArgs.push prop
-          | .prop | .value =>
+          | .prop | .typeformer | .value =>
             newArgs := newArgs.push (← elimValueOrProp' arg subst)
         return newArgs
       let elimCtorName ← elimConst ctorName
@@ -613,7 +654,8 @@ partial def invariantForInduct (info : InductiveVal) : DepM Name := do
 
   let invName ← TransforM.mkFreshName name (pref := "inv_")
   modify fun s => { s with invCache := s.invCache.insert name invName }
-  let invType ← Meta.forallTelescope info.type fun args _ => do
+  let unfoldedType ← unfoldTypeAliases info.type
+  let invType ← Meta.forallTelescope unfoldedType fun args _ => do
     let valueTy ← Meta.mkAppM name args
     Meta.withLocalDecl `ind .default valueTy fun arg =>
       let args := args.push arg
@@ -678,7 +720,7 @@ partial def invariantPredFor (oldType : Expr) (subst : Meta.FVarSubst) :
             newArgs := newArgs.push pred
           else
             newArgs := newArgs.push <| mkLambda `x .default elimArg (mkConst ``True)
-        | .value | .prop =>
+        | .value | .prop | .typeformer =>
           newArgs := newArgs.push (← elimValueOrProp' arg subst)
       return mkAppN (.const invInduct us) newArgs
   | .forallE .. =>
