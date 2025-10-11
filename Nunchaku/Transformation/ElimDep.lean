@@ -11,17 +11,47 @@ namespace ElimDep
 
 open Lean
 
+/--
+The different relevant groups of expressions for us.
+-/
 inductive ExprKind where
+  /--
+  The expression is a proof, i.e. `e : τ : Prop`
+  -/
   | proof
+  /--
+  The experssion is a prop, i.e. `e : Prop`
+  -/
   | prop
+  /--
+  Some other expression, e.g. `e : Type` or `e : Data`
+  -/
   | other
   deriving Inhabited, Repr, DecidableEq
 
+/--
+The different relevant groups of arguments to functions, inductives etc.
+-/
 inductive ArgKind where
+  /--
+  The argument is none of the other kinds
+  -/
   | value
+  /--
+  The argument is a proof, i.e. `e : τ : Prop`.
+  -/
   | proof
+  /--
+  The argument is a prop or prop former, i.e. `e : τ1 → ... → Prop`
+  -/
   | prop
+  /--
+  The argument is a type, i.e. `e : Type u`
+  -/
   | type
+  /--
+  The argument is a type former, i.e. `e : τ1 → ... → Type u`
+  -/
   | typeformer
   deriving Inhabited, Repr, DecidableEq
 
@@ -33,16 +63,35 @@ def isProp (k : ArgKind) : Bool := k matches .prop
 def isType (k : ArgKind) : Bool := k matches .type
 
 def isInductiveErasable (k : ArgKind) : Bool :=
-  k.isProof || k.isValue
+  k.isProof || k.isValue || k.isProp
 
 end ArgKind
 
 structure DepState where
+  /--
+  Cache for saving the argument kinds of a particular constant.
+  -/
   argCache : Std.HashMap Name (Array ArgKind) := {}
+  /--
+  Translation cache for constants.
+  -/
   constCache : Std.HashMap Name Name := {}
+  /--
+  Collection of new equations for the new constants
+  -/
   newEquations : Std.HashMap Name (List Expr) := {}
+  /--
+  Cache for saving the characteristic invariants of particular constants
+  -/
   invCache : Std.HashMap Name Name := {}
+  /--
+  Cache for saving the kind of visited expressions in case we see them again.
+  -/
   exprKindCache : Std.HashMap Expr ExprKind := {}
+  /--
+  Cache for saving the encoded version of an expression, additionally indexed by whether we are in a
+  `Prop` or non `Prop` context.
+  -/
   elimCache : Std.HashMap (Expr × Bool) Expr := {}
 
 abbrev DepM := StateRefT DepState TransforM
@@ -80,6 +129,16 @@ def isNonPropTypeFormer (expr : Expr) : MetaM Bool := do
   let some level ← Meta.typeFormerTypeLevel expr | return false
   return level != 0
 
+/--
+We say an expression is a type alias if it is:
+- a non propositional type former
+- its body contains a lambda with a body of:
+  - a constant
+  - an application of a constant
+  - one of its arguments
+  - an arrow type
+  - a sort
+-/
 def isTypeAlias (const : Name) : MetaM Bool := do
   let .defnInfo info ← getConstInfo const | return false
   if !(← isNonPropTypeFormer info.type) then return false
@@ -92,6 +151,9 @@ def isTypeAlias (const : Name) : MetaM Bool := do
     | .app .. => return body.getAppFn.isConst
     | .mdata .. | .lit .. | .mvar .. | .letE .. | .lam .. | .bvar .. => unreachable!
 
+/--
+Recursively unfold all type aliases in `e`
+-/
 def unfoldTypeAliases (e : Expr) : MetaM Expr := do
   Meta.transform e (pre := pre)
 where
@@ -102,6 +164,9 @@ where
       | throwError m!"Failed to unfold type alias {expr}"
     return .visit expr
 
+/--
+Given some constants compute a stencil of argument kinds of its type.
+-/
 def argStencil (info : ConstantVal) : DepM (Array ArgKind) := do
   if let some stencil := (← get).argCache[info.name]? then
     return stencil
@@ -128,6 +193,10 @@ def argStencil (info : ConstantVal) : DepM (Array ArgKind) := do
   modify fun s => { s with argCache := s.argCache.insert info.name stencil }
   return stencil
 
+/--
+Given some argument stencil and an array filter drop all elements of that array that are proofs
+according to the stencil.
+-/
 def filterProofsWithStencil (stencil : Array ArgKind) (xs : Array α) : Array α := Id.run do
   let mut new := #[]
   for h : idx in 0...xs.size do
@@ -140,6 +209,10 @@ def elimCtorName (inductElimName : Name) (ctorName : Name) : MetaM Name := do
   let .str _ n := ctorName | throwError m!"Weird ctor name {ctorName}"
   return .str inductElimName n
 
+/--
+Correct a projection index of a structure by accounting for the fact that proofs were dropped from
+it.
+-/
 def correctProjIndex (typeName : Name) (idx : Nat) : DepM Nat := do
   let inductInfo ← getConstInfoInduct typeName
   let ctorName := inductInfo.ctors[0]!
@@ -151,42 +224,6 @@ def correctProjIndex (typeName : Name) (idx : Nat) : DepM Nat := do
   return idx - offset
 
 def maxLit : Nat := 2^16
-
-@[inline]
-partial def elimForall' [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadLiftT DepM m]
-    (args : Array Expr) (body : Expr)
-    (dropArg : Nat → Expr → m Bool)
-    (argHandler : Expr → Meta.FVarSubst → m Expr)
-    (bodyHandler : Expr → Meta.FVarSubst → Array Expr → m Expr) (subst : Meta.FVarSubst := {}) :
-    m Expr := do
-  go args body 0 #[] subst
-where
-  @[specialize]
-  go (args : Array Expr) (body : Expr) (idx : Nat) (acc : Array Expr) (subst : Meta.FVarSubst) :
-      m Expr := do
-    if h : idx < args.size then
-      let arg := args[idx]
-      if ← dropArg idx arg then
-        go args body (idx + 1) acc subst
-      else
-        let fvar := arg.fvarId!
-        let newType ← argHandler (← fvar.getType) subst
-        Meta.withLocalDecl (← fvar.getUserName) (← fvar.getBinderInfo) newType fun newArg => do
-          let subst := subst.insert fvar newArg
-          go args body (idx + 1) (acc.push newArg) subst
-    else
-      let newBody ← bodyHandler body subst acc
-      let newExpr ← Meta.mkForallFVars acc newBody
-      return newExpr
-
-@[inline]
-partial def elimForall [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadLiftT DepM m]
-    (expr : Expr) (dropArg : Nat → Expr → m Bool)
-    (argHandler : Expr → Meta.FVarSubst → m Expr)
-    (bodyHandler : Expr → Meta.FVarSubst → Array Expr → m Expr)
-    (subst : Meta.FVarSubst := {}) : m Expr := do
-  Meta.forallTelescope expr fun args body => do
-    elimForall' args body dropArg argHandler bodyHandler subst
 
 @[inline]
 partial def elimExtendForall' [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadLiftT DepM m]
@@ -233,9 +270,30 @@ partial def elimExtendForall [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM
   Meta.forallTelescope expr fun args body => do
     elimExtendForall' args body dropArg argHandler extender bodyHandler subst
 
+@[inline]
+partial def elimForall' [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadLiftT DepM m]
+    (args : Array Expr) (body : Expr)
+    (dropArg : Nat → Expr → m Bool)
+    (argHandler : Expr → Meta.FVarSubst → m Expr)
+    (bodyHandler : Expr → Meta.FVarSubst → Array Expr → m Expr) (subst : Meta.FVarSubst := {}) :
+    m Expr := do
+  elimExtendForall' args body dropArg argHandler (fun _ _ _ => return none) bodyHandler subst
+
+@[inline]
+partial def elimForall [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadLiftT DepM m]
+    (expr : Expr) (dropArg : Nat → Expr → m Bool)
+    (argHandler : Expr → Meta.FVarSubst → m Expr)
+    (bodyHandler : Expr → Meta.FVarSubst → Array Expr → m Expr)
+    (subst : Meta.FVarSubst := {}) : m Expr := do
+  Meta.forallTelescope expr fun args body => do
+    elimForall' args body dropArg argHandler bodyHandler subst
+
 structure IndInvState where
   props : Std.HashMap FVarId FVarId := {}
 
+/--
+A monad for tracking the free variables of predicates that are associated with type arguments.
+-/
 abbrev IndInvM := ReaderT IndInvState DepM
 
 namespace IndInvM
@@ -514,7 +572,11 @@ partial def elimPropInduct (info : InductiveVal) (elimName : Name) (stencil : Ar
           (fun idx _ => return enrichedStencil[idx]!.isProof)
           elimValue
           (fun b s _ => elimValue b s)
-  let nparams := info.numParams - stencil[0...info.numParams].toArray.countP ArgKind.isProof
+  let paramStencil := stencil[0...info.numParams].toArray
+  let nparams :=
+    info.numParams
+    - paramStencil.countP ArgKind.isProof
+    + paramStencil.countP ArgKind.isType
   let newCtors ← info.ctors.mapM (elimPropCtor elimName stencil)
 
   let decl := {
@@ -565,9 +627,6 @@ partial def elimValueInduct (info : InductiveVal) (elimName : Name) (stencil : A
     type := newType,
     ctors := newCtors
   }
-
-  -- TODO: remove, this is optional and can be done on the fly as well
-  discard <| invariantForInduct info
 
   return (decl, nparams)
 
@@ -767,10 +826,8 @@ partial def invariantPredFor (oldType : Expr) (subst : Meta.FVarSubst) :
     IndInvM (Option Expr) := do
   if ← isProp oldType then
     return none
-  -- TODO: dedup with comfort
   let oldType ← Meta.zetaReduce oldType
   let oldType ← Core.betaReduce oldType
-  -- TODO: check if needed
   let oldType ← unfoldTypeAliases oldType
   let oldType := oldType.consumeMData
   match oldType with

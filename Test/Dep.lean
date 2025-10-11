@@ -91,12 +91,6 @@ namespace Ex2
 inductive Bar : Val → Prop
   | intro (v : Val) (h : v.x = v.y) : Bar v
 
-/-
-TODO with specialisation this becomes a counter example even though there is none.
-
-To fix this particualr example we need to insert the invariant into the inductive
--/
-
 /--
 info: The prover wasn't able to prove or disprove the theorem.
 ---
