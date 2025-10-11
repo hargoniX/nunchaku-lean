@@ -38,3 +38,178 @@ xs : List Foo
 #guard_msgs in
 example (xs : List Foo) : ∀ x ∈ xs, x.x = x.y := by
   nunchaku
+
+/--
+info: The prover is convinced that the theorem is true.
+---
+error: unsolved goals
+⊢ 0 = Nat.zero
+-/
+#guard_msgs in
+example : 0 = .zero := by
+  nunchaku
+
+/--
+info: The prover is convinced that the theorem is true.
+---
+error: unsolved goals
+⊢ 1 = Nat.zero.succ
+-/
+#guard_msgs in
+example : 1 = .succ .zero := by
+  nunchaku
+
+namespace HiddenQuantifiers
+
+inductive Hidden (α : Type) (p : α → Prop) where
+  | intro (h : ∀ x, p x) : Hidden α p
+
+structure Val where
+  x : Nat
+  y : Nat
+  h : x = y
+
+namespace Ex1
+
+inductive Bar {α : Type} (p : α → Prop) : α → Prop where
+  | intro (x : α) (h : p x) : Bar p x
+
+/--
+info: The prover wasn't able to prove or disprove the theorem.
+---
+error: unsolved goals
+⊢ Hidden Val (Bar fun v => v.x = v.y)
+-/
+#guard_msgs in
+example : Hidden Val (Bar (fun v => v.x = v.y)) := by
+  nunchaku
+
+end Ex1
+
+namespace Ex2
+
+inductive Bar : Val → Prop
+  | intro (v : Val) (h : v.x = v.y) : Bar v
+
+/-
+TODO with specialisation this becomes a counter example even though there is none.
+
+To fix this particualr example we need to insert the invariant into the inductive
+-/
+
+/--
+info: The prover wasn't able to prove or disprove the theorem.
+---
+error: unsolved goals
+⊢ Hidden Val Bar
+-/
+#guard_msgs in
+example : Hidden Val Bar := by
+  nunchaku
+
+end Ex2
+
+namespace Ex4
+
+inductive OnlyEmptyLists (α : Type) : Prop where
+  | intro (h : ∀ (xs : List α), xs = []) : OnlyEmptyLists α
+
+structure EmptyFin where
+  n : Nat
+  h : False -- to avoid encoding 0 < n
+
+/--
+info: The prover wasn't able to prove or disprove the theorem.
+---
+error: unsolved goals
+⊢ OnlyEmptyLists EmptyFin
+-/
+#guard_msgs in
+example : OnlyEmptyLists EmptyFin := by
+  nunchaku
+
+end Ex4
+
+namespace Ex5
+
+axiom a : Type
+
+inductive Vect : Nat → Type where
+  | nil : Vect .zero
+  | cons (x : a) (xs : Vect n) : Vect n.succ
+
+def Vect.toList (x : Vect n) : List a :=
+  match x with
+  | .nil => .nil
+  | .cons x xs => x :: xs.toList
+
+def mylen : List α → Nat
+  | [] => .zero
+  | x :: xs => (mylen xs).succ
+
+inductive MyProp : Prop where
+  | intro (n : Nat) (x : Vect n) (h : mylen (Vect.toList x) ≠ n) : MyProp
+
+/--
+info: The prover wasn't able to prove or disprove the theorem.
+---
+error: unsolved goals
+⊢ MyProp
+-/
+#guard_msgs in
+example : MyProp := by
+  nunchaku (timeout := 1)
+
+axiom foo (xs : Vect n) : mylen (Vect.toList xs) = n
+
+example : ¬MyProp := by
+  intro h
+  cases h
+  · next h1 x h2 =>
+    apply h2
+    apply foo
+
+end Ex5
+
+end HiddenQuantifiers
+
+
+inductive Vec (α : Type) : Nat → Type where
+  | nil : Vec α .zero
+  | cons (x : α) (xs : Vec α n) : Vec α n.succ
+
+def Vec.length (x : Vec α n) : Nat := n
+def Vec.map (f : α → β) (x : Vec α n) : Vec β n :=
+  match x with
+  | .nil => .nil
+  | .cons x xs => .cons (f x) (map f xs)
+
+/--
+info: The prover is convinced that the theorem is true.
+---
+error: unsolved goals
+α : Type
+n : Nat
+β : Type
+xs : Vec α n
+f : α → β
+⊢ xs.length = (Vec.map f xs).length
+-/
+#guard_msgs in
+example (xs : Vec α n) (f : α → β) : xs.length = (xs.map f).length := by
+  nunchaku
+
+/--
+info: The prover wasn't able to prove or disprove the theorem.
+---
+error: unsolved goals
+α : Type
+m n : Nat
+β : Type
+xs : Vec (Vec α m) n
+f : α → β
+⊢ xs.length = (Vec.map (fun v => Vec.map f v) xs).length
+-/
+#guard_msgs in
+example (xs : Vec (Vec α m) n) (f : α → β) : xs.length = (xs.map (fun v => v.map f)).length := by
+  nunchaku

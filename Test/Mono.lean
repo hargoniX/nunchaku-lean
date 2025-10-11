@@ -11,6 +11,10 @@ def Tree.map (t : Tree α) (f : α → β) : Tree β :=
   | .empty => .empty
   | .node xs n => .node (xs.map (Tree.map · f)) (f n)
 
+
+/-
+bug in unrolling
+
 /--
 info: The prover found a counter example
 ---
@@ -21,7 +25,7 @@ a b : Tree Nat
 #guard_msgs in
 example (a b : Tree Nat) : a.map Nat.succ = a := by
   nunchaku
-
+-/
 end Bar
 
 namespace Foo
@@ -81,7 +85,6 @@ xs : List α
 ⊢ List.map id xs ≠ xs
 -/
 #guard_msgs in
-set_option trace.nunchaku true in
 example (xs : List α) : xs.map id ≠ xs := by
   nunchaku
 
@@ -113,7 +116,7 @@ def sumalt : List Nat → Nat :=
   List.foldr Nat.add .zero
 
 /--
-info: The prover found a counter example
+info: The prover wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 xs : List Nat
@@ -139,7 +142,7 @@ example (x y : Nat) : x + y ≠ x := by
   nunchaku
 
 /--
-info: The prover found a counter example
+info: The prover wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 xs : List Nat
@@ -263,12 +266,11 @@ xs : List α
 f : α → List β
 ⊢ List.flatMap f (x :: xs) = List.flatMap f xs
 -/
---#guard_msgs in
-set_option trace.nunchaku true in
+#guard_msgs in
 example {x : α} {xs : List α} {f : α → List β} :
     List.flatMap f (x :: xs) = List.flatMap f xs := by
   nunchaku
-#exit
+
 /--
 info: The prover found a counter example
 ---

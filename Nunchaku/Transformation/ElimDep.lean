@@ -236,27 +236,58 @@ partial def elimExtendForall [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM
 structure IndInvState where
   props : Std.HashMap FVarId FVarId := {}
 
-abbrev IndInvM := StateRefT IndInvState DepM
+abbrev IndInvM := ReaderT IndInvState DepM
 
 namespace IndInvM
 
 def run (x : IndInvM α) : DepM α :=
-  StateRefT'.run' x {}
+  ReaderT.run x {}
 
-def registerPropFor (var : FVarId) (prop : FVarId) : IndInvM Unit :=
-  modify fun s => { s with props := s.props.insert var prop }
+@[inline]
+def withPropFor (var : FVarId) (prop : FVarId) (x : IndInvM α) : IndInvM α :=
+  withReader (fun s => { s with props := s.props.insert var prop }) do
+    x
 
 def getPropFor? (var : FVarId) : IndInvM (Option FVarId) :=
-  return (← get).props[var]?
+  return (← read).props[var]?
 
 end IndInvM
+
+@[inline]
+def withEnrichedArgs (args : Array Expr) (body : Expr)
+    (inductStencil : Array ArgKind) (k : Array (Expr × Bool) → Expr → IndInvM α) : IndInvM α := do
+  go #[] 0 args body inductStencil k
+where
+  @[specialize]
+  go (acc : Array (Expr × Bool)) (idx : Nat) (args : Array Expr) (body : Expr)
+      (inductStencil : Array ArgKind) (k : Array (Expr × Bool) → Expr → IndInvM α) : IndInvM α := do
+    if h : idx < args.size then
+      let arg := args[idx]
+      let acc := acc.push (arg, true)
+      if idx < inductStencil.size && inductStencil[idx]!.isType then
+        Meta.withLocalDeclD `h (← mkArrow arg (.sort 0)) fun propArg => do
+          let acc := acc.push (propArg, false)
+          IndInvM.withPropFor arg.fvarId! propArg.fvarId! do
+            go acc (idx + 1) args body inductStencil k
+      else
+        go acc (idx + 1) args body inductStencil k
+    else
+      k acc body
+
+def enrichStencil (stencil : Array ArgKind) : Array ArgKind := Id.run do
+  let mut new := Array.emptyWithCapacity stencil.size
+  for arg in stencil do
+    new := new.push arg
+    if arg.isType then
+      new := new.push .prop
+  return new
 
 mutual
 
 /--
 Invariant: Never called on proofs
 -/
-partial def elimValueOrProp' (expr : Expr) (subst : Meta.FVarSubst) : DepM Expr := do
+partial def elimValueOrProp' (expr : Expr) (subst : Meta.FVarSubst) : IndInvM Expr := do
   -- TODO: remove debug
   if ← isProof expr then
     throwError m!"Called on proof: {expr}"
@@ -266,7 +297,7 @@ partial def elimValueOrProp' (expr : Expr) (subst : Meta.FVarSubst) : DepM Expr 
   else
     elimValue' expr subst
 
-partial def elimExpr' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) : DepM Expr := do
+partial def elimExpr' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) : IndInvM Expr := do
   if let some cached := (← get).elimCache[(expr, inProp)]? then
     return cached
   else
@@ -274,7 +305,7 @@ partial def elimExpr' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) : D
     modify fun s => { s with elimCache := s.elimCache.insert (expr, inProp) finishedExpr }
     return finishedExpr
 
-partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) : DepM Expr := do
+partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) : IndInvM Expr := do
   trace[nunchaku.elimdep] m!"elimExpr': {expr}, prop?: {inProp}"
   if inProp && !(← isProp expr) then
     throwError m!"Called on non prop: {expr}"
@@ -300,20 +331,29 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
         if TransforM.isBuiltin fn then
           let args ← args.mapM (elimValueOrProp' · subst)
           return mkAppN (.const fn us) args
-        else if !inProp then
-          if let .inductInfo info ← getConstInfo fn then
-            let fn ← elimConst fn
-            let stencil ← argStencil info.toConstantVal
-            let mut newArgs := #[]
+        else if let .inductInfo info ← getConstInfo fn then
+          let fn ← elimConst fn
+          let stencil ← argStencil info.toConstantVal
+          let mut newArgs := #[]
+          if ← Meta.isPropFormerType info.type then
+            for idx in 0...args.size do
+              match stencil[idx]! with
+              | .proof => continue
+              | .value | .prop =>
+                let arg := args[idx]!
+                newArgs := newArgs.push (← elimValueOrProp' arg subst)
+              | .typeformer | .type =>
+                let arg := args[idx]!
+                newArgs := newArgs.push (← elimValue' arg subst)
+                newArgs := newArgs.push (← invariantPredForD arg subst)
+          else
             for idx in 0...args.size do
               match stencil[idx]! with
               | .proof | .value => continue
-              | _ => 
+              | _ =>
                 let arg := args[idx]!
                 newArgs := newArgs.push (← elimValueOrProp' arg subst)
-            return mkAppN (.const fn us) newArgs
-          else
-            defaultBehavior
+          return mkAppN (.const fn us) newArgs
         else
           defaultBehavior
       | _ =>
@@ -343,23 +383,21 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
         let fvarId := arg.fvarId!
         let name ← fvarId.getUserName
         let bi ← fvarId.getBinderInfo
-        let newType ← elimValueOrProp' (← fvarId.getType) subst
-
-        -- TODO: If we have quantified propositonal hypotheses we need to additionally introduce
-        -- pre conditions.
-        -- If we don't we overapproximate the strength of our hypotheses. Note that we already
-        -- categorically ignore props above
-        -- TODO: this fix also needs to be applied to inductive propositions
-        /-
-        Idea for inductive propositions: All of the rules are essentially just universally
-        quantified statements of the form `∀ values, pred → Ind (f values)` as such we can fix them
-        by turning them into `∀ values, inv values ∧ pred → Ind (f values)` if the inductive
-        predicate has type parameters
-        -/
+        let oldType ← fvarId.getType
+        let newType ← elimValueOrProp' oldType subst
 
         Meta.withLocalDecl name bi newType fun replacedArg => do
-          let newBody ← elimExpr' body inProp (subst.insert fvarId replacedArg)
-          Meta.mkForallFVars #[replacedArg] newBody
+          let subst := subst.insert fvarId replacedArg
+          let newBody ← elimExpr' body inProp subst
+          if inProp then
+            match ← invariantForFVar oldType subst replacedArg.fvarId! with
+            | some invariantType =>
+              Meta.withLocalDecl `h .default invariantType fun invariantArg => do
+                Meta.mkForallFVars #[replacedArg, invariantArg] newBody
+            | none =>
+              Meta.mkForallFVars #[replacedArg] newBody
+          else
+            Meta.mkForallFVars #[replacedArg] newBody
   | .letE (nondep := nondep) .. =>
     Meta.letBoundedTelescope expr (some 1) fun args body => do
       let arg := args[0]!
@@ -397,10 +435,10 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
 /--
 Invariant: Only called on `Prop`
 -/
-partial def elimProp' (expr : Expr) (subst : Meta.FVarSubst) : DepM Expr := do
+partial def elimProp' (expr : Expr) (subst : Meta.FVarSubst) : IndInvM Expr := do
   elimExpr' expr true subst
 
-partial def elimValuePropNoProof (expr : Expr) (subst : Meta.FVarSubst) : DepM (Option Expr) := do
+partial def elimValuePropNoProof (expr : Expr) (subst : Meta.FVarSubst) : IndInvM (Option Expr) := do
   if ← isProof expr then
     return none
   else
@@ -409,99 +447,142 @@ partial def elimValuePropNoProof (expr : Expr) (subst : Meta.FVarSubst) : DepM (
 /--
 Invariant: Never called on a proof or proposition.
 -/
-partial def elimValue' (expr : Expr) (subst : Meta.FVarSubst) : DepM Expr := do
+partial def elimValue' (expr : Expr) (subst : Meta.FVarSubst) : IndInvM Expr := do
   elimExpr' expr false subst
 
-partial def elimValueOrProp (expr : Expr) (subst : Meta.FVarSubst) : DepM Expr := do
+partial def elimValueOrProp (expr : Expr) (subst : Meta.FVarSubst) : IndInvM Expr := do
   let expr ← unfoldTypeAliases expr
   elimValueOrProp' expr subst
 
-partial def elimValue (expr : Expr) (subst : Meta.FVarSubst) : DepM Expr := do
+partial def elimValue (expr : Expr) (subst : Meta.FVarSubst) : IndInvM Expr := do
   let expr ← unfoldTypeAliases expr
   elimValue' expr subst
 
-partial def elimProp (expr : Expr) (subst : Meta.FVarSubst) : DepM Expr := do
+partial def elimProp (expr : Expr) (subst : Meta.FVarSubst) : IndInvM Expr := do
   let expr ← unfoldTypeAliases expr
   elimProp' expr subst
 
-partial def elimConstType (expr : Expr) (stencil : Array ArgKind) : DepM Expr := do
-  elimForall expr (fun idx _ => return stencil[idx]!.isProof) elimValue (fun b s _ => elimValue b s)
+partial def elimDataConstType (expr : Expr) (stencil : Array ArgKind) : DepM Expr := do
+  -- Don't introduce predicates for data constant types
+  IndInvM.run <|
+    elimForall expr
+      (fun idx _ => return stencil[idx]!.isProof)
+      elimValue
+      (fun b s _ => elimValue b s)
 
-partial def elimPropCtor (inductElimName : Name) (inductStencil : Array ArgKind) (ctorName : Name) :
-    DepM Constructor := do
+partial def elimPropCtor (inductElimName : Name) (inductStencil : Array ArgKind)
+    (ctorName : Name) : DepM Constructor := do
   let info ← getConstVal ctorName
   let elimName ← elimCtorName inductElimName ctorName
-  let elimType ← elimForall info.type (fun _ _ => return false) elimValueOrProp
-    fun body subst _ =>
-      body.withApp fun origInduct args => do
-        let .const _ us := origInduct | throwError m!"Weird ctor: {ctorName}"
-        let mut freshArgs := #[]
-        for idx in 0...args.size do
-          if inductStencil[idx]!.isProof then
-            continue
-          let arg ← elimValue args[idx]! subst
-          freshArgs := freshArgs.push arg
-        return mkAppN (.const inductElimName us) freshArgs
+  let elimType ← IndInvM.run <|
+    Meta.forallTelescope info.type fun args body => do
+      let ctorStencil ← argStencil info
+      withEnrichedArgs args body ctorStencil fun args body =>
+        let args := args.map Prod.fst
+        elimExtendForall' args body
+          (fun _ _ => return false)
+          elimValueOrProp
+          invariantForFVar
+          fun body subst _ => do
+            body.withApp fun origInduct args => do
+              let .const _ us := origInduct | throwError m!"Weird ctor: {ctorName}"
+              let mut freshArgs := #[]
+              for idx in 0...args.size do
+                if inductStencil[idx]!.isProof then
+                  continue
+                let arg ← elimValue args[idx]! subst
+                freshArgs := freshArgs.push arg
+                if inductStencil[idx]!.isType then
+                  let .fvar fvar := args[idx]! |
+                    throwError "Encountered type index in {ctorName}"
+                  let some prop := ← IndInvM.getPropFor? fvar |
+                    throwError "Encountered type argument without invariant in {ctorName}"
+                  freshArgs := freshArgs.push (← elimValue (.fvar prop) subst)
+              return mkAppN (.const inductElimName us) freshArgs
 
   modify fun s => { s with constCache := s.constCache.insert ctorName elimName }
   return ⟨elimName, elimType⟩
+
+partial def elimPropInduct (info : InductiveVal) (elimName : Name) (stencil : Array ArgKind) :
+    DepM (InductiveType × Nat) := do
+  let enrichedStencil := enrichStencil stencil
+  let newType ← IndInvM.run <|
+    Meta.forallTelescope info.type fun args body =>
+      withEnrichedArgs args body stencil fun args body => do
+        let args := args.map Prod.fst
+        elimForall' args body
+          (fun idx _ => return enrichedStencil[idx]!.isProof)
+          elimValue
+          (fun b s _ => elimValue b s)
+  let nparams := info.numParams - stencil[0...info.numParams].toArray.countP ArgKind.isProof
+  let newCtors ← info.ctors.mapM (elimPropCtor elimName stencil)
+
+  let decl := {
+    name := elimName,
+    type := newType,
+    ctors := newCtors
+  }
+  return (decl, nparams)
 
 partial def elimValueCtor (inductElimName : Name) (inductStencil : Array ArgKind) (ctorName : Name) :
     DepM Constructor := do
   let info ← getConstVal ctorName
   let elimName ← elimCtorName inductElimName ctorName
   let stencil ← argStencil info
-  let elimType ← elimForall info.type (fun idx _ => return stencil[idx]!.isProof) elimValue
-    fun body subst _ =>
-      body.withApp fun origInduct args => do
-        let .const _ us := origInduct | throwError m!"Weird ctor: {ctorName}"
-        let mut freshArgs := #[]
-        for idx in 0...args.size do
-          if inductStencil[idx]!.isInductiveErasable then
-            continue
-          let arg ← elimValue args[idx]! subst
-          freshArgs := freshArgs.push arg
-        return mkAppN (.const inductElimName us) freshArgs
+  let elimType ← IndInvM.run <|
+    elimForall info.type
+      (fun idx _ => return stencil[idx]!.isProof)
+      elimValue
+      fun body subst _ =>
+        body.withApp fun origInduct args => do
+          let .const _ us := origInduct | throwError m!"Weird ctor: {ctorName}"
+          let mut freshArgs := #[]
+          for idx in 0...args.size do
+            if inductStencil[idx]!.isInductiveErasable then
+              continue
+            let arg ← elimValue args[idx]! subst
+            freshArgs := freshArgs.push arg
+          return mkAppN (.const inductElimName us) freshArgs
 
   modify fun s => { s with constCache := s.constCache.insert ctorName elimName }
   return ⟨elimName, elimType⟩
+
+partial def elimValueInduct (info : InductiveVal) (elimName : Name) (stencil : Array ArgKind) :
+    DepM (InductiveType × Nat) := do
+  let newType ← IndInvM.run <|
+    elimForall info.type
+      (fun idx _ => return stencil[idx]!.isInductiveErasable)
+      elimValue
+      (fun b s _ => elimValue b s)
+
+  let nparams :=
+    info.numParams - stencil[0...info.numParams].toArray.countP ArgKind.isInductiveErasable
+
+  let newCtors ← info.ctors.mapM (elimValueCtor elimName stencil)
+
+  let decl := {
+    name := elimName,
+    type := newType,
+    ctors := newCtors
+  }
+
+  -- TODO: remove, this is optional and can be done on the fly as well
+  discard <| invariantForInduct info
+
+  return (decl, nparams)
 
 partial def elimInduct (info : InductiveVal) : DepM Unit := do
   let name := info.name
   let elimName := (← get).constCache[name]!
   let stencil ← argStencil info.toConstantVal
-  if ← Meta.isPropFormerType info.type then
-    let newType ← elimConstType info.type stencil
-    let nparams := info.numParams - stencil[0...info.numParams].toArray.countP ArgKind.isProof
-    let newCtors ← info.ctors.mapM (elimPropCtor elimName stencil)
+  let (decl, nparams) ←
+    if ← Meta.isPropFormerType info.type then
+      elimPropInduct info elimName stencil
+    else
+      elimValueInduct info elimName stencil
 
-    let decl := {
-      name := elimName,
-      type := newType,
-      ctors := newCtors
-    }
-
-    TransforM.recordDecl <| .inductDecl info.levelParams nparams [decl] false
-  else
-    let newType ← elimForall info.type
-      (fun idx _ => return stencil[idx]!.isInductiveErasable)
-      elimValue
-      (fun b s _ => elimValue b s)
-    let nparams :=
-      info.numParams - stencil[0...info.numParams].toArray.countP ArgKind.isInductiveErasable
-    let newCtors ← info.ctors.mapM (elimValueCtor elimName stencil)
-
-    let decl := {
-      name := elimName,
-      type := newType,
-      ctors := newCtors
-    }
-
-    trace[nunchaku.elimdep] m!"Proposing {newType} {newCtors.map (·.type)}"
-
-    TransforM.recordDecl <| .inductDecl info.levelParams nparams [decl] false
-
-    discard <| invariantForInduct info
+  trace[nunchaku.elimdep] m!"Proposing {decl.type} {decl.ctors.map (·.type)}"
+  TransforM.recordDecl <| .inductDecl info.levelParams nparams [decl] false
 
 partial def elimEquation (eq : Expr) : DepM Expr := do
   trace[nunchaku.elimdep] m!"Working eq {eq}"
@@ -512,7 +593,7 @@ partial def elimEquation (eq : Expr) : DepM Expr := do
         return fvarSet.contains arg.fvarId!
       else
         return false
-    let res ← elimForall' args body shouldDrop elimValueOrProp (fun b s _ => elimProp b s)
+    let res ← IndInvM.run <| elimForall' args body shouldDrop elimValueOrProp (fun b s _ => elimProp b s)
     trace[nunchaku.elimdep] m!"New equation: {res}"
     return res
 
@@ -524,7 +605,7 @@ partial def elimDefn (info : DefinitionVal) : DepM Unit := do
 
   let stencil ← argStencil info.toConstantVal
   let u ← Meta.getLevel info.type
-  let newType ← elimConstType info.type stencil
+  let newType ← elimDataConstType info.type stencil
   trace[nunchaku.elimdep] m!"New type for {info.name}: {newType}"
 
   let decl := {
@@ -548,7 +629,7 @@ partial def elimAxiomOpaque (info : ConstantVal) : DepM Unit := do
     throwError m!"Proofs should be erased but tried to work: {info.name}"
 
   let stencil ← argStencil info
-  let newType ← elimConstType info.type stencil
+  let newType ← elimDataConstType info.type stencil
 
   let decl := {
     name := elimName,
@@ -590,62 +671,44 @@ partial def ctorToInvariant (inductInvName : Name) (inductStencil : Array ArgKin
   let info ← getConstVal ctorName
   let ctorStencil ← argStencil info
   let elimName ← elimCtorName inductInvName ctorName
-  let elimType ← Meta.forallTelescope info.type fun args body => do
-    IndInvM.run <| enrichArgs #[] 0 args body ctorStencil inductStencil info
+  let elimType ← IndInvM.run <|
+    Meta.forallTelescope info.type fun args body => do
+      withEnrichedArgs args body inductStencil fun args body =>
+        let syntheticMask := args.map Prod.snd
+        let args := args.map Prod.fst
+        let handleBody body subst changedFVars := do
+          let lparams := info.levelParams.map .param
+          let args ← body.withApp fun _ args => do
+            let mut newArgs := #[]
+            for idx in 0...args.size do
+              let arg := args[idx]!
+              match inductStencil[idx]! with
+              | .proof => continue
+              | .type =>
+                newArgs := newArgs.push (← elimValueOrProp' arg subst)
+                let some fvarId := arg.fvarId? |
+                  throwError m!"Type indices unsupported: {info.name}"
+                let some prop ← IndInvM.getPropFor? fvarId |
+                  throwError m!"Couldn't find proposition for type variable, likely existential"
+                let prop := subst.apply (mkFVar prop)
+                newArgs := newArgs.push prop
+              | .prop | .typeformer | .value =>
+                newArgs := newArgs.push (← elimValueOrProp' arg subst)
+            return newArgs
+          let elimCtorName ← elimConst ctorName
+          let argCandidates := changedFVars.zip syntheticMask |>.filter Prod.snd |>.map Prod.fst
+          let ctorArgs := filterProofsWithStencil ctorStencil argCandidates
+          let args := args.push (mkAppN (mkConst elimCtorName lparams) ctorArgs)
+          return mkAppN (mkConst inductInvName lparams) args
+
+        elimExtendForall'
+          args
+          body
+          (fun _ _ => return false)
+          elimValueOrProp
+          invariantForFVar
+          handleBody
   return ⟨elimName, elimType⟩
-where
-  enrichArgs (acc : Array (Expr × Bool)) (idx : Nat) (args : Array Expr) (body : Expr)
-      (ctorStencil inductStencil : Array ArgKind) (info : ConstantVal) : IndInvM Expr := do
-    if h : idx < args.size then
-      let arg := args[idx]
-      let acc := acc.push (arg, true)
-      if idx < inductStencil.size && inductStencil[idx]!.isType then
-        Meta.withLocalDeclD `h (← mkArrow arg (.sort 0)) fun propArg => do
-          let acc := acc.push (propArg, false)
-          IndInvM.registerPropFor arg.fvarId! propArg.fvarId!
-          enrichArgs acc (idx + 1) args body ctorStencil inductStencil info
-      else
-        enrichArgs acc (idx + 1) args body ctorStencil inductStencil info
-    else
-      buildType acc body ctorStencil inductStencil info
-
-  buildType (args : Array (Expr × Bool)) (body : Expr) (ctorStencil inductStencil : Array ArgKind)
-      (info : ConstantVal) : IndInvM Expr := do
-    let syntheticMask := args.map Prod.snd
-    let args := args.map Prod.fst
-    let handleBody body subst changedFVars := do
-      let lparams := info.levelParams.map .param
-      let args ← body.withApp fun _ args => do
-        let mut newArgs := #[]
-        for idx in 0...args.size do
-          let arg := args[idx]!
-          match inductStencil[idx]! with
-          | .proof => continue
-          | .type =>
-            newArgs := newArgs.push (← elimValueOrProp' arg subst)
-            let some fvarId := arg.fvarId? |
-              throwError m!"Type indices unsupported: {info.name}"
-            let some prop ← IndInvM.getPropFor? fvarId |
-              throwError m!"Couldn't find proposition for type variable, likely existential"
-            let prop := subst.apply (mkFVar prop)
-            newArgs := newArgs.push prop
-          | .prop | .typeformer | .value =>
-            newArgs := newArgs.push (← elimValueOrProp' arg subst)
-        return newArgs
-      let elimCtorName ← elimConst ctorName
-      let argCandidates := changedFVars.zip syntheticMask |>.filter Prod.snd |> .map Prod.fst
-      let ctorArgs := filterProofsWithStencil ctorStencil argCandidates
-      let args := args.push (mkAppN (mkConst elimCtorName lparams) ctorArgs)
-      return mkAppN (mkConst inductInvName lparams) args
-
-    elimExtendForall'
-      args
-      body
-      (fun _ _ => return false)
-      (fun expr subst => elimValueOrProp expr subst)
-      invariantForFVar
-      handleBody
-    
 
 partial def invariantForInduct (info : InductiveVal) : DepM Name := do
   let name := info.name
@@ -655,19 +718,20 @@ partial def invariantForInduct (info : InductiveVal) : DepM Name := do
   let invName ← TransforM.mkFreshName name (pref := "inv_")
   modify fun s => { s with invCache := s.invCache.insert name invName }
   let unfoldedType ← unfoldTypeAliases info.type
-  let invType ← Meta.forallTelescope unfoldedType fun args _ => do
-    let valueTy ← Meta.mkAppM name args
-    Meta.withLocalDecl `ind .default valueTy fun arg =>
-      let args := args.push arg
-      elimExtendForall' args (.sort 0)
-        (fun _ arg => isProof arg)
-        elimValue
-        (fun argType _ newArg => do
-          if !argType.isType then
-            return none
-          mkArrow (mkFVar newArg) (.sort 0)
-        )
-        (fun e _ _ => return e)
+  let invType ← IndInvM.run <|
+    Meta.forallTelescope unfoldedType fun args _ => do
+      let valueTy ← Meta.mkAppM name args
+      Meta.withLocalDecl `ind .default valueTy fun arg =>
+        let args := args.push arg
+        elimExtendForall' args (.sort 0)
+          (fun _ arg => isProof arg)
+          elimValue
+          (fun argType _ newArg => do
+            if !argType.isType then
+              return none
+            mkArrow (mkFVar newArg) (.sort 0)
+          )
+          (fun e _ _ => return e)
 
   let stencil ← argStencil info.toConstantVal
 
@@ -686,6 +750,14 @@ partial def invariantForInduct (info : InductiveVal) : DepM Name := do
     + paramStencil.countP ArgKind.isType
   TransforM.recordDecl <| .inductDecl info.levelParams nparams [decl] false
   return invName
+
+partial def invariantPredForD (oldType : Expr) (subst : Meta.FVarSubst) :
+    IndInvM Expr := do
+  if let some pred ← invariantPredFor oldType subst then
+    return pred
+  else
+    let elim ← elimValueOrProp' oldType subst
+    return mkLambda `x .default elim (mkConst ``True)
 
 partial def invariantForFVar (oldType : Expr) (subst : Meta.FVarSubst) (newFVar : FVarId) :
     IndInvM (Option Expr) :=
@@ -716,10 +788,7 @@ partial def invariantPredFor (oldType : Expr) (subst : Meta.FVarSubst) :
         | .type =>
           let elimArg ← elimValue' arg subst
           newArgs := newArgs.push elimArg
-          if let some pred ← invariantPredFor arg subst then
-            newArgs := newArgs.push pred
-          else
-            newArgs := newArgs.push <| mkLambda `x .default elimArg (mkConst ``True)
+          newArgs := newArgs.push (← invariantPredForD arg subst)
         | .value | .prop | .typeformer =>
           newArgs := newArgs.push (← elimValueOrProp' arg subst)
       return mkAppN (.const invInduct us) newArgs
@@ -748,7 +817,9 @@ partial def invariantFor (oldType : Expr) (subst : Meta.FVarSubst) (target : Exp
 end
 
 def elim (g : MVarId) : DepM MVarId := do
-  let g ← mapExtendMVarId g elimValueOrProp fun arg subst fvar =>
+  -- We know for sure that at this point in the pipeline no type arguments remain so running this
+  -- monad empty is fine.
+  let g ← mapExtendMVarId g (IndInvM.run <| elimValueOrProp · ·) fun arg subst fvar =>
     IndInvM.run (invariantForFVar arg subst fvar)
   TransforM.replaceEquations (← get).newEquations
   TransforM.addDecls
