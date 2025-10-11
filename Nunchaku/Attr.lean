@@ -16,6 +16,7 @@ initialize registerTraceClass `nunchaku
 initialize registerTraceClass `nunchaku.solver (inherited := true)
 initialize registerTraceClass `nunchaku.equations (inherited := true)
 initialize registerTraceClass `nunchaku.falsify (inherited := true)
+initialize registerTraceClass `nunchaku.elimdep (inherited := true)
 initialize registerTraceClass `nunchaku.elimcomfort (inherited := true)
 initialize registerTraceClass `nunchaku.abstract (inherited := true)
 initialize registerTraceClass `nunchaku.mono (inherited := true)

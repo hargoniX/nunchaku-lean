@@ -9,7 +9,7 @@ import Nunchaku.Transformation.ElimComfort
 import Nunchaku.Transformation.AbstractTypes
 import Nunchaku.Transformation.Monomorphization
 import Nunchaku.Transformation.Approximation
-import Nunchaku.Transformation.Elimination
+import Nunchaku.Transformation.ElimDep
 import Nunchaku.Transformation.Output
 
 
@@ -18,9 +18,9 @@ namespace Transformation
 
 public def pipeline : Pipeline Lean.MVarId NunProblem NunResult LeanResult :=
   .compose Falsify.transformation <|
-  -- DTT elimination here, before elim comfort
-  .compose ElimComfort.transformation <|
+  .compose ElimComfort.transformation<|
   .compose AbstractTypes.transformation <|
+  .compose ElimDep.transformation <|
   .compose Monomorphization.transformation <|
   .tip Output.transformation
 

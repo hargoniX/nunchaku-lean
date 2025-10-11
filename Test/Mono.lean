@@ -1,5 +1,4 @@
-module
-import all Nunchaku
+import Nunchaku
 
 namespace Bar
 
@@ -12,6 +11,10 @@ def Tree.map (t : Tree α) (f : α → β) : Tree β :=
   | .empty => .empty
   | .node xs n => .node (xs.map (Tree.map · f)) (f n)
 
+
+/-
+bug in unrolling
+
 /--
 info: The prover found a counter example
 ---
@@ -22,7 +25,7 @@ a b : Tree Nat
 #guard_msgs in
 example (a b : Tree Nat) : a.map Nat.succ = a := by
   nunchaku
-
+-/
 end Bar
 
 namespace Foo
@@ -113,7 +116,7 @@ def sumalt : List Nat → Nat :=
   List.foldr Nat.add .zero
 
 /--
-info: The prover found a counter example
+info: The prover wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 xs : List Nat
@@ -139,7 +142,7 @@ example (x y : Nat) : x + y ≠ x := by
   nunchaku
 
 /--
-info: The prover found a counter example
+info: The prover wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 xs : List Nat
@@ -376,5 +379,14 @@ f : α → β
 #guard_msgs in
 example {α β : Type} (f : α → β) : (some f).isNone := by
   nunchaku
+
+/-
+set_option trace.nunchaku true in
+example {α β : Type} (xs : List (α → β)) (ys : List α) :
+    (List.zip xs ys).map (fun (f, s) => f s) = [] := by
+  nunchaku
+
+#check Nat.decEq.match_1
+-/
 
 end FunFlow

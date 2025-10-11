@@ -4,8 +4,8 @@ public import Nunchaku.Util.Pipeline
 public import Nunchaku.Util.Model
 
 /-!
-This module contains the transformation for abstracting free variables that are type formers into
-axioms in order to enable specialisations of types that depend on free variables.
+This module contains the transformation for abstracting free variables that are types formers into
+into axioms in order to enable specialisations of types that depend on free variables.
 -/
 
 namespace Nunchaku

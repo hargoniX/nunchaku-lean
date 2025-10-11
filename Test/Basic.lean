@@ -1,5 +1,4 @@
-module
-import all Nunchaku
+import Nunchaku
 
 /--
 info: The prover found a counter example
@@ -271,4 +270,3 @@ set_option trace.nunchaku true in
 example {n m : Nat} : n < m → n ≤ m := by
   nunchaku
   -/
-
