@@ -22,11 +22,39 @@ inductive SolverResult (α : Type) where
   | unknown
   | sat (x : α)
 
+namespace SolverResult
+
+def map (f : α → β) (res : SolverResult α) : SolverResult β :=
+  match res with
+  | .unsat => .unsat
+  | .unknown => .unknown
+  | .sat x => .sat <| f x
+
+def mapM [Monad m] (f : α → m β) (res : SolverResult α) : m (SolverResult β) := do
+  match res with
+  | .unsat => return .unsat
+  | .unknown => return .unknown
+  | .sat x => return .sat (← f x)
+
+end SolverResult
+
 inductive NunModelDecl where
   | type (name : String) (members : List String)
   | val (name : String) (value : NunTerm)
 
 namespace NunModelDecl
+
+def name : NunModelDecl → String
+  | .type name .. | .val name .. => name
+
+private def parseType (ty : Sexp) : Except String NunType := do
+  match ty with
+  | .atom "prop" => return .prop
+  | .atom "type" => return .type
+  | .atom id => return .const id
+  | .list [.atom "->", lhs, rhs] =>
+    return .arrow (← parseType lhs) (← parseType rhs)
+  | _ => throw s!"Unexpected type: {ty}"
 
 private def parseTerm (t : Sexp) : Except String NunTerm := do
   go t |>.run {}
@@ -43,11 +71,13 @@ where
     | .list (.atom id :: args) =>
       match id with
       | "fun" =>
-        let [.list [.atom varId, .atom typeId], body] := args
-          | throw s!"Unexpected fun: {t}"
-        let body ← withReader (fun vars => vars.insert varId) do
-          go body
-        return .lam varId (.const typeId) body
+        match args with
+        -- Two formats for some reason
+        | [.list [.atom varId, ty], body] | [.list [.list [.atom varId, ty]], body] =>
+          let body ← withReader (fun vars => vars.insert varId) do
+            go body
+          return .lam varId (← parseType ty) body
+        | _ => throw s!"Unexpected fun: {t}"
       | "if" =>
         let [discr, t, e] := args
           | throw s!"Unexpected if: {t}"
@@ -110,21 +140,18 @@ def parse (s : String) : Except String NunResult := do
   | .atom "UNKNOWN" => return .unknown
   | _ => throw "Unexpected solver result"
 
-end NunResult
-
-abbrev LeanResult := SolverResult (List (Lean.Name × Lean.Expr))
-
-namespace LeanResult
-
-instance : Lean.ToMessageData LeanResult where
+instance : Lean.ToMessageData NunResult where
   toMessageData res :=
     -- TODO
     match res with
     | .unsat => "The prover is convinced that the theorem is true."
     | .unknown => "The prover wasn't able to prove or disprove the theorem."
-    | .sat _ => "The prover found a counter example"
+    | .sat model =>
+      dbg_trace model
+      "The prover found a counter example"
 
-end LeanResult
+end NunResult
+
 
 end
 

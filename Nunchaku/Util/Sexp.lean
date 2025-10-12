@@ -23,6 +23,7 @@ namespace Parser
 
 def idChar : Parser Char := do
   asciiLetter <|> digit <|> pchar '$' <|> pchar '_' <|> pchar '=' <|> pchar '?'
+    <|> pchar '-' <|> pchar '>'
 
 mutual
 

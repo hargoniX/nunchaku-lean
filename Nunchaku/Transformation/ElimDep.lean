@@ -882,7 +882,7 @@ def elim (g : MVarId) : DepM MVarId := do
   TransforM.addDecls
   return g
 
-public def transformation : Transformation MVarId MVarId LeanResult LeanResult where
+public def transformation : Transformation MVarId MVarId NunResult NunResult where
    st := private Unit
    inner := private {
     name := "ElimDep"

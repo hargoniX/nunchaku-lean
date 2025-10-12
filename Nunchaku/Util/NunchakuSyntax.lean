@@ -88,11 +88,11 @@ inductive NunTerm where
   -/
   | lam (id : String) (ty : NunType) (body : NunTerm)
   /--
-  A forall abstraction `forall (id : ty) . body`
+  A forall abstraction `∀ (id : ty) . body`
   -/
   | forall (id : String) (ty : NunType) (body : NunTerm)
   /--
-  An existential abstraction `forall (id : ty) . body`
+  An existential abstraction `∃ (id : ty) . body`
   -/
   | exists (id : String) (ty : NunType) (body : NunTerm)
   /--

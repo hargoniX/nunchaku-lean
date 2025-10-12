@@ -22,7 +22,7 @@ open Lean
 
 open Collect Solve Specialise
 
-public def transformation : Transformation MVarId MVarId LeanResult LeanResult where
+public def transformation : Transformation MVarId MVarId NunResult NunResult where
   st := private Unit
   inner := private {
     name := "Monomorphisation"

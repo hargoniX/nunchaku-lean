@@ -16,7 +16,7 @@ import Nunchaku.Transformation.Output
 namespace Nunchaku
 namespace Transformation
 
-public def pipeline : Pipeline Lean.MVarId NunProblem NunResult LeanResult :=
+public def pipeline : Pipeline Lean.MVarId NunProblem NunResult NunResult :=
   .compose Falsify.transformation <|
   .compose ElimComfort.transformation<|
   .compose AbstractTypes.transformation <|

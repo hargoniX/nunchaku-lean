@@ -1,6 +1,7 @@
 module
 
 public import Nunchaku.Util.NunchakuSyntax
+public import Std.Data.HashSet.Basic
 
 /-!
 This module contains utility functions for building Nunchaku syntax and problems.
@@ -28,6 +29,35 @@ def NunTerm.ite (discr lhs rhs : NunTerm) : NunTerm :=
 def NunTerm.appN (fn : NunTerm) (args : List NunTerm) : NunTerm :=
   args.foldl (init := fn) .app
 
+def NunType.collectUsedConstants (t : NunType) (s : Std.HashSet String := {}) :
+    Std.HashSet String :=
+  match t with
+  | .prop | .type => s
+  | .const name => s.insert name
+  | .arrow lhs rhs =>
+    let s := lhs.collectUsedConstants s
+    rhs.collectUsedConstants s
+
+def NunTerm.collectUsedConstants (t : NunTerm) (s : Std.HashSet String := {}) :
+    Std.HashSet String :=
+  match t with
+  | .var .. | .builtin .. => s
+  | .const name => s.insert name
+  | .lam _ ty body =>
+    let s := ty.collectUsedConstants s
+    body.collectUsedConstants s
+  | .forall _ ty body =>
+    let s := ty.collectUsedConstants s
+    body.collectUsedConstants s
+  | .exists _ ty body =>
+    let s := ty.collectUsedConstants s
+    body.collectUsedConstants s
+  | .let _ value body =>
+    let s := value.collectUsedConstants s
+    body.collectUsedConstants s
+  | .app fn arg =>
+    let s := fn.collectUsedConstants s
+    arg.collectUsedConstants s
 
 end
 

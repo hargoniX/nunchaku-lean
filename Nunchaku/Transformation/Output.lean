@@ -107,6 +107,18 @@ structure OutputState where
   Counter used for fresh nunchaku variable identifiers.
   -/
   idCounter : Nat := 0
+  /--
+  Cache for name mangling and later recovery of mangled names.
+  -/
+  mangleTable : Std.HashMap Lean.Name String := {}
+  /--
+  Set of mangled projection names.
+  -/
+  projSet : Std.HashSet String := {}
+  /--
+  Set of mangled uninterpreted variable names
+  -/
+  fvarSet : Std.HashSet String := {}
 
 
 abbrev OutputM := StateRefT OutputState TransforM
@@ -117,7 +129,10 @@ def addCommand (cmd : NunCommand) : OutputM Unit := do
 def freshNunId : OutputM Nat := do
   modifyGet fun s => (s.idCounter, { s with idCounter := s.idCounter + 1})
 
-def mangleName (name : Lean.Name) : String := Id.run do
+def mangleName (name : Lean.Name) : OutputM String := do
+  if let some s := (← get).mangleTable[name]? then
+    return s
+
   let comps := name.components.map (fun c => c.toString.replace "_" "__")
   let base := "l_" ++ String.intercalate "_" comps
   let mut out := ""
@@ -127,10 +142,14 @@ def mangleName (name : Lean.Name) : String := Id.run do
     else
       let num := char.toNat
       out := out ++ s!"u{num}"
+  modify fun s => { s with mangleTable := s.mangleTable.insert name out }
   return out
 
-def mangleAssumptionName (fvarId : FVarId) : MetaM String := do
-  return mangleName (← fvarId.getUserName)
+def mangleFVarName (fvarId : FVarId) : OutputM String := do
+  let origName ← fvarId.getUserName
+  modify fun s => { s with fvarSet := s.fvarSet.insert origName.toString }
+  let mangled ← mangleName (← fvarId.getUserName)
+  return mangled
 
 partial def encodeType (expr : Lean.Expr) : OutputM NunType := do
   let expr := (← instantiateMVars expr).consumeMData
@@ -145,8 +164,8 @@ where
         match type.consumeMData with
         | .sort 0 => return .prop
         | .sort (.succ _) => return .type
-        | .const name _ => return .const (mangleName name)
-        | .fvar id => return .const (← mangleAssumptionName id)
+        | .const name _ => return .const (← mangleName name)
+        | .fvar id => return .const (← mangleFVarName id)
         | .forallE .. => go type
         | _ => throwError m!"Don't know how to encode {type} as output type"
       let encodedArgsTypes ← argsTypes.mapM encodeHeadType
@@ -154,14 +173,16 @@ where
         match type.consumeMData with
         | .sort 0 => return .prop
         | .sort (.succ _) => return .type
-        | .const name _ => return .const (mangleName name)
-        | .fvar id => return .const (← mangleAssumptionName id)
+        | .const name _ => return .const (← mangleName name)
+        | .fvar id => return .const (← mangleFVarName id)
         | _ => throwError m!"Don't know how to encode {type} as output type"
       let encodedOutType ← encodeOutType output
       return .ofList (encodedArgsTypes.toList ++ [encodedOutType]) (by simp)
 
-def getProjName (struct : Name) (idx : Nat) : String :=
-  mangleName <| Name.str struct s!"proj_{idx}"
+def getProjName (struct : Name) (idx : Nat) : OutputM String := do
+  let mangled ← mangleName <| Name.str struct s!"proj_{idx}"
+  modify fun s => { s with projSet := s.projSet.insert mangled }
+  return mangled
 
 partial def encodeTerm (expr : Lean.Expr) : OutputM NunTerm := do
   let expr ← instantiateMVars expr
@@ -173,10 +194,10 @@ where
       if let some nunId := locals.get? fvarId then
         return .var <| idToVar nunId
       else
-        return .const (← mangleAssumptionName fvarId)
+        return .const (← mangleFVarName fvarId)
     | .const ``True [] => return .builtin .true
     | .const ``False [] => return .builtin .false
-    | .const name _ => return .const (mangleName name)
+    | .const name _ => return .const (← mangleName name)
     | .app fn arg =>
       match_expr expr with
       | Not p => return .not (← go p locals)
@@ -251,10 +272,10 @@ where
         return .let (idToVar argId) encodedValue encodedBody
     | .mdata _ e => go e locals
     | .proj structName idx struct =>
-      let projName := getProjName structName idx
+      let projName ← getProjName structName idx
       return .app (.const projName) (← go struct locals)
     | _ => throwError m!"Don't know how to encode term {expr}"
-  idToVar (n : Nat) : String := s!"var_{n}"
+  idToVar (n : Nat) : String := s!"nun_var_{n}"
 
 def arrowN (n : Nat) (type : Expr) : MetaM (Array Expr × Expr) :=
   Meta.forallBoundedTelescope type n fun xs out => do
@@ -311,13 +332,13 @@ def encodeDataCtor (ctor : Name) : OutputM NunCtorSpec := do
     throwError "Inductive data type should be fully monomorphic at this point"
   let args ← Meta.arrowDomainsN info.numFields info.type
   let encodedArgs ← args.mapM encodeType
-  let mangled := mangleName ctor
+  let mangled ← mangleName ctor
   return { name := mangled, arguments := encodedArgs.toList }
 
 def encodeDataType (val : InductiveVal) : OutputM Unit := do
   let mutualTypes := val.all
   let encodedTypes ← mutualTypes.mapM fun typ => do
-    let mangled := mangleName typ
+    let mangled ← mangleName typ
     let val ← getConstInfoInduct typ
     let ctors ← val.ctors.mapM encodeDataCtor
     return { name := mangled, ctors }
@@ -339,7 +360,7 @@ def encodeDataType (val : InductiveVal) : OutputM Unit := do
         let encodedLaw ← encodeTerm law
         let encodedType ← encodeType type
         addCommand <| .recDecl
-          [{ name := getProjName val.name idx, type := encodedType, laws := [encodedLaw] }]
+          [{ name := ← getProjName val.name idx, type := encodedType, laws := [encodedLaw] }]
 
 def encodeIndPredicate (val : InductiveVal) : OutputM Unit := do
   let mutualTypes := val.all
@@ -350,7 +371,7 @@ def encodeIndPredicate (val : InductiveVal) : OutputM Unit := do
     if outType != .sort 0 then
       throwError m!"Cannot encode non Prop inductive type with arguments {val.name}"
     -- It's an inductive proposition
-    let mangledName := mangleName val.name
+    let mangledName ←  mangleName val.name
     let encodedArgTypes ← argTypes.mapM encodeType
     let encodedOutType ← encodeType outType
     let encodedType := .ofList (encodedArgTypes.toList ++ [encodedOutType]) (by simp)
@@ -364,7 +385,7 @@ def encodeDefn (defns : List DefinitionVal) : OutputM Unit := do
     let eqns ← TransforM.getEquationsFor defn.name
     let encodedEqns ← eqns.mapM encodeTerm
     let encodedType ← encodeType defn.type
-    let mangled := mangleName defn.name
+    let mangled ← mangleName defn.name
     return { name := mangled, type := encodedType, laws := encodedEqns }
 
   addCommand <| .recDecl encodedDefns
@@ -399,7 +420,7 @@ def encodeComponent (component : List LeanIdentifier) : OutputM Unit := do
     | .sort (.succ _) =>
       -- `fvar` is some uninterpreted proper value, interpet it as such
       let encoded ← encodeType type
-      let mangled := mangleName (← fvar.getUserName)
+      let mangled ← mangleFVarName fvar
       addCommand <| .valDecl mangled encoded
     | ttype => throwError m!"Don't know how to handle {mkFVar fvar} : {type} : {ttype}"
   | [.const name] =>
@@ -412,7 +433,7 @@ def encodeComponent (component : List LeanIdentifier) : OutputM Unit := do
         addCommand <| .axiomDecl encoded
       else
         let encodedType ← encodeType val.type
-        let mangled := mangleName name
+        let mangled ← mangleName name
         addCommand <| .valDecl mangled encodedType
     | .defnInfo val => encodeDefn [val]
     | .inductInfo val => encodeInduct val
@@ -441,22 +462,105 @@ def encodeComponent (component : List LeanIdentifier) : OutputM Unit := do
 def encode (components : List (List LeanIdentifier)) : OutputM Unit := do
   components.forM encodeComponent
 
-public def transformation : Transformation Lean.MVarId NunProblem NunResult LeanResult where
-  st := Unit
+structure DecodeCtx where
+  unmangleTable : Std.HashMap String String
+  projSet : Std.HashSet String
+  fvarSet : Std.HashSet String
+
+abbrev DecodeM := ReaderT DecodeCtx TransforM
+
+def decodeTypeInhabitant (name : String) : DecodeM String := do
+  let some endPos := name.revPosOf '_' | throwError m!"Weird type inhabitant name: {name}"
+  let typeName := name.extract ⟨1⟩ endPos
+  let typeId := name.extract endPos name.endPos
+  let decodedTypeName := (← read).unmangleTable[typeName]!
+  return s!"${decodedTypeName}{typeId}"
+
+def decodeConstName (name : String) : DecodeM String :=
+  if name.startsWith "$" && !name.startsWith "$$" then
+    decodeTypeInhabitant name
+  else
+    return (← read).unmangleTable.getD name name
+
+def decodeType (t : NunType) : DecodeM NunType := do
+  match t with
+  | .prop | .type => return t
+  | .const name => return .const (← decodeConstName name)
+  | .arrow l r => return .arrow (← decodeType l) (← decodeType r)
+
+def decodeTerm (t : NunTerm) : DecodeM NunTerm :=
+  match t with
+  | .var .. | .builtin .. => return t
+  | .const name => return .const (← decodeConstName name)
+  | .lam id ty body => return .lam id (← decodeType ty) (← decodeTerm body)
+  | .forall id ty body => return .forall id (← decodeType ty) (← decodeTerm body)
+  | .exists id ty body => return .exists id (← decodeType ty) (← decodeTerm body)
+  | .let id value body => return .let id (← decodeTerm value) (← decodeTerm body)
+  | .app fn arg => return .app (← decodeTerm fn) (← decodeTerm arg)
+
+def decode (model : NunModel) : DecodeM NunModel := do
+  let decls : List NunModelDecl ← model.decls.filterMapM fun decl => do
+    match decl with
+    | .type name members =>
+      let members ← members.mapM decodeTypeInhabitant
+      return some <| .type (← read).unmangleTable[name]! members
+    | .val name value =>
+      if (← read).projSet.contains name then
+        -- No need to interpret projections
+        return none
+      match (← read).unmangleTable[name]? with
+      | some unmangled =>
+        let unmangledName := String.toName unmangled
+        if (← getEnv).contains unmangledName then
+          -- A global constant, we don't care about nunchaku's interpretation of it
+          return none
+        else
+          -- A local hypothesis, we definitely want to keep it
+          return some <| .val unmangled (← decodeTerm value)
+      | none =>
+        -- An auxiliary declaration, we should keep it
+        return some <| .val name (← decodeTerm value)
+
+  -- Now that we've dropped declarations there may be unused auxiliary functions around
+  let mut visited : Std.HashSet String := {}
+  let mut worklist ← decls.filterM (fun d => return (← read).fvarSet.contains d.name)
+  let decls := Std.HashMap.ofList <| decls.map (fun d => (d.name, d))
+  let mut relevant := #[]
+  while true do
+    let decl :: rest := worklist | break
+    worklist := rest
+    if visited.contains decl.name then
+      continue
+    match decl with
+    | .type .. => relevant := relevant.push decl
+    | .val _ val =>
+      relevant := relevant.push decl
+      let used := val.collectUsedConstants |>.toList.filterMap decls.get?
+      let used := used.filter (fun d => !visited.contains d.name)
+      worklist := worklist ++ used
+
+    visited := visited.insert decl.name
+
+  let decls := relevant.toList
+  return { decls }
+
+public def transformation : Transformation Lean.MVarId NunProblem NunResult NunResult where
+  st := DecodeCtx
   inner := {
     name := "Output"
     encode g := g.withContext do
       let dependencies ← collectDepGraph g
       let components := SCC.scc dependencies.keys (dependencies[·]!)
-      let (_, { commands, .. }) ← encode components |>.run {}
+      let (_, { commands, mangleTable, projSet, fvarSet, .. }) ← encode components |>.run {}
+      let mut unmangleTable := Std.HashMap.emptyWithCapacity mangleTable.size
+      for (k, v) in mangleTable do
+        if unmangleTable.contains v then
+          throwError "Non injective name mangling detected, aborting"
+        unmangleTable := unmangleTable.insert v k.toString
       let problem := { commands := commands.toList }
-      return (problem, ())
-    decode _ res := do
-      match res with
-      | .unsat => return .unsat
-      | .unknown => return .unknown
-      -- TODO: proper model recovery
-      | .sat _ => return .sat []
+      return (problem, { unmangleTable, projSet, fvarSet })
+    decode ctx res := do
+      ReaderT.run (res.mapM decode) ctx
   }
 
 

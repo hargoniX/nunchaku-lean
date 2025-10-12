@@ -62,7 +62,7 @@ where
 def encode (g : MVarId) : ComfortM MVarId := g.withContext do
   mapMVarId g elimComfortUniv (processLetDecl := true)
 
-public def transformation : Transformation MVarId MVarId LeanResult LeanResult where
+public def transformation : Transformation MVarId MVarId NunResult NunResult where
    st := private Unit
    inner := private {
     name := "ElimComfort"
