@@ -7,3 +7,4 @@ public import Nunchaku.Util.NunchakuPrinter
 public import Nunchaku.Util.Model
 public import Nunchaku.Util.TransforM
 public import Nunchaku.Util.AddDecls
+public import Nunchaku.Util.Sexp

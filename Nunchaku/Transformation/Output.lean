@@ -171,7 +171,7 @@ where
     match expr with
     | .fvar fvarId =>
       if let some nunId := locals.get? fvarId then
-        return .var nunId
+        return .var <| idToVar nunId
       else
         return .const (← mangleAssumptionName fvarId)
     | .const ``True [] => return .builtin .true
@@ -199,7 +199,7 @@ where
               throwError m!"Can't encode dependent exists {expr}"
             let locals := locals.insert arg.fvarId! argId
             let encodedBody ← go body locals
-            return .exists argId encodedType encodedBody
+            return .exists (idToVar argId) encodedType encodedBody
         else
           -- TODO
           throwError m!"Missing support for lambda free exists {expr}"
@@ -215,7 +215,7 @@ where
         let locals := locals.insert arg.fvarId! argId
         let encodedType ← encodeType argType
         let encodedBody ← go body locals
-        return .lam argId encodedType encodedBody
+        return .lam (idToVar argId) encodedType encodedBody
     | .forallE _ _ body _ =>
       if (← Meta.inferType expr) != .sort 0 then
         throwError m!"Can't encode forall in non Prop term {expr}"
@@ -232,7 +232,7 @@ where
           let locals := locals.insert arg.fvarId! argId
           let encodedType ← encodeType argType
           let encodedBody ← go body locals
-          return .forall argId encodedType encodedBody
+          return .forall (idToVar argId) encodedType encodedBody
         else
           let encodedLhs ← go argType locals
           let encodedRhs ← go body locals
@@ -248,12 +248,13 @@ where
         let locals := locals.insert argFVar argId
         let encodedValue ← go ((← argFVar.getValue?).get!) locals
         let encodedBody ← go body locals
-        return .let argId encodedValue encodedBody
+        return .let (idToVar argId) encodedValue encodedBody
     | .mdata _ e => go e locals
     | .proj structName idx struct =>
       let projName := getProjName structName idx
       return .app (.const projName) (← go struct locals)
     | _ => throwError m!"Don't know how to encode term {expr}"
+  idToVar (n : Nat) : String := s!"var_{n}"
 
 def arrowN (n : Nat) (type : Expr) : MetaM (Array Expr × Expr) :=
   Meta.forallBoundedTelescope type n fun xs out => do

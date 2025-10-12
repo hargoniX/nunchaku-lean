@@ -23,7 +23,7 @@ public instance : ToFormat NunType where
 
 def NunTerm.format (term : NunTerm) : Std.Format :=
   match term with
-  | .var id => idToVar id
+  | .var id => id
   | .const name => name
   | .builtin .true => "true"
   | .builtin .false => "false"
@@ -52,15 +52,13 @@ def NunTerm.format (term : NunTerm) : Std.Format :=
     panic! "encountered partially applied built-in in 3-ary position"
   | .app fn arg => .paren (fn.format ++ " " ++ arg.format)
   | .lam id ty body =>
-    .paren ("fun (" ++ idToVar id ++ " : " ++ ToFormat.format ty ++ ") . " ++ body.format )
+    .paren ("fun (" ++ id ++ " : " ++ ToFormat.format ty ++ ") . " ++ body.format )
   | .forall id ty body =>
-    .paren ("forall (" ++ idToVar id ++ " : " ++ ToFormat.format ty ++ ") . " ++ body.format )
+    .paren ("forall (" ++ id ++ " : " ++ ToFormat.format ty ++ ") . " ++ body.format )
   | .exists id ty body =>
-    .paren ("exists (" ++ idToVar id ++ " : " ++ ToFormat.format ty ++ ") . " ++ body.format )
+    .paren ("exists (" ++ id ++ " : " ++ ToFormat.format ty ++ ") . " ++ body.format )
   | .let id value body =>
-    .paren ("let " ++ idToVar id ++ " := " ++ value.format ++ " in " ++ .line ++ body.format)
-where
-  idToVar (id : Nat) : Format := s!"var{id}"
+    .paren ("let " ++ id ++ " := " ++ value.format ++ " in " ++ .line ++ body.format)
 
 public instance : ToFormat NunTerm where
   format := private NunTerm.format

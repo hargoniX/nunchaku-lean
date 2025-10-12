@@ -19,9 +19,9 @@ open Lean Elab Tactic
 meta def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
     MetaM NunResult := do
   IO.FS.withTempFile fun nunHandle nunPath => do
-    withTraceNode `nunchaku.solver (fun _ => return "Serializing Nunchaku Problem") do
+    withTraceNode `nunchaku.solver (fun _ => return "Serializing Nunchaku problem") do
       let problem ← IO.lazyPure fun _ => toString problem
-      trace[nunchaku.output] s!"Handing problem to solver:\n{problem}"
+      trace[nunchaku.output] s!"Handing problem to Nunchaku:\n{problem}"
       nunHandle.putStr problem
       nunHandle.flush
 
@@ -34,6 +34,8 @@ meta def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
       "cvc4",
       "-i",
       "nunchaku",
+      "-o",
+      "sexp",
       "-nc",
       "--timeout",
       s!"{cfg.timeout}",
@@ -48,17 +50,12 @@ meta def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
       throwError err
     | .success { exitCode := exitCode, stdout := stdout, stderr := stderr} =>
       if exitCode == 255 then
-        throwError s!"Failed to execute external prover:\n{stderr}"
+        throwError s!"Failed to execute Nunchaku:\n{stderr}"
       else
-        if stdout.startsWith "UNSAT" then
-          return .unsat
-        else if stdout.startsWith "SAT" then
-          -- TODO: model parsing
-          return .sat ()
-        else if stdout.startsWith "UNKNOWN" then
-          return .unknown
-        else
-          throwError s!"The external prover produced unexpected output, stdout:\n{stdout}stderr:\n{stderr}"
+        match NunResult.parse stdout with
+        | .ok res => return res
+        | .error err =>
+          throwError s!"The external prover produced unexpected output:\n  {err}\nstdout:\n{stdout}stderr:\n{stderr}"
 
 public meta def runNunchaku (g : MVarId) (cfg : NunchakuConfig) : MetaM LeanResult := do
   TransforM.run g cfg do
@@ -67,7 +64,7 @@ public meta def runNunchaku (g : MVarId) (cfg : NunchakuConfig) : MetaM LeanResu
         withTraceNode `nunchaku (fun _ => return "Running forward pipeline") do
           Transformation.pipeline.run g
       let res ←
-        withTraceNode `nunchaku (fun _ => return "Running the solver") do
+        withTraceNode `nunchaku (fun _ => return "Running Nunchaku") do
           runSolver problem (← TransforM.getConfig)
       withTraceNode `nunchaku (fun _ => return "Running the backwards pipeline") do
         back res

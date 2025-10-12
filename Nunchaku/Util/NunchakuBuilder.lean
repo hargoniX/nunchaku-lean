@@ -25,6 +25,9 @@ def NunTerm.equiv (lhs rhs : NunTerm) : NunTerm := .app (.app (.builtin .equiv) 
 def NunTerm.imply (lhs rhs : NunTerm) : NunTerm := .app (.app (.builtin .imply) lhs) rhs
 def NunTerm.ite (discr lhs rhs : NunTerm) : NunTerm :=
   .app (.app (.app (.builtin .ite) discr) lhs) rhs
+def NunTerm.appN (fn : NunTerm) (args : List NunTerm) : NunTerm :=
+  args.foldl (init := fn) .app
+
 
 end
 
