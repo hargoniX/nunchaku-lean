@@ -51,7 +51,7 @@ private def parseType (ty : Sexp) : Except String NunType := do
   match ty with
   | .atom "prop" => return .prop
   | .atom "type" => return .type
-  | .atom id => return .const id
+  | .atom id => return .const id []
   | .list [.atom "->", lhs, rhs] =>
     return .arrow (← parseType lhs) (← parseType rhs)
   | _ => throw s!"Unexpected type: {ty}"

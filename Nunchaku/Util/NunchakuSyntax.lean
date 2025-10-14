@@ -13,7 +13,7 @@ public section
 inductive NunType where
   | prop
   | type
-  | const (name : String)
+  | const (name : String) (args : List NunType)
   | arrow (lhs rhs : NunType)
   deriving Inhabited, Repr
 

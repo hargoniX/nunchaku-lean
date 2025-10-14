@@ -33,7 +33,9 @@ def NunType.collectUsedConstants (t : NunType) (s : Std.HashSet String := {}) :
     Std.HashSet String :=
   match t with
   | .prop | .type => s
-  | .const name => s.insert name
+  | .const name args =>
+    let s := s.insert name
+    args.foldl (init := s) (fun acc arg => arg.collectUsedConstants acc)
   | .arrow lhs rhs =>
     let s := lhs.collectUsedConstants s
     rhs.collectUsedConstants s

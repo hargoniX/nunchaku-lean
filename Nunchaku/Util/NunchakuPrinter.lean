@@ -15,7 +15,11 @@ partial def NunType.format (typ : NunType) : Std.Format :=
   match typ with
   | .prop => "prop"
   | .type => "type"
-  | .const name => name
+  | .const name [] => name
+  | .const name args =>
+    let args := args.map NunType.format
+    let args := Format.joinSep args " "
+    "(" ++ name ++ " " ++ args ++ ")"
   | .arrow lhs rhs => "(" ++ lhs.format ++ " -> " ++ rhs.format ++ ")"
 
 public instance : ToFormat NunType where

@@ -164,8 +164,8 @@ where
         match type.consumeMData with
         | .sort 0 => return .prop
         | .sort (.succ _) => return .type
-        | .const name _ => return .const (← mangleName name)
-        | .fvar id => return .const (← mangleFVarName id)
+        | .const name _ => return .const (← mangleName name) []
+        | .fvar id => return .const (← mangleFVarName id) []
         | .forallE .. => go type
         | _ => throwError m!"Don't know how to encode {type} as output type"
       let encodedArgsTypes ← argsTypes.mapM encodeHeadType
@@ -173,8 +173,8 @@ where
         match type.consumeMData with
         | .sort 0 => return .prop
         | .sort (.succ _) => return .type
-        | .const name _ => return .const (← mangleName name)
-        | .fvar id => return .const (← mangleFVarName id)
+        | .const name _ => return .const (← mangleName name) []
+        | .fvar id => return .const (← mangleFVarName id) []
         | _ => throwError m!"Don't know how to encode {type} as output type"
       let encodedOutType ← encodeOutType output
       return .ofList (encodedArgsTypes.toList ++ [encodedOutType]) (by simp)
@@ -485,10 +485,11 @@ def decodeConstName (name : String) : DecodeM String :=
 def decodeType (t : NunType) : DecodeM NunType := do
   match t with
   | .prop | .type => return t
-  | .const name => return .const (← decodeConstName name)
+  | .const name [] => return .const (← decodeConstName name) []
+  | .const _ _ => throwError m!"Expected only monomorphic types in decoding: {t}"
   | .arrow l r => return .arrow (← decodeType l) (← decodeType r)
 
-def decodeTerm (t : NunTerm) : DecodeM NunTerm :=
+def decodeTerm (t : NunTerm) : DecodeM NunTerm := do
   match t with
   | .var .. | .builtin .. => return t
   | .const name => return .const (← decodeConstName name)
@@ -523,7 +524,9 @@ def decode (model : NunModel) : DecodeM NunModel := do
 
   -- Now that we've dropped declarations there may be unused auxiliary functions around
   let mut visited : Std.HashSet String := {}
-  let mut worklist ← decls.filterM (fun d => return (← read).fvarSet.contains d.name)
+  let mut worklist ← decls.filterM fun
+    | .val name _ => return (← read).fvarSet.contains name
+    | .type .. => return true
   let decls := Std.HashMap.ofList <| decls.map (fun d => (d.name, d))
   let mut relevant := #[]
   while true do
