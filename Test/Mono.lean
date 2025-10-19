@@ -388,7 +388,11 @@ example {f : α → α} (h : b ∈ List.map f l) : ∃ a, b ∈ l ∧ f a = b :=
   nunchaku
 
 /--
-info: The prover found a counter example
+info: Nunchaku found a counter example:
+type α := [$α_0]
+val l := List.nil
+val a := $α_0
+witness _witness_of := List.nil
 ---
 error: unsolved goals
 α : Type u_1

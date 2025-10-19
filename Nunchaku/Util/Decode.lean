@@ -63,6 +63,8 @@ public def decodeModel (model : NunModel) : m NunModel := do
       let decodedName ← decodeConstName name
       let decodedValue ← decodeTerm value
       return .val decodedName decodedValue
+    | .witness name value =>
+      return .witness name (← decodeTerm value)
   return { decls }
 
 end MonadDecode

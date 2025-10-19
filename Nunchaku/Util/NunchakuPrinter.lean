@@ -55,7 +55,7 @@ partial def NunTerm.format (term : NunTerm) : Std.Format :=
     .paren ("if " ++ discr.format ++ " then " ++ lhs.format ++ " else " ++ rhs.format)
   | .app (.app (.app (.builtin _) _) _) _ =>
     panic! "encountered partially applied built-in in 3-ary position"
-  | .app fn arg =>
+  | .app .. =>
     term.withApp fun fn args =>
       let args := args.map NunTerm.format
       let args := Format.joinSep args.toList " "

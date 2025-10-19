@@ -521,12 +521,13 @@ def decode (model : NunModel) : DecodeM NunModel := do
       | none =>
         -- An auxiliary declaration, we should keep it
         return some <| .val name (← decodeTerm value)
+    | .witness name value => return some <| .witness name (← decodeTerm value)
 
   -- Now that we've dropped declarations there may be unused auxiliary functions around
   let mut visited : Std.HashSet String := {}
   let mut worklist ← decls.filterM fun
     | .val name _ => return (← read).fvarSet.contains name
-    | .type .. => return true
+    | .type .. | .witness .. => return true
   let decls := Std.HashMap.ofList <| decls.map (fun d => (d.name, d))
   let mut relevant := #[]
   while true do
@@ -536,7 +537,7 @@ def decode (model : NunModel) : DecodeM NunModel := do
       continue
     match decl with
     | .type .. => relevant := relevant.push decl
-    | .val _ val =>
+    | .val _ val | .witness _ val =>
       relevant := relevant.push decl
       let used := val.collectUsedConstants |>.toList.filterMap decls.get?
       let used := used.filter (fun d => !visited.contains d.name)
