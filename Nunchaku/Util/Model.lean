@@ -144,11 +144,9 @@ instance : Lean.ToMessageData NunResult where
   toMessageData res :=
     -- TODO
     match res with
-    | .unsat => "The prover is convinced that the theorem is true."
-    | .unknown => "The prover wasn't able to prove or disprove the theorem."
-    | .sat model =>
-      dbg_trace model
-      "The prover found a counter example"
+    | .unsat => "Nunchaku is convinced that the theorem is true."
+    | .unknown => "Nunchaku wasn't able to prove or disprove the theorem."
+    | .sat model => m!"Nunchaku found a counter example:\n{model}"
 
 end NunResult
 

@@ -55,7 +55,7 @@ example (α : Type) (xs : MList α) (f : α → α) : xs.map f ≠ xs := by
 end Foo
 
 /--
-info: The prover found a counter example
+info: Nunchaku found a counter example:
 ---
 error: unsolved goals
 ⊢ List.map id [] ≠ []
@@ -65,7 +65,9 @@ example  : [].map id ≠ ([] : List Nat) := by
   nunchaku
 
 /--
-info: The prover found a counter example
+info: Nunchaku found a counter example:
+type a := [$a_0]
+val xs := (List.cons $a_0 List.nil)
 ---
 error: unsolved goals
 a : Type u_1
@@ -77,7 +79,9 @@ example (xs : List a) : xs = [] := by
   nunchaku
 
 /--
-info: The prover found a counter example
+info: Nunchaku found a counter example:
+type α := [$α_0]
+val xs := List.nil
 ---
 error: unsolved goals
 α : Type u_1
@@ -89,7 +93,9 @@ example (xs : List α) : xs.map id ≠ xs := by
   nunchaku
 
 /--
-info: The prover found a counter example
+info: Nunchaku found a counter example:
+type α := [$α_0]
+val xs := List.nil
 ---
 error: unsolved goals
 α : Type u_1
@@ -101,7 +107,9 @@ example (xs : List (List α)) : xs.map id ≠ xs := by
   nunchaku
 
 /--
-info: The prover found a counter example
+info: Nunchaku found a counter example:
+type α := [$α_0]
+val xs := List.nil
 ---
 error: unsolved goals
 α : Type u_1
@@ -116,7 +124,7 @@ def sumalt : List Nat → Nat :=
   List.foldr Nat.add .zero
 
 /--
-info: The prover wasn't able to prove or disprove the theorem.
+info: Nunchaku wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 xs : List Nat
@@ -131,7 +139,9 @@ def sumalt' : List Nat → Nat :=
   List.foldr (· + ·) .zero
 
 /--
-info: The prover found a counter example
+info: Nunchaku found a counter example:
+val y := Nat.zero
+val x := Nat.zero
 ---
 error: unsolved goals
 x y : Nat
@@ -142,7 +152,7 @@ example (x y : Nat) : x + y ≠ x := by
   nunchaku
 
 /--
-info: The prover wasn't able to prove or disprove the theorem.
+info: Nunchaku wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 xs : List Nat
@@ -156,7 +166,7 @@ example (xs : List Nat) (h : xs ≠ []) : sumalt' xs ≠ .zero := by
 def foo (xs : List α) : List α := id xs
 
 /--
-info: The prover is convinced that the theorem is true.
+info: Nunchaku is convinced that the theorem is true.
 ---
 error: unsolved goals
 α : Type u_1
@@ -167,6 +177,7 @@ xs : List α
 example (xs : List α) : foo xs = id xs := by
   nunchaku
 
+set_option trace.nunchaku true in
 /--
 info: The prover found a counter example
 ---
@@ -186,7 +197,7 @@ inductive MyAll {α : Type} (p : α → Prop) : List α → Prop where
   | cons (x : α) (h1 : p x) (xs : List α) (h2 : MyAll p xs) : MyAll p (x :: xs)
 
 /--
-info: The prover is convinced that the theorem is true.
+info: Nunchaku is convinced that the theorem is true.
 ---
 error: unsolved goals
 α : Type
@@ -211,7 +222,7 @@ example (n : Nat) : MyEven n := by nunchaku
 -/
 
 /--
-info: The prover is convinced that the theorem is true.
+info: Nunchaku is convinced that the theorem is true.
 ---
 error: unsolved goals
 α✝ : Type u_1
@@ -225,7 +236,12 @@ example : [].foldl f b = b := by
   nunchaku
 
 /--
-info: The prover found a counter example
+info: Nunchaku found a counter example:
+type α := [$α_0]
+val as := List.nil
+val b := $α_0
+val bs := List.nil
+val a := $α_0
 ---
 error: unsolved goals
 α : Type u_1
@@ -256,7 +272,12 @@ example [BEq α] {a} {as : List α} : List.lex (a :: as) [] lt = true := by
   nunchaku
 
 /--
-info: The prover found a counter example
+info: Nunchaku found a counter example:
+type β := [$β_0]
+type α := [$α_0]
+val xs := List.nil
+val f := (fun (v_0 : α) . (List.cons $β_0 List.nil))
+val x := $α_0
 ---
 error: unsolved goals
 α : Type u_1
@@ -272,7 +293,11 @@ example {x : α} {xs : List α} {f : α → List β} :
   nunchaku
 
 /--
-info: The prover found a counter example
+info: Nunchaku found a counter example:
+type α := [$α_0 $α_1]
+val as := (List.cons $α_1 List.nil)
+val bs := List.nil
+val a := $α_1
 ---
 error: unsolved goals
 α : Type u_1
@@ -325,7 +350,12 @@ end
 -/
 
 /--
-info: The prover found a counter example
+info: Nunchaku found a counter example:
+type β := [$β_0 $β_1]
+type α := [$α_0 $α_1]
+val a := $α_0
+val f := (fun (v_0 : α) . (if (v_0 = $α_0) then $β_1 else $β_0))
+val b := $α_1
 ---
 error: unsolved goals
 α : Type u_1
@@ -339,18 +369,22 @@ example {f : α → β} {a b : α} : List.map f [a] = [f b] := by
   nunchaku
 
 /--
-info: The prover found a counter example
+info: Nunchaku found a counter example:
+type α := [$α_0 $α_1]
+val l := (List.cons $α_0 List.nil)
+val f := (fun (v_0 : α) . $α_1)
+val b := $α_1
 ---
 error: unsolved goals
-α✝ : Type u_1
-f : α✝ → α✝
-l : List α✝
-b : α✝
+α : Type u_1
+l : List α
+b : α
+f : α → α
 h : b ∈ List.map f l
 ⊢ ∃ a, b ∈ l ∧ f a = b
 -/
 #guard_msgs in
-example (h : b ∈ List.map f l) : ∃ a, b ∈ l ∧ f a = b := by
+example {f : α → α} (h : b ∈ List.map f l) : ∃ a, b ∈ l ∧ f a = b := by
   nunchaku
 
 /--
@@ -369,7 +403,11 @@ example {a : α} {l : List α} : a ∈ l ↔ ∃ s t : List α, l = s ++ t := by
 namespace FunFlow
 
 /--
-info: The prover found a counter example
+info: Nunchaku found a counter example:
+type β := [$β_0]
+type α := [$α_0]
+val f := (fun (v_1 : α) . (if (v_1 = $α_0) then $β_0 else (?__ $$anon_fun_0 v_1)))
+val $$anon_fun_0 := (fun (v_1 : α) . (if (v_1 = $α_0) then $β_0 else (?__ $$anon_fun_0 v_1)))
 ---
 error: unsolved goals
 α β : Type
@@ -390,3 +428,19 @@ example {α β : Type} (xs : List (α → β)) (ys : List α) :
 -/
 
 end FunFlow
+
+/--
+info: Nunchaku found a counter example:
+type α := [$α_0 $α_1]
+val x := $α_0
+val y := $α_1
+---
+error: unsolved goals
+α : Sort u_1
+x y : α
+⊢ x = y
+-/
+#guard_msgs in
+example (x y : α) : x = y := by
+  nunchaku
+

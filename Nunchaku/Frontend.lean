@@ -41,6 +41,8 @@ meta def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
       s!"{cfg.timeout}",
       nunPath.toString
     ]
+    let strArgs := String.intercalate " " args.toList
+    trace[nunchaku] m!"Calling solver with {strArgs}"
 
     let out? ← BVDecide.External.runInterruptible (cfg.timeout + 1) { cmd, args, stdin := .piped, stdout := .piped, stderr := .null }
     match out? with

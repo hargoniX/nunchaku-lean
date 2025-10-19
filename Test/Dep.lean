@@ -7,7 +7,7 @@ structure Foo where
   h : x = y
 
 /--
-info: The prover is convinced that the theorem is true.
+info: Nunchaku is convinced that the theorem is true.
 ---
 error: unsolved goals
 f : Foo
@@ -18,7 +18,7 @@ example (f : Foo) : f.x = f.y := by
   nunchaku
 
 /--
-info: The prover is convinced that the theorem is true.
+info: Nunchaku is convinced that the theorem is true.
 ---
 error: unsolved goals
 producer : Nat → Foo
@@ -29,7 +29,7 @@ example (producer : Nat → Foo) : (producer .zero).x = (producer .zero).y := by
   nunchaku
 
 /--
-info: The prover wasn't able to prove or disprove the theorem.
+info: Nunchaku wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 xs : List Foo
@@ -40,7 +40,7 @@ example (xs : List Foo) : ∀ x ∈ xs, x.x = x.y := by
   nunchaku
 
 /--
-info: The prover is convinced that the theorem is true.
+info: Nunchaku is convinced that the theorem is true.
 ---
 error: unsolved goals
 ⊢ 0 = Nat.zero
@@ -50,7 +50,7 @@ example : 0 = .zero := by
   nunchaku
 
 /--
-info: The prover is convinced that the theorem is true.
+info: Nunchaku is convinced that the theorem is true.
 ---
 error: unsolved goals
 ⊢ 1 = Nat.zero.succ
@@ -75,7 +75,7 @@ inductive Bar {α : Type} (p : α → Prop) : α → Prop where
   | intro (x : α) (h : p x) : Bar p x
 
 /--
-info: The prover wasn't able to prove or disprove the theorem.
+info: Nunchaku wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 ⊢ Hidden Val (Bar fun v => v.x = v.y)
@@ -92,7 +92,7 @@ inductive Bar : Val → Prop
   | intro (v : Val) (h : v.x = v.y) : Bar v
 
 /--
-info: The prover wasn't able to prove or disprove the theorem.
+info: Nunchaku wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 ⊢ Hidden Val Bar
@@ -113,7 +113,7 @@ structure EmptyFin where
   h : False -- to avoid encoding 0 < n
 
 /--
-info: The prover wasn't able to prove or disprove the theorem.
+info: Nunchaku wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 ⊢ OnlyEmptyLists EmptyFin
@@ -145,7 +145,7 @@ inductive MyProp : Prop where
   | intro (n : Nat) (x : Vect n) (h : mylen (Vect.toList x) ≠ n) : MyProp
 
 /--
-info: The prover wasn't able to prove or disprove the theorem.
+info: Nunchaku wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 ⊢ MyProp
@@ -179,7 +179,7 @@ def Vec.map (f : α → β) (x : Vec α n) : Vec β n :=
   | .cons x xs => .cons (f x) (map f xs)
 
 /--
-info: The prover is convinced that the theorem is true.
+info: Nunchaku is convinced that the theorem is true.
 ---
 error: unsolved goals
 α : Type
@@ -194,16 +194,31 @@ example (xs : Vec α n) (f : α → β) : xs.length = (xs.map f).length := by
   nunchaku
 
 /--
-info: The prover wasn't able to prove or disprove the theorem.
+info: Nunchaku found a counter example:
+type α := [$α_0]
+val n := (Nat.succ Nat.zero)
+val xs := (Vec.cons Nat.zero $α_0 Vec.nil)
 ---
 error: unsolved goals
 α : Type
+n : Nat
+xs : Vec α n
+⊢ xs.length = 0
+-/
+#guard_msgs in
+example (xs : Vec α n) : xs.length = 0 := by
+  nunchaku
+
+/--
+info: Nunchaku wasn't able to prove or disprove the theorem.
+---
+error: unsolved goals
+α β : Type
 m n : Nat
-β : Type
-xs : Vec (Vec α m) n
 f : α → β
+xs : Vec (Vec α m) n
 ⊢ xs.length = (Vec.map (fun v => Vec.map f v) xs).length
 -/
 #guard_msgs in
-example (xs : Vec (Vec α m) n) (f : α → β) : xs.length = (xs.map (fun v => v.map f)).length := by
+example {f : α → β} (xs : Vec (Vec α m) n) : xs.length = (xs.map (fun v => v.map f)).length := by
   nunchaku
