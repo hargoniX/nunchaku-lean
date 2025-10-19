@@ -1,6 +1,7 @@
 module
 
 public import Nunchaku.Util.NunchakuSyntax
+import Nunchaku.Util.NunchakuBuilder
 
 /-!
 This module contains the implementation of the Nunchaku pretty printer, used to dump Nunchaku
@@ -25,7 +26,7 @@ partial def NunType.format (typ : NunType) : Std.Format :=
 public instance : ToFormat NunType where
   format := private NunType.format
 
-def NunTerm.format (term : NunTerm) : Std.Format :=
+partial def NunTerm.format (term : NunTerm) : Std.Format :=
   match term with
   | .var id => id
   | .const name => name
@@ -54,7 +55,11 @@ def NunTerm.format (term : NunTerm) : Std.Format :=
     .paren ("if " ++ discr.format ++ " then " ++ lhs.format ++ " else " ++ rhs.format)
   | .app (.app (.app (.builtin _) _) _) _ =>
     panic! "encountered partially applied built-in in 3-ary position"
-  | .app fn arg => .paren (fn.format ++ " " ++ arg.format)
+  | .app fn arg =>
+    term.withApp fun fn args =>
+      let args := args.map NunTerm.format
+      let args := Format.joinSep args.toList " "
+      "(" ++ NunTerm.format fn ++ " " ++ args ++ ")"
   | .lam id ty body =>
     .paren ("fun (" ++ id ++ " : " ++ ToFormat.format ty ++ ") . " ++ body.format )
   | .forall id ty body =>

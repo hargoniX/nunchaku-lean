@@ -61,6 +61,16 @@ def NunTerm.collectUsedConstants (t : NunTerm) (s : Std.HashSet String := {}) :
     let s := fn.collectUsedConstants s
     arg.collectUsedConstants s
 
+@[inline]
+def NunTerm.withApp (t : NunTerm) (k : NunTerm → Array NunTerm → α) : α :=
+  go t #[] k
+where
+  @[specialize]
+  go (t : NunTerm) (acc : Array NunTerm) (k : NunTerm → Array NunTerm → α) : α :=
+    match t with
+    | .app fn arg => go fn (acc.push arg) k
+    | _ => k t acc.reverse
+
 end
 
 end Nunchaku
