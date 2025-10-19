@@ -27,14 +27,16 @@ public abbrev SpecializeM := ReaderT SpecializeContext <| StateRefT SpecializeSt
 
 public def SpecializeM.run (x : SpecializeM α) (ctx : SpecializeContext)
     (mono : MonoAnalysisState) : TransforM (α × DecodeCtx) := do
-  let ((p, { specialisationCache := table, .. }), monoAnalysis) ←
+  let ((p, { specialisationCache := table, newEquations, .. }), monoAnalysis) ←
     StateRefT'.run (StateRefT'.run (ReaderT.run x ctx) {}) mono
+  TransforM.replaceEquations newEquations
+  TransforM.addDecls
   -- TODO: Deduplicate with Output
   let mut decodeTable := Std.HashMap.emptyWithCapacity table.size
   for ((kf, ka), v) in table do
     let v := v.toString
     if decodeTable.contains v then
-        throwError "Non specialisation map mangling detected, aborting"
+        throwError "Non injective specialisation name mangling detected"
     decodeTable := decodeTable.insert v (kf.function.toString, ka)
   return (p, { decodeTable, monoAnalysis })
 
@@ -358,8 +360,6 @@ public partial def specialize (g : MVarId) : SpecializeM MVarId := do
 
   trace[nunchaku.mono] m!"Specialising in {g}"
   let g ← mapMVarId g specialiseExpr
-  TransforM.replaceEquations (← get).newEquations
-  TransforM.addDecls
   return g
 
 end Specialise

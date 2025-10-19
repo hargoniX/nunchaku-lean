@@ -463,7 +463,7 @@ def encode (components : List (List LeanIdentifier)) : OutputM Unit := do
   components.forM encodeComponent
 
 structure DecodeCtx where
-  unmangleTable : Std.HashMap String String
+  decodeTable : Std.HashMap String String
   projSet : Std.HashSet String
   fvarSet : Std.HashSet String
 
@@ -473,14 +473,14 @@ def decodeTypeInhabitant (name : String) : DecodeM String := do
   let some endPos := name.revPosOf '_' | throwError m!"Weird type inhabitant name: {name}"
   let typeName := name.extract ⟨1⟩ endPos
   let typeId := name.extract endPos name.endPos
-  let decodedTypeName := (← read).unmangleTable[typeName]!
+  let decodedTypeName := (← read).decodeTable[typeName]!
   return s!"${decodedTypeName}{typeId}"
 
 def decodeConstName (name : String) : DecodeM String :=
   if name.startsWith "$" && !name.startsWith "$$" then
     decodeTypeInhabitant name
   else
-    return (← read).unmangleTable.getD name name
+    return (← read).decodeTable.getD name name
 
 def decodeType (t : NunType) : DecodeM NunType := do
   match t with
@@ -504,12 +504,12 @@ def decode (model : NunModel) : DecodeM NunModel := do
     match decl with
     | .type name members =>
       let members ← members.mapM decodeTypeInhabitant
-      return some <| .type (← read).unmangleTable[name]! members
+      return some <| .type (← read).decodeTable[name]! members
     | .val name value =>
       if (← read).projSet.contains name then
         -- No need to interpret projections
         return none
-      match (← read).unmangleTable[name]? with
+      match (← read).decodeTable[name]? with
       | some unmangled =>
         let unmangledName := String.toName unmangled
         if (← getEnv).contains unmangledName then
@@ -555,13 +555,13 @@ public def transformation : Transformation Lean.MVarId NunProblem NunResult NunR
       let dependencies ← collectDepGraph g
       let components := SCC.scc dependencies.keys (dependencies[·]!)
       let (_, { commands, mangleTable, projSet, fvarSet, .. }) ← encode components |>.run {}
-      let mut unmangleTable := Std.HashMap.emptyWithCapacity mangleTable.size
+      let mut decodeTable := Std.HashMap.emptyWithCapacity mangleTable.size
       for (k, v) in mangleTable do
-        if unmangleTable.contains v then
+        if decodeTable.contains v then
           throwError "Non injective name mangling detected, aborting"
-        unmangleTable := unmangleTable.insert v k.toString
+        decodeTable := decodeTable.insert v k.toString
       let problem := { commands := commands.toList }
-      return (problem, { unmangleTable, projSet, fvarSet })
+      return (problem, { decodeTable, projSet, fvarSet })
     decode ctx res := do
       ReaderT.run (res.mapM decode) ctx
   }

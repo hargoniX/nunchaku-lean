@@ -63,8 +63,8 @@ def encode (g : MVarId) : ComfortM MVarId := g.withContext do
   mapMVarId g elimComfortUniv (processLetDecl := true)
 
 public def transformation : Transformation MVarId MVarId NunResult NunResult where
-   st := private Unit
-   inner := private {
+   st := Unit
+   inner := {
     name := "ElimComfort"
     encode g := do
       let g ← ComfortM.run <| encode g

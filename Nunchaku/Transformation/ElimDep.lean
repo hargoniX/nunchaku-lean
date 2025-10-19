@@ -4,6 +4,7 @@ public import Nunchaku.Util.Model
 import Nunchaku.Util.LocalContext
 import Nunchaku.Util.AddDecls
 import Lean.Meta.CollectFVars
+import Nunchaku.Util.Decode
 
 namespace Nunchaku
 namespace Transformation
@@ -96,6 +97,20 @@ structure DepState where
 
 abbrev DepM := StateRefT DepState TransforM
 
+structure DecodeCtx where
+  decodeTable : Std.HashMap String String
+
+def DepM.run (x : DepM α) : TransforM (α × DecodeCtx) := do
+  let (p, { constCache := table, newEquations, .. }) ← StateRefT'.run x {}
+  TransforM.replaceEquations newEquations
+  TransforM.addDecls
+  let mut decodeTable := Std.HashMap.emptyWithCapacity table.size
+  for (k, v) in table do
+    let v := v.toString
+    if decodeTable.contains v then
+        throwError "Non injective elimdep name mangling detected"
+    decodeTable := decodeTable.insert v k.toString
+  return (p, { decodeTable })
 
 def isProof (e : Expr) : DepM Bool := do
   match (← get).exprKindCache[e]? with
@@ -878,19 +893,48 @@ def elim (g : MVarId) : DepM MVarId := do
   -- monad empty is fine.
   let g ← mapExtendMVarId g (IndInvM.run <| elimValueOrProp · ·) fun arg subst fvar =>
     IndInvM.run (invariantForFVar arg subst fvar)
-  TransforM.replaceEquations (← get).newEquations
-  TransforM.addDecls
   return g
 
+section Decode
+
+open Decode
+
+abbrev DecodeM := ReaderT DecodeCtx TransforM
+
+def decodeUninterpretedTypeInhabitant (name : String) : DecodeM String := do
+  let some endPos := name.revPosOf '_' | throwError m!"Weird type inhabitant name: {name}"
+  let typeName := name.extract ⟨1⟩ endPos
+  let typeId := name.extract endPos name.endPos
+  let decodedTypeName := (← read).decodeTable[typeName]!
+  return s!"${decodedTypeName}{typeId}"
+
+def decodeConstName (name : String) : DecodeM String :=
+  if name.startsWith "$" && !name.startsWith "$$" then
+    decodeUninterpretedTypeInhabitant name
+  else
+    return (← read).decodeTable.getD name name
+
+instance : MonadDecode DecodeM :=
+    MonadDecode.Simple.instanceFactory
+      decodeConstName
+      decodeConstName
+      decodeUninterpretedTypeInhabitant
+
+def decode (model : NunModel) : DecodeM NunModel :=
+  MonadDecode.decodeModel model
+
+end Decode
+
 public def transformation : Transformation MVarId MVarId NunResult NunResult where
-   st := private Unit
-   inner := private {
+   st := DecodeCtx
+   inner := {
     name := "ElimDep"
     encode g := do
-      let g ← elim g |>.run' {}
+      let (g, d)  ← elim g |>.run
       trace[nunchaku.elimdep] m!"Result: {g}"
-      return (g, ())
-    decode _ res := return res
+      return (g, d)
+    decode ctx res :=
+      ReaderT.run (res.mapM decode) ctx
   }
 
 end ElimDep

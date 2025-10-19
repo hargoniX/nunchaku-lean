@@ -3,7 +3,7 @@ module
 public import Nunchaku.Util.Pipeline
 public import Nunchaku.Util.Model
 import Nunchaku.Util.AddDecls
-import Nunchaku.Util.NunchakuBuilder
+import Nunchaku.Util.Decode
 import Nunchaku.Util.NunchakuPrinter
 
 import Nunchaku.Transformation.Monomorphization.Collect
@@ -24,7 +24,10 @@ open Lean
 
 open Collect Solve Specialise
 
--- TODO: Dedup this framework with output as far as possible
+section Decode
+
+open Decode
+
 abbrev DecodeM := ReaderT DecodeCtx TransforM
 
 def decodeConstName (name : String) : DecodeM String :=
@@ -48,31 +51,16 @@ def decodeType (t : NunType) : DecodeM NunType := do
   | .const _ _ => throwError m!"Expected only monomorphic types in decoding: {t}"
   | .arrow l r => return .arrow (← decodeType l) (← decodeType r)
 
-def decodeTerm (t : NunTerm) : DecodeM NunTerm := do
-  match t with
-  | .var .. | .builtin .. => return t
-  | .const name => return .const (← decodeConstName name)
-  | .lam id ty body => return .lam id (← decodeType ty) (← decodeTerm body)
-  | .forall id ty body => return .forall id (← decodeType ty) (← decodeTerm body)
-  | .exists id ty body => return .exists id (← decodeType ty) (← decodeTerm body)
-  | .let id value body => return .let id (← decodeTerm value) (← decodeTerm body)
-  | .app fn arg => return .app (← decodeTerm fn) (← decodeTerm arg)
+instance : MonadDecode DecodeM where
+  decodeConstName := decodeConstName
+  decodeUninterpretedTypeName := pure
+  decodeUninterpretedTypeInhabitant := pure
+  decodeType := decodeType
 
 def decode (model : NunModel) : DecodeM NunModel := do
-  let decls : List NunModelDecl ← model.decls.mapM fun decl => do
-    match decl with
-    | .type name members =>
-      -- We don't touch uninterpreted types in this pipeline step
-      return .type name members
-    | .val name value =>
-      match (← read).decodeTable[name]? with
-      | some (decoded, args) =>
-        if !args.args.isEmpty then
-          throwError "Found uninterpreted symbol with type arguments in model: {name}"
-        return .val decoded (← decodeTerm value)
-      | none =>
-        return .val name (← decodeTerm value)
-  return { decls }
+  MonadDecode.decodeModel model
+
+end Decode
 
 public def transformation : Transformation MVarId MVarId NunResult NunResult where
   st := DecodeCtx
