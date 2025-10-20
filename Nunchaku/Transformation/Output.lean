@@ -545,7 +545,7 @@ def decode (model : NunModel) : DecodeM NunModel := do
 
     visited := visited.insert decl.name
 
-  let decls := relevant.toList
+  let decls := relevant.qsort (·.name < ·.name) |>.toList
   return { decls }
 
 public def transformation : Transformation Lean.MVarId NunProblem NunResult NunResult where

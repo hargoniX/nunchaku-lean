@@ -2,8 +2,8 @@ import Nunchaku
 
 /--
 info: Nunchaku found a counter example:
-val n := Nat.zero
 val m := Nat.zero
+val n := Nat.zero
 ---
 error: unsolved goals
 n m : Nat
@@ -91,8 +91,8 @@ example (n : Nat) :
 
 /--
 info: Nunchaku found a counter example:
-val n := Nat.zero
 val m := Nat.zero
+val n := Nat.zero
 ---
 error: unsolved goals
 n : Nat
@@ -121,8 +121,8 @@ end
 
 /--
 info: Nunchaku found a counter example:
-val n := Nat.zero
 val m := Nat.zero
+val n := Nat.zero
 ---
 error: unsolved goals
 n m : Nat
@@ -243,8 +243,8 @@ example (n : Nat) : isZero n := by
 
 /--
 info: Nunchaku found a counter example:
-val b := (Nat.succ Nat.zero)
 val a := Nat.zero
+val b := (Nat.succ Nat.zero)
 ---
 error: unsolved goals
 a b : Nat
@@ -257,8 +257,8 @@ example (a b : Nat) : Nat.ble a b ↔ Nat.beq a b := by
 
 /--
 info: Nunchaku found a counter example:
-val b := Nat.zero
 val a := Nat.zero
+val b := Nat.zero
 ---
 error: unsolved goals
 a b : Nat
@@ -271,9 +271,9 @@ example (a b : Nat) : Nat.blt a b ↔ a < b := by
 
 /--
 info: Nunchaku found a counter example:
-val n := Nat.zero
-val m := Nat.zero
 val k := Nat.zero
+val m := Nat.zero
+val n := Nat.zero
 ---
 error: unsolved goals
 n m k : Nat
