@@ -1,6 +1,7 @@
 module
 
 public import Nunchaku.Util.NunchakuSyntax
+import Nunchaku.Util.NunchakuBuilder
 
 /-!
 This module contains the implementation of the Nunchaku pretty printer, used to dump Nunchaku
@@ -15,15 +16,19 @@ partial def NunType.format (typ : NunType) : Std.Format :=
   match typ with
   | .prop => "prop"
   | .type => "type"
-  | .const name => name
+  | .const name [] => name
+  | .const name args =>
+    let args := args.map NunType.format
+    let args := Format.joinSep args " "
+    "(" ++ name ++ " " ++ args ++ ")"
   | .arrow lhs rhs => "(" ++ lhs.format ++ " -> " ++ rhs.format ++ ")"
 
 public instance : ToFormat NunType where
   format := private NunType.format
 
-def NunTerm.format (term : NunTerm) : Std.Format :=
+partial def NunTerm.format (term : NunTerm) : Std.Format :=
   match term with
-  | .var id => idToVar id
+  | .var id => id
   | .const name => name
   | .builtin .true => "true"
   | .builtin .false => "false"
@@ -50,17 +55,19 @@ def NunTerm.format (term : NunTerm) : Std.Format :=
     .paren ("if " ++ discr.format ++ " then " ++ lhs.format ++ " else " ++ rhs.format)
   | .app (.app (.app (.builtin _) _) _) _ =>
     panic! "encountered partially applied built-in in 3-ary position"
-  | .app fn arg => .paren (fn.format ++ " " ++ arg.format)
+  | .app .. =>
+    term.withApp fun fn args =>
+      let args := args.map NunTerm.format
+      let args := Format.joinSep args.toList " "
+      "(" ++ NunTerm.format fn ++ " " ++ args ++ ")"
   | .lam id ty body =>
-    .paren ("fun (" ++ idToVar id ++ " : " ++ ToFormat.format ty ++ ") . " ++ body.format )
+    .paren ("fun (" ++ id ++ " : " ++ ToFormat.format ty ++ ") . " ++ body.format )
   | .forall id ty body =>
-    .paren ("forall (" ++ idToVar id ++ " : " ++ ToFormat.format ty ++ ") . " ++ body.format )
+    .paren ("forall (" ++ id ++ " : " ++ ToFormat.format ty ++ ") . " ++ body.format )
   | .exists id ty body =>
-    .paren ("exists (" ++ idToVar id ++ " : " ++ ToFormat.format ty ++ ") . " ++ body.format )
+    .paren ("exists (" ++ id ++ " : " ++ ToFormat.format ty ++ ") . " ++ body.format )
   | .let id value body =>
-    .paren ("let " ++ idToVar id ++ " := " ++ value.format ++ " in " ++ .line ++ body.format)
-where
-  idToVar (id : Nat) : Format := s!"var{id}"
+    .paren ("let " ++ id ++ " := " ++ value.format ++ " in " ++ .line ++ body.format)
 
 public instance : ToFormat NunTerm where
   format := private NunTerm.format

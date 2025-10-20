@@ -13,7 +13,7 @@ public section
 inductive NunType where
   | prop
   | type
-  | const (name : String)
+  | const (name : String) (args : List NunType)
   | arrow (lhs rhs : NunType)
   deriving Inhabited, Repr
 
@@ -74,7 +74,7 @@ inductive NunTerm where
   /--
   A variable, the identifier should be globally unique.
   -/
-  | var (id : Nat)
+  | var (id : String)
   /--
   A Nunchaku constant such as a function.
   -/
@@ -86,19 +86,19 @@ inductive NunTerm where
   /--
   A lambda abstraction `λ (id : ty) . body`
   -/
-  | lam (id : Nat) (ty : NunType) (body : NunTerm)
+  | lam (id : String) (ty : NunType) (body : NunTerm)
   /--
-  A forall abstraction `forall (id : ty) . body`
+  A forall abstraction `∀ (id : ty) . body`
   -/
-  | forall (id : Nat) (ty : NunType) (body : NunTerm)
+  | forall (id : String) (ty : NunType) (body : NunTerm)
   /--
-  An existential abstraction `forall (id : ty) . body`
+  An existential abstraction `∃ (id : ty) . body`
   -/
-  | exists (id : Nat) (ty : NunType) (body : NunTerm)
+  | exists (id : String) (ty : NunType) (body : NunTerm)
   /--
   A let abstraction `let id := value in body`
   -/
-  | let (id : Nat) (value : NunTerm) (body : NunTerm)
+  | let (id : String) (value : NunTerm) (body : NunTerm)
   /--
   A function application `fn arg`.
   -/

@@ -11,7 +11,7 @@ namespace Nunchaku
 namespace Transformation
 namespace Falsify
 
-public def transformation : Transformation Lean.MVarId Lean.MVarId LeanResult LeanResult where
+public def transformation : Transformation Lean.MVarId Lean.MVarId NunResult NunResult where
   st := private Unit
   inner := private {
     name := "Falsify"

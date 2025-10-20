@@ -19,12 +19,26 @@ public structure SpecializeState where
   specialisationCache : Std.HashMap (FlowVariable × GroundInput) Name := {}
   exprCache : Std.HashMap Expr Expr := {}
 
+public structure DecodeCtx where
+  decodeTable : Std.HashMap String (String × GroundInput)
+  monoAnalysis : MonoAnalysisState
+
 public abbrev SpecializeM := ReaderT SpecializeContext <| StateRefT SpecializeState MonoAnalysisM
 
 public def SpecializeM.run (x : SpecializeM α) (ctx : SpecializeContext)
-    (mono : MonoAnalysisState) : TransforM α := do
-  let ((p, _), _) ← StateRefT'.run (StateRefT'.run (ReaderT.run x ctx) {}) mono
-  return p
+    (mono : MonoAnalysisState) : TransforM (α × DecodeCtx) := do
+  let ((p, { specialisationCache := table, newEquations, .. }), monoAnalysis) ←
+    StateRefT'.run (StateRefT'.run (ReaderT.run x ctx) {}) mono
+  TransforM.replaceEquations newEquations
+  TransforM.addDecls
+  -- TODO: Deduplicate with Output
+  let mut decodeTable := Std.HashMap.emptyWithCapacity table.size
+  for ((kf, ka), v) in table do
+    let v := v.toString
+    if decodeTable.contains v then
+        throwError "Non injective specialisation name mangling detected"
+    decodeTable := decodeTable.insert v (kf.function.toString, ka)
+  return (p, { decodeTable, monoAnalysis })
 
 def levelParamsAsMeta (e : Expr) : MetaM Expr := do
   let params := Lean.collectLevelParams {} e |>.params
@@ -249,6 +263,9 @@ partial def specialiseInduct (info : InductiveVal) (input : GroundInput) : Speci
     ctors := newCtors
   }
   let nparams := info.numParams - (← getMonoArgPositions name).size
+  for (oldCtor, newCtor) in info.ctors.zip newCtors do
+    modify fun s =>
+      { s with specialisationCache := s.specialisationCache.insert (⟨oldCtor⟩, input) newCtor.name }
   TransforM.recordDecl <| .inductDecl [] nparams [decl] false
 
 partial def specialiseEquation (name : Name) (eq : Expr) (input : GroundInput) :
@@ -343,8 +360,6 @@ public partial def specialize (g : MVarId) : SpecializeM MVarId := do
 
   trace[nunchaku.mono] m!"Specialising in {g}"
   let g ← mapMVarId g specialiseExpr
-  TransforM.replaceEquations (← get).newEquations
-  TransforM.addDecls
   return g
 
 end Specialise

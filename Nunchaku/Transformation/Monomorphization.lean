@@ -3,6 +3,8 @@ module
 public import Nunchaku.Util.Pipeline
 public import Nunchaku.Util.Model
 import Nunchaku.Util.AddDecls
+import Nunchaku.Util.Decode
+import Nunchaku.Util.NunchakuPrinter
 
 import Nunchaku.Transformation.Monomorphization.Collect
 import Nunchaku.Transformation.Monomorphization.Solve
@@ -22,9 +24,47 @@ open Lean
 
 open Collect Solve Specialise
 
-public def transformation : Transformation MVarId MVarId LeanResult LeanResult where
-  st := private Unit
-  inner := private {
+section Decode
+
+open Decode
+
+abbrev DecodeM := ReaderT DecodeCtx TransforM
+
+def decodeConstName (name : String) : DecodeM String :=
+  return (← read).decodeTable[name]? |>.map Prod.fst |>.getD name
+
+def GroundTypeArg.toNunType : GroundTypeArg → NunType
+  | .const name args => .const name.toString (args.map GroundTypeArg.toNunType).toList
+  | .func dom codom => .arrow dom.toNunType codom.toNunType
+
+def GroundInput.toNunType (inp : GroundInput) : List NunType :=
+  inp.args.map GroundTypeArg.toNunType |>.toList
+
+def decodeType (t : NunType) : DecodeM NunType := do
+  match t with
+  | .prop | .type => return t
+  | .const name [] =>
+    let decodedName ← decodeConstName name
+    match (← read).decodeTable[name]? with
+    | some (_, input) => return .const decodedName input.toNunType
+    | none => return .const decodedName []
+  | .const _ _ => throwError m!"Expected only monomorphic types in decoding: {t}"
+  | .arrow l r => return .arrow (← decodeType l) (← decodeType r)
+
+instance : MonadDecode DecodeM where
+  decodeConstName := decodeConstName
+  decodeUninterpretedTypeName := pure
+  decodeUninterpretedTypeInhabitant := pure
+  decodeType := decodeType
+
+def decode (model : NunModel) : DecodeM NunModel := do
+  MonadDecode.decodeModel model
+
+end Decode
+
+public def transformation : Transformation MVarId MVarId NunResult NunResult where
+  st := DecodeCtx
+  inner := {
     name := "Monomorphisation"
     encode g := g.withContext do
       let (constraints, monoAnalysis) ← (collectConstraints g).run
@@ -34,10 +74,11 @@ public def transformation : Transformation MVarId MVarId LeanResult LeanResult w
         trace[nunchaku.mono] m!"Constraints: {constraints}"
         let solution := solveConstraints constraints (by simpa using h)
         trace[nunchaku.mono] m!"Solution: {solution.toList}"
-        let g ← (specialize g).run { solution } monoAnalysis
+        let (g, d) ← (specialize g).run { solution } monoAnalysis
         trace[nunchaku.mono] m!"Result: {g}"
-        return (g, ())
-    decode _ res := return res
+        return (g, d)
+    decode ctx res :=
+      ReaderT.run (res.mapM decode) ctx
   }
 
 end Monomorphization

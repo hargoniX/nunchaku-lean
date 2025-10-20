@@ -1,6 +1,7 @@
 module
 
 public import Nunchaku.Util.NunchakuSyntax
+public import Std.Data.HashSet.Basic
 
 /-!
 This module contains utility functions for building Nunchaku syntax and problems.
@@ -25,6 +26,50 @@ def NunTerm.equiv (lhs rhs : NunTerm) : NunTerm := .app (.app (.builtin .equiv) 
 def NunTerm.imply (lhs rhs : NunTerm) : NunTerm := .app (.app (.builtin .imply) lhs) rhs
 def NunTerm.ite (discr lhs rhs : NunTerm) : NunTerm :=
   .app (.app (.app (.builtin .ite) discr) lhs) rhs
+def NunTerm.appN (fn : NunTerm) (args : List NunTerm) : NunTerm :=
+  args.foldl (init := fn) .app
+
+def NunType.collectUsedConstants (t : NunType) (s : Std.HashSet String := {}) :
+    Std.HashSet String :=
+  match t with
+  | .prop | .type => s
+  | .const name args =>
+    let s := s.insert name
+    args.foldl (init := s) (fun acc arg => arg.collectUsedConstants acc)
+  | .arrow lhs rhs =>
+    let s := lhs.collectUsedConstants s
+    rhs.collectUsedConstants s
+
+def NunTerm.collectUsedConstants (t : NunTerm) (s : Std.HashSet String := {}) :
+    Std.HashSet String :=
+  match t with
+  | .var .. | .builtin .. => s
+  | .const name => s.insert name
+  | .lam _ ty body =>
+    let s := ty.collectUsedConstants s
+    body.collectUsedConstants s
+  | .forall _ ty body =>
+    let s := ty.collectUsedConstants s
+    body.collectUsedConstants s
+  | .exists _ ty body =>
+    let s := ty.collectUsedConstants s
+    body.collectUsedConstants s
+  | .let _ value body =>
+    let s := value.collectUsedConstants s
+    body.collectUsedConstants s
+  | .app fn arg =>
+    let s := fn.collectUsedConstants s
+    arg.collectUsedConstants s
+
+@[inline]
+def NunTerm.withApp (t : NunTerm) (k : NunTerm → Array NunTerm → α) : α :=
+  go t #[] k
+where
+  @[specialize]
+  go (t : NunTerm) (acc : Array NunTerm) (k : NunTerm → Array NunTerm → α) : α :=
+    match t with
+    | .app fn arg => go fn (acc.push arg) k
+    | _ => k t acc.reverse
 
 end
 
