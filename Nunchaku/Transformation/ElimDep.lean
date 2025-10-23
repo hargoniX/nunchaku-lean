@@ -98,6 +98,13 @@ structure DepState where
   Cache for matchers specialised to some particular motive
   -/
   matcherCache : Std.HashMap (Name × Expr) Expr := {}
+  /--
+  PUnit defines a type which has a universe argument that is not determined through type parameters.
+  This is fundamentally at odds with our monomorphisation pass. While more types like this exist we
+  decided to just special case PUnit for now by creating concrete unit-like-types for each of them
+  until a more complete solution is found.
+  -/
+  unitCache : Std.HashMap Nat Name := {}
 
 abbrev DepM := StateRefT DepState TransforM
 
@@ -359,6 +366,52 @@ def enrichStencil (stencil : Array ArgKind) : Array ArgKind := Id.run do
       new := new.push .prop
   return new
 
+partial def mkAuxiliaryMatcher (fn : Name) (motive : Expr) (info : Meta.MatcherInfo) :
+    IndInvM Expr := do
+  match (← get).matcherCache[(fn, motive)]? with
+  | some fn => return fn
+  | none =>
+    let expr ← Meta.mkConstWithFreshMVarLevels fn
+    let type ← Meta.inferType expr
+    let specialisedType ← Meta.forallBoundedTelescope type (some info.numParams) fun args body => do
+      let .forallE _ type body _ := body | unreachable!
+      if !(← Meta.isDefEq (← Meta.inferType motive) type) then
+        throwError m!"Failed to instantiate motive argument {motive} for {type}"
+      let body := body.instantiate1 motive
+      -- In case we are dealing with just a lambda that drops the first argument
+      let body ← Core.betaReduce body
+      Meta.mkForallFVars args body
+    let u ← Meta.getLevel specialisedType
+    let elimName ← TransforM.mkFreshName fn (pref := "match_elim_")
+    let newFn ← Meta.mkAuxDefinition (compile := false)
+      elimName
+      specialisedType
+      (mkApp (mkConst ``TransforM.sorryAx [u]) specialisedType)
+    trace[nunchaku.elimdep] m!"Created auxiliary matcher: {newFn}"
+    -- TODO: compute new equations
+    modify fun s => { s with matcherCache := s.matcherCache.insert (fn, motive) newFn }
+    return newFn
+
+def auxiliaryUnitCtor : Name := `unit
+
+def mkAuxiliaryUnitType (lvl : Level) : IndInvM Name := do
+  let some lvl := lvl.toNat | throwError "Non constant level in PUnit occurence"
+  match (← get).unitCache[lvl]? with
+  | some type => return type
+  | none =>
+    let elimName ← TransforM.mkFreshName ``PUnit (pref := "punit_elim")
+    addDecl <| .inductDecl [] 0 (isUnsafe := false) [{
+      name := elimName,
+      type := .sort (.ofNat lvl),
+      ctors := [{ name := elimName ++ auxiliaryUnitCtor, type := mkConst elimName [] }]
+    }]
+    modify fun s => { s with unitCache := s.unitCache.insert lvl elimName }
+    return elimName
+
+def mkAuxiliaryUnitValue (lvl : Level) : IndInvM Name := do
+  let type ← mkAuxiliaryUnitType lvl
+  return type ++ auxiliaryUnitCtor
+
 mutual
 
 /--
@@ -394,9 +447,15 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
   | .const const us =>
     if TransforM.isBuiltin const then
       return .const const us
-
-    let const ← elimConst const
-    return .const const us
+    else if const == ``PUnit then
+      let [lvl] := us | throwError m!"Type incorrect PUnit: {expr}"
+      return .const (← mkAuxiliaryUnitType lvl) []
+    else if const == ``PUnit.unit then
+      let [lvl] := us | throwError m!"Type incorrect PUnit: {expr}"
+      return .const (← mkAuxiliaryUnitValue lvl) []
+    else
+      let const ← elimConst const
+      return .const const us
   | .app .. =>
     expr.withApp fun fn args => do
       match fn with
@@ -430,28 +489,7 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
         else if let some info ← Meta.getMatcherInfo? fn then
           -- In the following we assume matches are always just fully applied
           let motive := args[info.numParams]!
-          let fn ←
-            match (← get).matcherCache[(fn, motive)]? with
-            | some fn => pure fn
-            | none =>
-              let expr ← Meta.mkConstWithFreshMVarLevels fn
-              let type ← Meta.inferType expr
-              let specialisedType ← Meta.forallBoundedTelescope type (some info.numParams) fun args body => do
-                let .forallE _ type body _ := body | unreachable!
-                if !(← Meta.isDefEq (← Meta.inferType motive) type) then
-                  throwError m!"Failed to instantiate motive argument {motive} for {type}"
-                let body := body.instantiate1 motive
-                let body ← Core.betaReduce body
-                Meta.mkForallFVars args body
-              let u ← Meta.getLevel specialisedType
-              let elimName ← TransforM.mkFreshName fn (pref := "match_elim_")
-              let newFn ← Meta.mkAuxDefinition (compile := false)
-                elimName
-                specialisedType
-                (mkApp (mkConst ``TransforM.sorryAx [u]) specialisedType)
-              -- TODO: compute new equations
-              modify fun s => { s with matcherCache := s.matcherCache.insert (fn, motive) newFn }
-              pure newFn
+          let fn ← mkAuxiliaryMatcher fn motive info
           let args := args.eraseIdx! info.numParams |>.map Option.some
           elimExprRaw' (← Meta.mkAppOptM' fn args) inProp subst
         else
