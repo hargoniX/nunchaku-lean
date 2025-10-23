@@ -96,7 +96,8 @@ mutual
 partial def collectConstType (info : ConstantVal) : CollectM Unit := do
   Meta.forallTelescope info.type fun args out => do
     let positions ← getMonoArgPositions info.name
-    let flowArgs := positions.map (fun pos => (args[pos]!.fvarId!, .index ⟨info.name⟩ pos))
+    let flowArgs := positions.mapIdx fun posIdx pos =>
+      (args[pos]!.fvarId!, .index ⟨info.name⟩ posIdx)
     let insertVars flowFVars :=
       flowArgs.foldl (init := flowFVars) (fun acc (fvar, flow) => acc.insert fvar flow)
     withReader (fun (ctx : CollectCtx) => { ctx with flowFVars := insertVars ctx.flowFVars }) do
@@ -121,7 +122,8 @@ partial def collectConst (const : Name) : CollectM Unit := do
         if positions.size != inductPositions.size then
           throwError m!"Cannot monomorphise existential types in {ctor}"
         -- TODO: consider deduplication with collectConstType
-        let flowArgs := positions.map (fun pos => (args[pos]!.fvarId!, .index ⟨ctor⟩ pos))
+        let flowArgs := positions.mapIdx fun posIdx pos =>
+          (args[pos]!.fvarId!, .index ⟨ctor⟩ posIdx)
         let insertVars flowFVars :=
           flowArgs.foldl (init := flowFVars) (fun acc (fvar, flow) => acc.insert fvar flow)
         withReader (fun (ctx : CollectCtx) => { ctx with flowFVars := insertVars ctx.flowFVars }) do
@@ -137,12 +139,11 @@ partial def collectConst (const : Name) : CollectM Unit := do
         let some (_, lhs, rhs) := body.eq? | throwError m!"Equation is malformed: {eq}"
         let (fn, fnArgs) := lhs.getAppFnArgs
         assert! fn == const
-        let mut flowArgs := #[]
-        for pos in positions do
+        let flowArgs ← positions.mapIdxM fun posIdx pos => do
           let fnArg := fnArgs[pos]!
           if !fnArg.isFVar then
             throwError m!"Equation lhs contains non fvar type argument: {eq}"
-          flowArgs := flowArgs.push (fnArg.fvarId!, .index ⟨const⟩ pos)
+          return (fnArg.fvarId!, .index ⟨const⟩ posIdx)
 
         let insertVars flowFVars :=
           flowArgs.foldl (init := flowFVars) (fun acc (fvar, flow) => acc.insert fvar flow)
@@ -221,8 +222,8 @@ partial def collectExpr (expr : Expr) : CollectM Unit := do
 end
 
 def collectFVar (fvar : FVarId) : CollectM Unit := do
-    let type ← fvar.getType
-    collectExpr (← instantiateMVars type)
+  let type ← fvar.getType
+  collectExpr (← instantiateMVars type)
 
 def collectMVar (g : MVarId) : CollectM Unit := do
   for decl in ← getLCtx do

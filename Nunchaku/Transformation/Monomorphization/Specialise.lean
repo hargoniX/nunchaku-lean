@@ -138,7 +138,6 @@ partial def specialiseExprRaw (expr : Expr) (subst : Meta.FVarSubst) : Specializ
 
     match ← getConstInfo const with
     | .ctorInfo info =>
-
       let pattern : FlowVariable × GroundInput := ⟨⟨info.induct⟩, ⟨#[]⟩⟩
       specialiseConst info.induct pattern.2
       let specialisedInductName := (← get).specialisationCache[pattern]!

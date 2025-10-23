@@ -13,7 +13,7 @@ public section
 
 structure FlowVariable where
   function : Name
-  deriving Inhabited, BEq, Hashable
+  deriving Inhabited, BEq, Hashable, Repr
 
 instance : ToString FlowVariable where
   toString var := Name.toString var.function
@@ -34,7 +34,7 @@ inductive FlowTypeArg where
   A (non polymorphic) function type
   -/
   | func (dom codom : FlowTypeArg)
-  deriving Inhabited, BEq, Hashable
+  deriving Inhabited, BEq, Hashable, Repr
 
 def FlowTypeArg.findTypeVar (type : FlowTypeArg) : Option FlowVariable :=
   match type with
@@ -105,7 +105,7 @@ inductive GroundTypeArg where
   A function between ground type arguments is ground
   -/
   | func (dom codom : GroundTypeArg)
-  deriving Inhabited, BEq, Hashable
+  deriving Inhabited, BEq, Hashable, Repr
 
 instance : ToMessageData GroundTypeArg where
   toMessageData := go
@@ -120,7 +120,7 @@ An assignment to a vector of type variables.
 -/
 structure GroundInput where
   args : Array GroundTypeArg
-  deriving Inhabited, BEq, Hashable
+  deriving Inhabited, BEq, Hashable, Repr
 
 instance : ToMessageData GroundInput where
   toMessageData i := toMessageData i.args
@@ -131,7 +131,7 @@ The type arguments of `dst` are instantiated using the ground type arguments in 
 structure GroundConstraint where
   src : GroundInput
   dst : FlowVariable
-  deriving Inhabited, BEq, Hashable
+  deriving Inhabited, BEq, Hashable, Repr
 
 def FlowTypeArg.toGroundTypeArg (type : FlowTypeArg) : Option GroundTypeArg := do
   match type with
