@@ -223,21 +223,16 @@ xs : Vec (Vec α m) n
 example {f : α → β} (xs : Vec (Vec α m) n) : xs.length = (xs.map (fun v => v.map f)).length := by
   nunchaku
 
-def Vec.map2 (f : α → β) (x : Vec α n) : Vec β n :=
-  match x with
-  | .nil => .nil
-  | .cons x xs => .cons (f x) (map2 f xs)
-
-example {f : α → β} : Vec.map (α := α) (n := n) (f := f) = Vec.map2 (f := f) := by
-  funext xs
-  induction xs
-  · rfl
-  · simp [Vec.map, Vec.map2]
-    assumption
-
-set_option trace.nunchaku true in
-example {f : α → β} (xs : Vec α n) : Vec.map (α := α) (n := n) (f := f) = Vec.map2 (f := f) := by
-  nunchaku
-
-example {f : α → β} : ∀ xs, Vec.map (α := α) (n := n) (f := f) xs = Vec.map2 (f := f) xs := by
+/--
+info: Nunchaku found a counter example:
+val inst := (Decidable.isFalse false)
+val p := false
+---
+error: unsolved goals
+p : Prop
+inst : Decidable p
+⊢ p
+-/
+#guard_msgs in
+example [inst : Decidable p] : p := by
   nunchaku

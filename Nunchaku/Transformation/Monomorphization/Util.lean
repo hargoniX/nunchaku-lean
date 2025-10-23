@@ -175,7 +175,10 @@ def getMonoArgPositions (const : Name) : MonoAnalysisM (Array Nat) := do
   Meta.forallTelescope ty fun args _ => do
     let mut positions := #[]
     for h : idx in 0...args.size do
-      if ← Meta.isType args[idx] then
+      let type ← Meta.inferType args[idx]
+      let .sort lvl := type
+        | continue
+      if !lvl.isAlwaysZero then
         positions := positions.push idx
 
     modifyThe MonoAnalysisState fun s => { s with argPos := s.argPos.insert const positions }

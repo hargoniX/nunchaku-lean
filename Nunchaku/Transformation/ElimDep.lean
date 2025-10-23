@@ -422,7 +422,7 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
           else
             for idx in 0...args.size do
               match stencil[idx]! with
-              | .proof | .value => continue
+              | .proof | .value | .prop => continue
               | _ =>
                 let arg := args[idx]!
                 newArgs := newArgs.push (← elimValueOrProp' arg subst)
