@@ -195,7 +195,7 @@ example (xs : Vec α n) (f : α → β) : xs.length = (xs.map f).length := by
 
 /--
 info: Nunchaku found a counter example:
-type α := [$α_0]
+inductive α where | $α_0
 val n := (Nat.succ Nat.zero)
 val xs := (Vec.cons Nat.zero $α_0 Vec.nil)
 ---
@@ -221,4 +221,23 @@ xs : Vec (Vec α m) n
 -/
 #guard_msgs in
 example {f : α → β} (xs : Vec (Vec α m) n) : xs.length = (xs.map (fun v => v.map f)).length := by
+  nunchaku
+
+def Vec.map2 (f : α → β) (x : Vec α n) : Vec β n :=
+  match x with
+  | .nil => .nil
+  | .cons x xs => .cons (f x) (map2 f xs)
+
+example {f : α → β} : Vec.map (α := α) (n := n) (f := f) = Vec.map2 (f := f) := by
+  funext xs
+  induction xs
+  · rfl
+  · simp [Vec.map, Vec.map2]
+    assumption
+
+set_option trace.nunchaku true in
+example {f : α → β} (xs : Vec α n) : Vec.map (α := α) (n := n) (f := f) = Vec.map2 (f := f) := by
+  nunchaku
+
+example {f : α → β} : ∀ xs, Vec.map (α := α) (n := n) (f := f) xs = Vec.map2 (f := f) xs := by
   nunchaku

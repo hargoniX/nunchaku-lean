@@ -105,13 +105,15 @@ private def parse (d : Sexp) : Except String NunModelDecl := do
     return .val id value
   | .list [.atom "val", .list [.atom "_witness_of", _], value] =>
     let value ← parseTerm value
-    return .witness "_witness_of" value 
+    return .witness "_witness_of" value
   | _ => throw s!"Unexpected model decl: {d}"
 
 instance : ToString NunModelDecl where
   toString decl := private
     match decl with
-    | .type name members => s!"type {name} := [{String.intercalate " " members}]"
+    | .type name members =>
+      let members := members.map (s!" | {·}") |> String.join
+      s!"inductive {name} where{members}"
     | .val name term => s!"val {name} := {Std.ToFormat.format term}"
     | .witness name value => s!"witness {name} := {Std.ToFormat.format value}"
 

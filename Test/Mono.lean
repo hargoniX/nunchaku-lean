@@ -68,7 +68,7 @@ example  : [].map id ≠ ([] : List Nat) := by
 
 /--
 info: Nunchaku found a counter example:
-type a := [$a_0]
+inductive a where | $a_0
 val xs := (List.cons $a_0 List.nil)
 ---
 error: unsolved goals
@@ -82,7 +82,7 @@ example (xs : List a) : xs = [] := by
 
 /--
 info: Nunchaku found a counter example:
-type α := [$α_0]
+inductive α where | $α_0
 val xs := List.nil
 ---
 error: unsolved goals
@@ -96,7 +96,7 @@ example (xs : List α) : xs.map id ≠ xs := by
 
 /--
 info: Nunchaku found a counter example:
-type α := [$α_0]
+inductive α where | $α_0
 val xs := List.nil
 ---
 error: unsolved goals
@@ -110,7 +110,7 @@ example (xs : List (List α)) : xs.map id ≠ xs := by
 
 /--
 info: Nunchaku found a counter example:
-type α := [$α_0]
+inductive α where | $α_0
 val xs := List.nil
 ---
 error: unsolved goals
@@ -239,7 +239,7 @@ example : [].foldl f b = b := by
 
 /--
 info: Nunchaku found a counter example:
-type α := [$α_0]
+inductive α where | $α_0
 val a := $α_0
 val as := List.nil
 val b := $α_0
@@ -278,8 +278,8 @@ example [BEq α] {a} {as : List α} : List.lex (a :: as) [] lt = true := by
 
 /--
 info: Nunchaku found a counter example:
-type α := [$α_0]
-type β := [$β_0]
+inductive α where | $α_0
+inductive β where | $β_0
 val f := (fun (v_0 : α) . (List.cons $β_0 List.nil))
 val x := $α_0
 val xs := List.nil
@@ -299,7 +299,7 @@ example {x : α} {xs : List α} {f : α → List β} :
 
 /--
 info: Nunchaku found a counter example:
-type α := [$α_0 $α_1]
+inductive α where | $α_0 | $α_1
 val a := $α_1
 val as := (List.cons $α_1 List.nil)
 val bs := List.nil
@@ -356,8 +356,8 @@ end
 
 /--
 info: Nunchaku found a counter example:
-type α := [$α_0 $α_1]
-type β := [$β_0 $β_1]
+inductive α where | $α_0 | $α_1
+inductive β where | $β_0 | $β_1
 val a := $α_0
 val b := $α_1
 val f := (fun (v_0 : α) . (if (v_0 = $α_0) then $β_1 else $β_0))
@@ -375,10 +375,10 @@ example {f : α → β} {a b : α} : List.map f [a] = [f b] := by
 
 /--
 info: Nunchaku found a counter example:
-type α := [$α_0 $α_1]
+inductive α where | $α_0 | $α_1
 val b := $α_1
 val f := (fun (v_0 : α) . $α_1)
-val l := (List.cons $α_0 List.nil)
+val l := (List.cons $α_0 (List.cons $α_0 (List.cons $α_0 List.nil)))
 ---
 error: unsolved goals
 α : Type u_1
@@ -394,7 +394,7 @@ example {f : α → α} (h : b ∈ List.map f l) : ∃ a, b ∈ l ∧ f a = b :=
 
 /--
 info: Nunchaku found a counter example:
-type α := [$α_0]
+inductive α where | $α_0
 witness _witness_of := List.nil
 val a := $α_0
 val l := List.nil
@@ -414,8 +414,8 @@ namespace FunFlow
 /--
 info: Nunchaku found a counter example:
 val $$anon_fun_0 := (fun (v_1 : α) . (if (v_1 = $α_0) then $β_0 else (?__ $$anon_fun_0 v_1)))
-type α := [$α_0]
-type β := [$β_0]
+inductive α where | $α_0
+inductive β where | $β_0
 val f := (fun (v_1 : α) . (if (v_1 = $α_0) then $β_0 else (?__ $$anon_fun_0 v_1)))
 ---
 error: unsolved goals
@@ -440,7 +440,7 @@ end FunFlow
 
 /--
 info: Nunchaku found a counter example:
-type α := [$α_0 $α_1]
+inductive α where | $α_0 | $α_1
 val x := $α_0
 val y := $α_1
 ---

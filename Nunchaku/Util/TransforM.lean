@@ -24,6 +24,9 @@ public abbrev TransforM := ReaderT NunchakuConfig <| StateRefT TransforM.State M
 
 namespace TransforM
 
+-- Our own sorry to avoid printing "this theorem relies on sorry"
+public meta axiom sorryAx (α : Sort u) : α
+
 def builtins : Std.HashSet Name :=
   .ofList [``True, ``False, ``Not, ``And, ``Or, ``Eq, ``Ne, ``Iff, ``ite, ``Exists]
 
@@ -49,6 +52,55 @@ def preprocessEquation (eq : Expr) : MetaM Expr := do
     let body := mkApp3 (.const ``Eq [u]) α lhs rhs
     Meta.mkForallFVars args body
 
+def findEquationsForDefn (info : DefinitionVal) : MetaM (Array Expr) := do
+  if ← Meta.isMatcher info.name then
+    (← Match.getEquationsFor info.name).eqnNames.mapM equationTheoremType
+  else
+    match info.name with
+    | ``dite =>
+      let thm ← diteThm
+      return #[thm]
+    | ``Decidable.decide =>
+      let thm ← decidableDecideThm
+      return #[thm]
+    | _ =>
+      let some eqns ← getEqnsFor? info.name
+        | throwError s!"Unable to find equations for {mkConst info.name}"
+      eqns.mapM equationTheoremType
+where
+  equationTheoremType (thm : Name) : MetaM Expr := do
+    inferType (← mkConstWithLevelParams thm)
+
+  decidableDecideThm : MetaM Expr := do
+    withLocalDeclD `p (mkSort 0) fun p => do
+    withLocalDeclD `inst (mkApp (mkConst ``Decidable) p) fun inst => do
+      let lhs := mkApp2 (mkConst ``Decidable.decide) p inst
+      let rhs := mkApp5 (mkConst ``ite [1])
+        (mkConst ``Bool)
+        p
+        (mkApp (mkConst ``Classical.propDecidable) p)
+        (mkConst ``Bool.true)
+        (mkConst ``Bool.false)
+      let eq ← mkEq lhs rhs
+      Meta.mkForallFVars #[p, inst] eq
+
+  diteThm : MetaM Expr := do
+    let u := .param `u
+    withLocalDeclD `α (mkSort u) fun α => do
+    withLocalDeclD `c (mkSort 0) fun c => do
+    withLocalDeclD `inst (mkApp (mkConst ``Decidable) c) fun inst => do
+    withLocalDeclD `t (← mkArrow c α) fun t => do
+    withLocalDeclD `e (← mkArrow (mkNot c) α) fun e => do
+      let lhs := mkApp5 (mkConst ``dite [u]) α c inst t e
+      let rhs := mkApp5 (mkConst ``ite [u])
+        α
+        c
+        (mkApp (mkConst ``Classical.propDecidable) c)
+        (mkApp t (mkApp (mkConst ``TransforM.sorryAx [0]) c))
+        (mkApp e (mkApp (mkConst ``TransforM.sorryAx [0]) (mkNot c)))
+      let eq ← mkEq lhs rhs
+      Meta.mkForallFVars #[α, c, inst, t, e] eq
+
 def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) := do
   let mut worklist : Array Name ← initializeWorklist g
   let mut defs : Std.HashMap Name (List Expr) := {}
@@ -62,24 +114,19 @@ def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) := do
     trace[nunchaku.equations] m!"Working {elem}"
     let constInfo ← getConstInfo elem
     match constInfo with
-    | .defnInfo .. =>
+    | .defnInfo info =>
       -- A theorem in disguise!
       if ← Meta.isProof (← mkConstWithLevelParams constInfo.name) then
         let used := constInfo.type.getUsedConstants
         worklist := worklist ++ used
         continue
       else
-        let eqns ←
-          if ← Meta.isMatcher constInfo.name then
-            pure (← Match.getEquationsFor constInfo.name).eqnNames
-          else
-            let some eqns ← getEqnsFor? elem | throwError s!"Unable to find equations for {mkConst elem}"
-            pure eqns
-        let eqns ← eqns.mapM fun eq => do inferType (← mkConstWithLevelParams eq)
+        let eqns ← findEquationsForDefn info
         let eqns ← eqns.mapM preprocessEquation
         defs := defs.insert elem eqns.toList
         for eq in eqns do
           let used := eq.getUsedConstants
+          let used := used.filter (fun n => !visited.contains n)
           worklist := worklist ++ used
     | .inductInfo .. | .axiomInfo .. | .opaqueInfo .. | .recInfo .. | .ctorInfo .. =>
       -- TODO: Don't traverse into theorems here
@@ -116,9 +163,6 @@ public def run (g : MVarId) (cfg : NunchakuConfig) (x : TransforM α) : MetaM α
         trace[nunchaku.equations] m!"  - {eq}"
 
   StateRefT'.run' (ReaderT.run x cfg) { equations }
-
--- Our own sorry to avoid printing "this theorem relies on sorry"
-public meta axiom sorryAx (α : Sort u) : α
 
 end TransforM
 
