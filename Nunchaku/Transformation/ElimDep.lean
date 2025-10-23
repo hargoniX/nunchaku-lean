@@ -94,6 +94,10 @@ structure DepState where
   `Prop` or non `Prop` context.
   -/
   elimCache : Std.HashMap (Expr × Bool) Expr := {}
+  /--
+  Cache for matchers specialised to some particular motive
+  -/
+  matcherCache : Std.HashMap (Name × Expr) Expr := {}
 
 abbrev DepM := StateRefT DepState TransforM
 
@@ -397,10 +401,6 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
     expr.withApp fun fn args => do
       match fn with
       | .const fn us =>
-        let defaultBehavior := do
-          let fn ← elimConst fn
-          let args ← args.filterMapM (elimValuePropNoProof · subst)
-          return mkAppN (.const fn us) args
         if TransforM.isBuiltin fn then
           let args ← args.mapM (elimValueOrProp' · subst)
           return mkAppN (.const fn us) args
@@ -427,8 +427,37 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
                 let arg := args[idx]!
                 newArgs := newArgs.push (← elimValueOrProp' arg subst)
           return mkAppN (.const fn us) newArgs
+        else if let some info ← Meta.getMatcherInfo? fn then
+          -- In the following we assume matches are always just fully applied
+          let motive := args[info.numParams]!
+          let fn ←
+            match (← get).matcherCache[(fn, motive)]? with
+            | some fn => pure fn
+            | none =>
+              let expr ← Meta.mkConstWithFreshMVarLevels fn
+              let type ← Meta.inferType expr
+              let specialisedType ← Meta.forallBoundedTelescope type (some info.numParams) fun args body => do
+                let .forallE _ type body _ := body | unreachable!
+                if !(← Meta.isDefEq (← Meta.inferType motive) type) then
+                  throwError m!"Failed to instantiate motive argument {motive} for {type}"
+                let body := body.instantiate1 motive
+                let body ← Core.betaReduce body
+                Meta.mkForallFVars args body
+              let u ← Meta.getLevel specialisedType
+              let elimName ← TransforM.mkFreshName fn (pref := "match_elim_")
+              let newFn ← Meta.mkAuxDefinition (compile := false)
+                elimName
+                specialisedType
+                (mkApp (mkConst ``TransforM.sorryAx [u]) specialisedType)
+              -- TODO: compute new equations
+              modify fun s => { s with matcherCache := s.matcherCache.insert (fn, motive) newFn }
+              pure newFn
+          let args := args.eraseIdx! info.numParams |>.map Option.some
+          elimExprRaw' (← Meta.mkAppOptM' fn args) inProp subst
         else
-          defaultBehavior
+          let fn ← elimConst fn
+          let args ← args.filterMapM (elimValuePropNoProof · subst)
+          return mkAppN (.const fn us) args
       | _ =>
         let fn ← elimValue' fn subst
         let args ← args.filterMapM (elimValuePropNoProof · subst)
