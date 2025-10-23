@@ -5,6 +5,7 @@ public import Nunchaku.Util.NunchakuSyntax
 public import Nunchaku.Util.Model
 import Nunchaku.Util.NunchakuBuilder
 import Nunchaku.Util.NunchakuPrinter
+import Nunchaku.Util.AuxiliaryConsts
 import Lean.Util.SCC
 
 /-!
@@ -207,7 +208,7 @@ where
       | Eq _ lhs rhs => return .eq (← go lhs locals) (← go rhs locals)
       | Ne _ lhs rhs => return .neq (← go lhs locals) (← go rhs locals)
       | Iff lhs rhs => return .equiv (← go lhs locals) (← go rhs locals)
-      | ite _ discr _ lhs rhs =>
+      | classicalIf _ discr lhs rhs  =>
         return .ite (← go discr locals) (← go lhs locals) (← go rhs locals)
       | Exists ty prop =>
         let encodedType ← encodeType ty

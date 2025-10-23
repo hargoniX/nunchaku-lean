@@ -5,6 +5,7 @@ import Nunchaku.Util.LocalContext
 import Nunchaku.Util.AddDecls
 import Lean.Meta.CollectFVars
 import Nunchaku.Util.Decode
+import Nunchaku.Util.AuxiliaryConsts
 
 namespace Nunchaku
 namespace Transformation
@@ -386,7 +387,7 @@ partial def mkAuxiliaryMatcher (fn : Name) (motive : Expr) (info : Meta.MatcherI
     let newFn ← Meta.mkAuxDefinition (compile := false)
       elimName
       specialisedType
-      (mkApp (mkConst ``TransforM.sorryAx [u]) specialisedType)
+      (TransforM.mkSorryAx specialisedType u)
     trace[nunchaku.elimdep] m!"Created auxiliary matcher: {newFn}"
     -- TODO: compute new equations
     modify fun s => { s with matcherCache := s.matcherCache.insert (fn, motive) newFn }
@@ -411,6 +412,42 @@ def mkAuxiliaryUnitType (lvl : Level) : IndInvM Name := do
 def mkAuxiliaryUnitValue (lvl : Level) : IndInvM Name := do
   let type ← mkAuxiliaryUnitType lvl
   return type ++ auxiliaryUnitCtor
+
+partial def preEliminateConst (const : Name) (us : List Level) :
+    IndInvM (Option (Name × List Level)) := do
+  match const with
+  | ``PUnit =>
+    let [lvl] := us | throwError m!"Type incorrect PUnit"
+    return some <| ((← mkAuxiliaryUnitType lvl), [])
+  | ``PUnit.unit =>
+    let [lvl] := us | throwError m!"Type incorrect PUnit.unit"
+    return some <| ((← mkAuxiliaryUnitValue lvl), [])
+  | _ => return none
+
+partial def preEliminateApp (fn : Name) (us : List Level) (args : Array Expr) :
+    IndInvM (Option Expr) := do
+  match fn with
+  | ``ite =>
+    let lvl := us[0]!
+    let α := args[0]!
+    let p := args[1]!
+    let thenE := args[3]!
+    let elseE := args[4]!
+    return some <| mkApp4 (mkConst ``classicalIf [lvl]) α p thenE elseE
+  | ``dite =>
+    let lvl := us[0]!
+    let α := args[0]!
+    let p := args[1]!
+    let thenE := mkApp args[3]! (TransforM.mkSorryAx p 0)
+    let elseE := mkApp args[4]! (TransforM.mkSorryAx (mkNot p) 0)
+    return some <| mkApp4 (mkConst ``classicalIf) α p thenE elseE
+  | ``Decidable.decide =>
+    let p := args[0]!
+    let α := mkApp (mkConst ``Decidable) p
+    let thenE := mkApp2 (mkConst ``Decidable.isTrue) p (TransforM.mkSorryAx p 0)
+    let elseE := mkApp2 (mkConst ``Decidable.isFalse) p (TransforM.mkSorryAx p 0)
+    return some <| mkApp4 (mkConst ``classicalIf [1]) α p thenE elseE
+  | _ => return none
 
 mutual
 
@@ -447,55 +484,55 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
   | .const const us =>
     if TransforM.isBuiltin const then
       return .const const us
-    else if const == ``PUnit then
-      let [lvl] := us | throwError m!"Type incorrect PUnit: {expr}"
-      return .const (← mkAuxiliaryUnitType lvl) []
-    else if const == ``PUnit.unit then
-      let [lvl] := us | throwError m!"Type incorrect PUnit: {expr}"
-      return .const (← mkAuxiliaryUnitValue lvl) []
     else
-      let const ← elimConst const
-      return .const const us
+      match ← preEliminateConst const us with
+      | some (name, lvl) => elimExpr' (.const name lvl) inProp subst
+      | none =>
+        let const ← elimConst const
+        return .const const us
   | .app .. =>
     expr.withApp fun fn args => do
       match fn with
       | .const fn us =>
-        if TransforM.isBuiltin fn then
-          let args ← args.mapM (elimValueOrProp' · subst)
-          return mkAppN (.const fn us) args
-        else if let .inductInfo info ← getConstInfo fn then
-          let fn ← elimConst fn
-          let stencil ← argStencil info.toConstantVal
-          let mut newArgs := #[]
-          if ← Meta.isPropFormerType info.type then
-            for idx in 0...args.size do
-              match stencil[idx]! with
-              | .proof => continue
-              | .value | .prop =>
-                let arg := args[idx]!
-                newArgs := newArgs.push (← elimValueOrProp' arg subst)
-              | .typeformer | .type =>
-                let arg := args[idx]!
-                newArgs := newArgs.push (← elimValue' arg subst)
-                newArgs := newArgs.push (← invariantPredForD arg subst)
+        match ← preEliminateApp fn us args with
+        | some expr => elimExpr' expr inProp subst
+        | none =>
+          if TransforM.isBuiltin fn then
+            let args ← args.mapM (elimValueOrProp' · subst)
+            return mkAppN (.const fn us) args
+          else if let .inductInfo info ← getConstInfo fn then
+            let fn ← elimConst fn
+            let stencil ← argStencil info.toConstantVal
+            let mut newArgs := #[]
+            if ← Meta.isPropFormerType info.type then
+              for idx in 0...args.size do
+                match stencil[idx]! with
+                | .proof => continue
+                | .value | .prop =>
+                  let arg := args[idx]!
+                  newArgs := newArgs.push (← elimValueOrProp' arg subst)
+                | .typeformer | .type =>
+                  let arg := args[idx]!
+                  newArgs := newArgs.push (← elimValue' arg subst)
+                  newArgs := newArgs.push (← invariantPredForD arg subst)
+            else
+              for idx in 0...args.size do
+                match stencil[idx]! with
+                | .proof | .value | .prop => continue
+                | _ =>
+                  let arg := args[idx]!
+                  newArgs := newArgs.push (← elimValueOrProp' arg subst)
+            return mkAppN (.const fn us) newArgs
+          else if let some info ← Meta.getMatcherInfo? fn then
+            -- In the following we assume matches are always just fully applied
+            let motive := args[info.numParams]!
+            let fn ← mkAuxiliaryMatcher fn motive info
+            let args := args.eraseIdx! info.numParams |>.map Option.some
+            elimExprRaw' (← Meta.mkAppOptM' fn args) inProp subst
           else
-            for idx in 0...args.size do
-              match stencil[idx]! with
-              | .proof | .value | .prop => continue
-              | _ =>
-                let arg := args[idx]!
-                newArgs := newArgs.push (← elimValueOrProp' arg subst)
-          return mkAppN (.const fn us) newArgs
-        else if let some info ← Meta.getMatcherInfo? fn then
-          -- In the following we assume matches are always just fully applied
-          let motive := args[info.numParams]!
-          let fn ← mkAuxiliaryMatcher fn motive info
-          let args := args.eraseIdx! info.numParams |>.map Option.some
-          elimExprRaw' (← Meta.mkAppOptM' fn args) inProp subst
-        else
-          let fn ← elimConst fn
-          let args ← args.filterMapM (elimValuePropNoProof · subst)
-          return mkAppN (.const fn us) args
+            let fn ← elimConst fn
+            let args ← args.filterMapM (elimValuePropNoProof · subst)
+            return mkAppN (.const fn us) args
       | _ =>
         let fn ← elimValue' fn subst
         let args ← args.filterMapM (elimValuePropNoProof · subst)
@@ -753,7 +790,7 @@ partial def elimDefn (info : DefinitionVal) : DepM Unit := do
     name := elimName,
     levelParams := info.levelParams,
     type := newType,
-    value := mkApp (mkConst ``TransforM.sorryAx [u]) newType,
+    value := TransforM.mkSorryAx newType u,
     safety := .safe,
     hints := .opaque,
   }
@@ -901,8 +938,9 @@ partial def invariantPredForD (oldType : Expr) (subst : Meta.FVarSubst) :
     return mkLambda `x .default elim (mkConst ``True)
 
 partial def invariantForFVar (oldType : Expr) (subst : Meta.FVarSubst) (newFVar : FVarId) :
-    IndInvM (Option Expr) :=
-  invariantFor oldType subst (mkFVar newFVar)
+    IndInvM (Option Expr) := do
+  let some inv ← invariantFor oldType subst (mkFVar newFVar) | return none
+  Core.betaReduce inv
 
 partial def invariantPredFor (oldType : Expr) (subst : Meta.FVarSubst) :
     IndInvM (Option Expr) := do
@@ -916,6 +954,7 @@ partial def invariantPredFor (oldType : Expr) (subst : Meta.FVarSubst) :
   | .const .. | .app .. =>
     oldType.withApp fun fn args => do
       let .const fn us := fn | return none
+      let (fn, us) := (← preEliminateConst fn us).getD (fn, us)
       let .inductInfo info ← getConstInfo fn | return none
       let inductStencil ← argStencil info.toConstantVal
       let invInduct ← invariantForInduct info

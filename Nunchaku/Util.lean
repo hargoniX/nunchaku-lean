@@ -9,3 +9,4 @@ public import Nunchaku.Util.TransforM
 public import Nunchaku.Util.AddDecls
 public import Nunchaku.Util.Sexp
 public import Nunchaku.Util.Decode
+public import Nunchaku.Util.AuxiliaryConsts

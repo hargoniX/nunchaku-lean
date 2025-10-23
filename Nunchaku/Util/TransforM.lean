@@ -5,6 +5,7 @@ import Lean.Meta.Reduce
 public import Nunchaku.Attr
 public meta import Nunchaku.Attr -- TODO: this should not be necessary
 import Lean.Meta.Match.MatchEqsExt
+import Nunchaku.Util.AuxiliaryConsts
 
 /-!
 This module contains the definition of the `TransforM` monad which is the core
@@ -27,8 +28,12 @@ namespace TransforM
 -- Our own sorry to avoid printing "this theorem relies on sorry"
 public meta axiom sorryAx (α : Sort u) : α
 
+public def mkSorryAx (ty : Expr) (lvl : Level) : Expr :=
+  mkApp (mkConst ``sorryAx [lvl]) ty
+
 def builtins : Std.HashSet Name :=
-  .ofList [``True, ``False, ``Not, ``And, ``Or, ``Eq, ``Ne, ``Iff, ``ite, ``Exists]
+  .ofList [``True, ``False, ``Not, ``And, ``Or, ``Eq, ``Ne, ``Iff, ``Exists,
+    ``Nunchaku.classicalIf]
 
 public def isBuiltin (n : Name) : Bool := builtins.contains n
 
@@ -56,50 +61,12 @@ def findEquationsForDefn (info : DefinitionVal) : MetaM (Array Expr) := do
   if ← Meta.isMatcher info.name then
     (← Match.getEquationsFor info.name).eqnNames.mapM equationTheoremType
   else
-    match info.name with
-    | ``dite =>
-      let thm ← diteThm
-      return #[thm]
-    | ``Decidable.decide =>
-      let thm ← decidableDecideThm
-      return #[thm]
-    | _ =>
-      let some eqns ← getEqnsFor? info.name
-        | throwError s!"Unable to find equations for {mkConst info.name}"
-      eqns.mapM equationTheoremType
+    let some eqns ← getEqnsFor? info.name
+      | throwError s!"Unable to find equations for {mkConst info.name}"
+    eqns.mapM equationTheoremType
 where
   equationTheoremType (thm : Name) : MetaM Expr := do
     inferType (← mkConstWithLevelParams thm)
-
-  decidableDecideThm : MetaM Expr := do
-    withLocalDeclD `p (mkSort 0) fun p => do
-    withLocalDeclD `inst (mkApp (mkConst ``Decidable) p) fun inst => do
-      let lhs := mkApp2 (mkConst ``Decidable.decide) p inst
-      let rhs := mkApp5 (mkConst ``ite [1])
-        (mkConst ``Bool)
-        p
-        (mkApp (mkConst ``Classical.propDecidable) p)
-        (mkConst ``Bool.true)
-        (mkConst ``Bool.false)
-      let eq ← mkEq lhs rhs
-      Meta.mkForallFVars #[p, inst] eq
-
-  diteThm : MetaM Expr := do
-    let u := .param `u
-    withLocalDeclD `α (mkSort u) fun α => do
-    withLocalDeclD `c (mkSort 0) fun c => do
-    withLocalDeclD `inst (mkApp (mkConst ``Decidable) c) fun inst => do
-    withLocalDeclD `t (← mkArrow c α) fun t => do
-    withLocalDeclD `e (← mkArrow (mkNot c) α) fun e => do
-      let lhs := mkApp5 (mkConst ``dite [u]) α c inst t e
-      let rhs := mkApp5 (mkConst ``ite [u])
-        α
-        c
-        (mkApp (mkConst ``Classical.propDecidable) c)
-        (mkApp t (mkApp (mkConst ``TransforM.sorryAx [0]) c))
-        (mkApp e (mkApp (mkConst ``TransforM.sorryAx [0]) (mkNot c)))
-      let eq ← mkEq lhs rhs
-      Meta.mkForallFVars #[α, c, inst, t, e] eq
 
 def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) := do
   let mut worklist : Array Name ← initializeWorklist g

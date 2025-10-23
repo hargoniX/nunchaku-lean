@@ -293,3 +293,45 @@ example {n m : Nat} : n < m → n ≤ m := by
   nunchaku
 
   -/
+
+/--
+info: Nunchaku is convinced that the theorem is true.
+---
+error: unsolved goals
+a b : Unit
+⊢ a = b
+-/
+#guard_msgs in
+example (a b : Unit) : a = b := by
+  nunchaku
+
+-- TODO
+example (a b : Unit) : a ≠ b := by
+  nunchaku
+
+/--
+info: Nunchaku is convinced that the theorem is true.
+---
+error: unsolved goals
+a b : Unit
+⊢ a = ()
+-/
+#guard_msgs in
+example (a b : Unit) : a = Unit.unit := by
+  nunchaku
+
+inductive Foo (a : Bool) where
+  | ctor (h : if a = a then True else True) : Foo a
+
+/--
+info: Nunchaku is convinced that the theorem is true.
+---
+error: unsolved goals
+a b : Bool
+⊢ Foo a
+-/
+#guard_msgs in
+example (a b : Bool) : Foo a := by
+  nunchaku
+
+-- TODO: make this inductive work again with two parameters
