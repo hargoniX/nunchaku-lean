@@ -112,9 +112,10 @@ abbrev DepM := StateRefT DepState TransforM
 
 structure DecodeCtx where
   decodeTable : Std.HashMap String String
+  unitSet : Std.HashSet String
 
 def DepM.run (x : DepM α) : TransforM (α × DecodeCtx) := do
-  let (p, { constCache := table, newEquations, .. }) ← StateRefT'.run x {}
+  let (p, { constCache := table, unitCache, newEquations, .. }) ← StateRefT'.run x {}
   TransforM.replaceEquations newEquations
   TransforM.addDecls
   let mut decodeTable := Std.HashMap.emptyWithCapacity table.size
@@ -123,7 +124,8 @@ def DepM.run (x : DepM α) : TransforM (α × DecodeCtx) := do
     if decodeTable.contains v then
         throwError "Non injective elimdep name mangling detected"
     decodeTable := decodeTable.insert v k.toString
-  return (p, { decodeTable })
+  let unitSet := Std.HashSet.ofList <| unitCache.values.map Name.toString
+  return (p, { decodeTable, unitSet })
 
 def isProof (e : Expr) : DepM Bool := do
   match (← get).exprKindCache[e]? with
@@ -1044,11 +1046,20 @@ def decodeUninterpretedTypeInhabitant (name : String) : DecodeM String := do
   let decodedTypeName := (← read).decodeTable[typeName]!
   return s!"${decodedTypeName}{typeId}"
 
-def decodeConstName (name : String) : DecodeM String :=
+def decodeConstName (name : String) : DecodeM String := do
   if name.startsWith "$" && !name.startsWith "$$" then
     decodeUninterpretedTypeInhabitant name
   else
-    return (← read).decodeTable.getD name name
+    match (← read).decodeTable[name]? with
+    | some name =>
+      let unitSet := (← read).unitSet
+      if unitSet.contains name then
+        return "PUnit"
+      else if unitSet.contains (name.dropRight (auxiliaryUnitCtor.toString.length + 1)) then
+        return "PUnit.punit"
+      else
+        return name
+    | none => return name
 
 instance : MonadDecode DecodeM :=
     MonadDecode.Simple.instanceFactory

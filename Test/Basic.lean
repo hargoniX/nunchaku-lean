@@ -305,7 +305,16 @@ a b : Unit
 example (a b : Unit) : a = b := by
   nunchaku
 
--- TODO
+/--
+info: Nunchaku found a counter example:
+val a := PUnit.punit
+val b := PUnit.punit
+---
+error: unsolved goals
+a b : Unit
+⊢ a ≠ b
+-/
+#guard_msgs in
 example (a b : Unit) : a ≠ b := by
   nunchaku
 
@@ -320,6 +329,8 @@ a b : Unit
 example (a b : Unit) : a = Unit.unit := by
   nunchaku
 
+namespace MyFoo
+
 inductive Foo (a : Bool) where
   | ctor (h : if a = a then True else True) : Foo a
 
@@ -333,5 +344,7 @@ a b : Bool
 #guard_msgs in
 example (a b : Bool) : Foo a := by
   nunchaku
+
+end MyFoo
 
 -- TODO: make this inductive work again with two parameters

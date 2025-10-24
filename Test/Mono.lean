@@ -314,7 +314,6 @@ as bs : List α
 example {a : α} {as : List α} (bs : List α) : a ∈ as → ¬ a ∈ as ++ bs := by
   nunchaku
 
-
 /-
 
 TODO: This has additional pre preconditions in the equation → requires more stuff
@@ -327,32 +326,55 @@ example [BEq α] {l : List α} : (l != []) = l.isEmpty := by
   nunchaku
 -/
 
-/-
-TODO: don't have access to equations for some reason
-
-example {p : α → Bool} {as : List α} {bs : List α} :
-    List.filterTR.loop p as bs = bs ++ List.filter p as := by
-  nunchaku
-  -/
-
-/-
-TODO: handle nested matches
 section
-
-instance (priority := high) : BEq Nat where
-  beq := Nat.beq
 
 def myelem (a : Nat) : (l : List Nat) → Bool
   | []    => false
-  | b::bs => if a = b then true else myelem a bs
+  | b::bs => if a == b then true else myelem a bs
 
-set_option trace.nunchaku true in
+/--
+info: Nunchaku found a counter example:
+val a := Nat.zero
+val as := List.nil
+---
+error: unsolved goals
+a : Nat
+as : List Nat
+⊢ myelem a as = false ↔ a ∈ as
+-/
+#guard_msgs in
 example {a : Nat} {as : List Nat} : myelem a as = false ↔ a ∈ as := by
   nunchaku
 
-
 end
+
+/-
+
+TODO: broken if output
+example {p : α → Bool} {as : List α} {bs : List α} :
+    List.filterTR.loop p as bs = List.filter p as := by
+  nunchaku
 -/
+
+-- TODO: This problem works if we get rid of the useless constraints on `xs`
+
+/--
+info: Nunchaku wasn't able to prove or disprove the theorem.
+---
+error: unsolved goals
+α β : Type
+xs : List ((α → β) × α)
+⊢ List.map
+      (fun x =>
+        match x with
+        | (f, s) => f s)
+      xs =
+    []
+-/
+#guard_msgs in
+example {α β : Type} (xs : List ((α → β) × α)) :
+    xs.map (fun (f, s) => f s) = [] := by
+  nunchaku
 
 /--
 info: Nunchaku found a counter example:
@@ -378,7 +400,7 @@ info: Nunchaku found a counter example:
 inductive α where | $α_0 | $α_1
 val b := $α_1
 val f := (fun (v_0 : α) . $α_1)
-val l := (List.cons $α_0 (List.cons $α_0 (List.cons $α_0 List.nil)))
+val l := (List.cons $α_0 List.nil)
 ---
 error: unsolved goals
 α : Type u_1
@@ -394,9 +416,9 @@ example {f : α → α} (h : b ∈ List.map f l) : ∃ a, b ∈ l ∧ f a = b :=
 
 /--
 info: Nunchaku found a counter example:
-inductive α where | $α_0
+inductive α where | $α_0 | $α_1
 witness _witness_of := List.nil
-val a := $α_0
+val a := $α_1
 val l := List.nil
 ---
 error: unsolved goals
@@ -426,15 +448,6 @@ f : α → β
 #guard_msgs in
 example {α β : Type} (f : α → β) : (some f).isNone := by
   nunchaku
-
-/-
-set_option trace.nunchaku true in
-example {α β : Type} (xs : List (α → β)) (ys : List α) :
-    (List.zip xs ys).map (fun (f, s) => f s) = [] := by
-  nunchaku
-
-#check Nat.decEq.match_1
--/
 
 end FunFlow
 
