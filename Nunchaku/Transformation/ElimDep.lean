@@ -376,7 +376,9 @@ partial def mkAuxiliaryMatcher (fn : Name) (motive : Expr) (info : Meta.MatcherI
     let type ← Meta.inferType expr
     let specialisedType ← Meta.forallBoundedTelescope type (some info.numParams) fun args body => do
       let .forallE _ type body _ := body | unreachable!
-      if !(← Meta.isDefEq (← Meta.inferType motive) type) then
+      let typeLevel ← Meta.getLevel type
+      let motiveLevel ← Meta.getLevel (← Meta.inferType motive)
+      if !(← Meta.isLevelDefEq typeLevel motiveLevel) then
         throwError m!"Failed to instantiate motive argument {motive} for {type}"
       let body := body.instantiate1 motive
       -- In case we are dealing with just a lambda that drops the first argument
