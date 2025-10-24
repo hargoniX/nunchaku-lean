@@ -442,12 +442,12 @@ partial def preEliminateApp (fn : Name) (us : List Level) (args : Array Expr) :
     let p := args[1]!
     let thenE := mkApp args[3]! (TransforM.mkSorryAx p 0)
     let elseE := mkApp args[4]! (TransforM.mkSorryAx (mkNot p) 0)
-    return some <| mkApp4 (mkConst ``classicalIf) α p thenE elseE
+    return some <| mkApp4 (mkConst ``classicalIf [lvl]) α p thenE elseE
   | ``Decidable.decide =>
     let p := args[0]!
     let α := mkApp (mkConst ``Decidable) p
-    let thenE := mkApp2 (mkConst ``Decidable.isTrue) p (TransforM.mkSorryAx p 0)
-    let elseE := mkApp2 (mkConst ``Decidable.isFalse) p (TransforM.mkSorryAx p 0)
+    let thenE := mkConst ``Bool.true
+    let elseE := mkConst ``Bool.false
     return some <| mkApp4 (mkConst ``classicalIf [1]) α p thenE elseE
   | _ => return none
 
