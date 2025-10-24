@@ -289,7 +289,7 @@ partial def specialiseOpaque (info : OpaqueVal) (input : GroundInput) : Speciali
     name := specName,
     levelParams := [],
     type := specType,
-    value := mkApp (mkConst ``TransforM.sorryAx [u]) specType,
+    value := TransforM.mkSorryAx specType u,
     isUnsafe := info.isUnsafe
   }
   TransforM.recordDecl <| .opaqueDecl defn
@@ -318,7 +318,7 @@ partial def specialiseDefn (info : DefinitionVal) (input : GroundInput) : Specia
     name := specName,
     levelParams := [],
     type := specType,
-    value := mkApp (mkConst ``TransforM.sorryAx [u]) specType,
+    value := TransforM.mkSorryAx specType u,
     hints := .opaque,
     safety := .safe
   }

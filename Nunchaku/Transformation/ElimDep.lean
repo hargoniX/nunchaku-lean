@@ -5,6 +5,8 @@ import Nunchaku.Util.LocalContext
 import Nunchaku.Util.AddDecls
 import Lean.Meta.CollectFVars
 import Nunchaku.Util.Decode
+import Nunchaku.Util.AuxiliaryConsts
+import Lean.Meta.Match.MatchEqsExt
 
 namespace Nunchaku
 namespace Transformation
@@ -94,14 +96,26 @@ structure DepState where
   `Prop` or non `Prop` context.
   -/
   elimCache : Std.HashMap (Expr × Bool) Expr := {}
+  /--
+  Cache for matchers specialised to some particular motive
+  -/
+  matcherCache : Std.HashMap (Name × Expr) Expr := {}
+  /--
+  PUnit defines a type which has a universe argument that is not determined through type parameters.
+  This is fundamentally at odds with our monomorphisation pass. While more types like this exist we
+  decided to just special case PUnit for now by creating concrete unit-like-types for each of them
+  until a more complete solution is found.
+  -/
+  unitCache : Std.HashMap Nat Name := {}
 
 abbrev DepM := StateRefT DepState TransforM
 
 structure DecodeCtx where
   decodeTable : Std.HashMap String String
+  unitSet : Std.HashSet String
 
 def DepM.run (x : DepM α) : TransforM (α × DecodeCtx) := do
-  let (p, { constCache := table, newEquations, .. }) ← StateRefT'.run x {}
+  let (p, { constCache := table, unitCache, newEquations, .. }) ← StateRefT'.run x {}
   TransforM.replaceEquations newEquations
   TransforM.addDecls
   let mut decodeTable := Std.HashMap.emptyWithCapacity table.size
@@ -110,7 +124,8 @@ def DepM.run (x : DepM α) : TransforM (α × DecodeCtx) := do
     if decodeTable.contains v then
         throwError "Non injective elimdep name mangling detected"
     decodeTable := decodeTable.insert v k.toString
-  return (p, { decodeTable })
+  let unitSet := Std.HashSet.ofList <| unitCache.values.map Name.toString
+  return (p, { decodeTable, unitSet })
 
 def isProof (e : Expr) : DepM Bool := do
   match (← get).exprKindCache[e]? with
@@ -355,6 +370,117 @@ def enrichStencil (stencil : Array ArgKind) : Array ArgKind := Id.run do
       new := new.push .prop
   return new
 
+partial def mkAuxiliaryMatcher (fn : Name) (motive : Expr) (info : Meta.MatcherInfo) :
+    IndInvM Expr := do
+  match (← get).matcherCache[(fn, motive)]? with
+  | some fn => return fn
+  | none =>
+    let expr ← Meta.mkConstWithFreshMVarLevels fn
+    let type ← Meta.inferType expr
+    let specialisedType ← Meta.forallBoundedTelescope type (some info.numParams) fun args body => do
+      let .forallE _ type body _ := body | unreachable!
+      let typeLevel ← Meta.getLevel type
+      let motiveLevel ← Meta.getLevel (← Meta.inferType motive)
+      if !(← Meta.isLevelDefEq typeLevel motiveLevel) then
+        throwError m!"Failed to instantiate motive argument {motive} for {type}"
+      let body := body.instantiate1 motive
+      -- In case we are dealing with just a lambda that drops the first argument
+      let body ← Core.betaReduce body
+      Meta.mkForallFVars args body
+    let u ← Meta.getLevel specialisedType
+    let elimName ← TransforM.mkFreshName fn (pref := "match_elim_")
+    let newFn ← Meta.mkAuxDefinition (compile := false)
+      elimName
+      specialisedType
+      (TransforM.mkSorryAx specialisedType u)
+    let eqns := (← Meta.Match.getEquationsFor fn).eqnNames
+    let newEqns ← eqns.mapM (transformEquation · fn newFn)
+    trace[nunchaku.elimdep] m!"Created auxiliary matcher: {newFn}, eqns: {newEqns}"
+    TransforM.injectEquations elimName newEqns.toList
+    modify fun s => { s with matcherCache := s.matcherCache.insert (fn, motive) newFn }
+    return newFn
+where
+  transformEquation (eqn : Name) (origName : Name) (elimExpr : Expr) : IndInvM Expr := do
+    let expr ← Meta.mkConstWithFreshMVarLevels eqn
+    let eq ← Meta.inferType expr
+    Meta.forallBoundedTelescope eq (some info.numParams) fun args body => do
+      let .forallE _ type body _ := body | unreachable!
+      let typeLevel ← Meta.getLevel type
+      let motiveLevel ← Meta.getLevel (← Meta.inferType motive)
+      if !(← Meta.isLevelDefEq typeLevel motiveLevel) then
+        throwError m!"Failed to instantiate motive argument {motive} for {type}"
+      let body := body.instantiate1 motive
+      -- In case we are dealing with just a lambda that drops the first argument
+      let body ← Core.betaReduce body
+      let body ← Core.transform body (pre := fun expr => do
+        expr.withApp fun fn args => do
+          if fn.isConstOf origName then
+            let args := args.eraseIdx! info.numParams
+            return .visit (mkAppN elimExpr args)
+          else
+            return .continue
+      )
+      let body ← Meta.mkForallFVars elimExpr.getAppArgs body
+      Meta.mkForallFVars args body
+
+def auxiliaryUnitCtor : Name := `unit
+
+def mkAuxiliaryUnitType (lvl : Level) : IndInvM Name := do
+  let some lvl := lvl.toNat | throwError "Non constant level in PUnit occurence"
+  match (← get).unitCache[lvl]? with
+  | some type => return type
+  | none =>
+    let elimName ← TransforM.mkFreshName ``PUnit (pref := "punit_elim")
+    addDecl <| .inductDecl [] 0 (isUnsafe := false) [{
+      name := elimName,
+      type := .sort (.ofNat lvl),
+      ctors := [{ name := elimName ++ auxiliaryUnitCtor, type := mkConst elimName [] }]
+    }]
+    modify fun s => { s with unitCache := s.unitCache.insert lvl elimName }
+    return elimName
+
+def mkAuxiliaryUnitValue (lvl : Level) : IndInvM Name := do
+  let type ← mkAuxiliaryUnitType lvl
+  return type ++ auxiliaryUnitCtor
+
+partial def preEliminateConst (const : Name) (us : List Level) :
+    IndInvM (Option (Name × List Level)) := do
+  match const with
+  | ``PUnit =>
+    let [lvl] := us | throwError m!"Type incorrect PUnit"
+    return some <| ((← mkAuxiliaryUnitType lvl), [])
+  | ``PUnit.unit =>
+    let [lvl] := us | throwError m!"Type incorrect PUnit.unit"
+    return some <| ((← mkAuxiliaryUnitValue lvl), [])
+  | ``Unit.unit =>
+    return some <| ((← mkAuxiliaryUnitValue 1), [])
+  | _ => return none
+
+partial def preEliminateApp (fn : Name) (us : List Level) (args : Array Expr) :
+    IndInvM (Option Expr) := do
+  match fn with
+  | ``ite =>
+    let lvl := us[0]!
+    let α := args[0]!
+    let p := args[1]!
+    let thenE := args[3]!
+    let elseE := args[4]!
+    return some <| mkApp4 (mkConst ``classicalIf [lvl]) α p thenE elseE
+  | ``dite =>
+    let lvl := us[0]!
+    let α := args[0]!
+    let p := args[1]!
+    let thenE := mkApp args[3]! (TransforM.mkSorryAx p 0)
+    let elseE := mkApp args[4]! (TransforM.mkSorryAx (mkNot p) 0)
+    return some <| mkApp4 (mkConst ``classicalIf [lvl]) α p thenE elseE
+  | ``Decidable.decide =>
+    let p := args[0]!
+    let α := mkApp (mkConst ``Decidable) p
+    let thenE := mkConst ``Bool.true
+    let elseE := mkConst ``Bool.false
+    return some <| mkApp4 (mkConst ``classicalIf [1]) α p thenE elseE
+  | _ => return none
+
 mutual
 
 /--
@@ -390,45 +516,55 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
   | .const const us =>
     if TransforM.isBuiltin const then
       return .const const us
-
-    let const ← elimConst const
-    return .const const us
+    else
+      match ← preEliminateConst const us with
+      | some (name, lvl) => elimExpr' (.const name lvl) inProp subst
+      | none =>
+        let const ← elimConst const
+        return .const const us
   | .app .. =>
     expr.withApp fun fn args => do
       match fn with
       | .const fn us =>
-        let defaultBehavior := do
-          let fn ← elimConst fn
-          let args ← args.filterMapM (elimValuePropNoProof · subst)
-          return mkAppN (.const fn us) args
-        if TransforM.isBuiltin fn then
-          let args ← args.mapM (elimValueOrProp' · subst)
-          return mkAppN (.const fn us) args
-        else if let .inductInfo info ← getConstInfo fn then
-          let fn ← elimConst fn
-          let stencil ← argStencil info.toConstantVal
-          let mut newArgs := #[]
-          if ← Meta.isPropFormerType info.type then
-            for idx in 0...args.size do
-              match stencil[idx]! with
-              | .proof => continue
-              | .value | .prop =>
-                let arg := args[idx]!
-                newArgs := newArgs.push (← elimValueOrProp' arg subst)
-              | .typeformer | .type =>
-                let arg := args[idx]!
-                newArgs := newArgs.push (← elimValue' arg subst)
-                newArgs := newArgs.push (← invariantPredForD arg subst)
+        match ← preEliminateApp fn us args with
+        | some expr => elimExpr' expr inProp subst
+        | none =>
+          if TransforM.isBuiltin fn then
+            let args ← args.mapM (elimValueOrProp' · subst)
+            return mkAppN (.const fn us) args
+          else if let .inductInfo info ← getConstInfo fn then
+            let fn ← elimConst fn
+            let stencil ← argStencil info.toConstantVal
+            let mut newArgs := #[]
+            if ← Meta.isPropFormerType info.type then
+              for idx in 0...args.size do
+                match stencil[idx]! with
+                | .proof => continue
+                | .value | .prop =>
+                  let arg := args[idx]!
+                  newArgs := newArgs.push (← elimValueOrProp' arg subst)
+                | .typeformer | .type =>
+                  let arg := args[idx]!
+                  newArgs := newArgs.push (← elimValue' arg subst)
+                  newArgs := newArgs.push (← invariantPredForD arg subst)
+            else
+              for idx in 0...args.size do
+                match stencil[idx]! with
+                | .proof | .value | .prop => continue
+                | _ =>
+                  let arg := args[idx]!
+                  newArgs := newArgs.push (← elimValueOrProp' arg subst)
+            return mkAppN (.const fn us) newArgs
+          else if let some info ← Meta.getMatcherInfo? fn then
+            -- In the following we assume matches are always just fully applied
+            let motive := args[info.numParams]!
+            let fn ← mkAuxiliaryMatcher fn motive info
+            let args := args.eraseIdx! info.numParams |>.map Option.some
+            elimExprRaw' (← Meta.mkAppOptM' fn args) inProp subst
           else
-            for idx in 0...args.size do
-              match stencil[idx]! with
-              | .proof | .value | .prop => continue
-              | _ =>
-                let arg := args[idx]!
-                newArgs := newArgs.push (← elimValueOrProp' arg subst)
-          return mkAppN (.const fn us) newArgs
-        else
-          defaultBehavior
+            let fn ← elimConst fn
+            let args ← args.filterMapM (elimValuePropNoProof · subst)
+            return mkAppN (.const fn us) args
       | _ =>
         let fn ← elimValue' fn subst
         let args ← args.filterMapM (elimValuePropNoProof · subst)
@@ -686,7 +822,7 @@ partial def elimDefn (info : DefinitionVal) : DepM Unit := do
     name := elimName,
     levelParams := info.levelParams,
     type := newType,
-    value := mkApp (mkConst ``TransforM.sorryAx [u]) newType,
+    value := TransforM.mkSorryAx newType u,
     safety := .safe,
     hints := .opaque,
   }
@@ -834,8 +970,9 @@ partial def invariantPredForD (oldType : Expr) (subst : Meta.FVarSubst) :
     return mkLambda `x .default elim (mkConst ``True)
 
 partial def invariantForFVar (oldType : Expr) (subst : Meta.FVarSubst) (newFVar : FVarId) :
-    IndInvM (Option Expr) :=
-  invariantFor oldType subst (mkFVar newFVar)
+    IndInvM (Option Expr) := do
+  let some inv ← invariantFor oldType subst (mkFVar newFVar) | return none
+  Core.betaReduce inv
 
 partial def invariantPredFor (oldType : Expr) (subst : Meta.FVarSubst) :
     IndInvM (Option Expr) := do
@@ -849,6 +986,7 @@ partial def invariantPredFor (oldType : Expr) (subst : Meta.FVarSubst) :
   | .const .. | .app .. =>
     oldType.withApp fun fn args => do
       let .const fn us := fn | return none
+      let (fn, us) := (← preEliminateConst fn us).getD (fn, us)
       let .inductInfo info ← getConstInfo fn | return none
       let inductStencil ← argStencil info.toConstantVal
       let invInduct ← invariantForInduct info
@@ -908,11 +1046,20 @@ def decodeUninterpretedTypeInhabitant (name : String) : DecodeM String := do
   let decodedTypeName := (← read).decodeTable[typeName]!
   return s!"${decodedTypeName}{typeId}"
 
-def decodeConstName (name : String) : DecodeM String :=
+def decodeConstName (name : String) : DecodeM String := do
   if name.startsWith "$" && !name.startsWith "$$" then
     decodeUninterpretedTypeInhabitant name
   else
-    return (← read).decodeTable.getD name name
+    match (← read).decodeTable[name]? with
+    | some name =>
+      let unitSet := (← read).unitSet
+      if unitSet.contains name then
+        return "PUnit"
+      else if unitSet.contains (name.dropRight (auxiliaryUnitCtor.toString.length + 1)) then
+        return "PUnit.punit"
+      else
+        return name
+    | none => return name
 
 instance : MonadDecode DecodeM :=
     MonadDecode.Simple.instanceFactory

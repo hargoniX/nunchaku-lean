@@ -5,6 +5,7 @@ public import Nunchaku.Util.NunchakuSyntax
 public import Nunchaku.Util.Model
 import Nunchaku.Util.NunchakuBuilder
 import Nunchaku.Util.NunchakuPrinter
+import Nunchaku.Util.AuxiliaryConsts
 import Lean.Util.SCC
 
 /-!
@@ -207,7 +208,7 @@ where
       | Eq _ lhs rhs => return .eq (← go lhs locals) (← go rhs locals)
       | Ne _ lhs rhs => return .neq (← go lhs locals) (← go rhs locals)
       | Iff lhs rhs => return .equiv (← go lhs locals) (← go rhs locals)
-      | ite _ discr _ lhs rhs =>
+      | classicalIf _ discr lhs rhs  =>
         return .ite (← go discr locals) (← go lhs locals) (← go rhs locals)
       | Exists ty prop =>
         let encodedType ← encodeType ty
@@ -341,6 +342,8 @@ def encodeDataType (val : InductiveVal) : OutputM Unit := do
     let mangled ← mangleName typ
     let val ← getConstInfoInduct typ
     let ctors ← val.ctors.mapM encodeDataCtor
+    if val.ctors.isEmpty then
+      throwError m!"{val.name} has no constructors"
     return { name := mangled, ctors }
 
   addCommand <| .dataDecl encodedTypes
@@ -375,6 +378,9 @@ def encodeIndPredicate (val : InductiveVal) : OutputM Unit := do
     let encodedArgTypes ← argTypes.mapM encodeType
     let encodedOutType ← encodeType outType
     let encodedType := .ofList (encodedArgTypes.toList ++ [encodedOutType]) (by simp)
+
+    if val.ctors.isEmpty then
+      throwError m!"{val.name} has no constructors"
     let laws ← val.ctors.mapM encodePredCtor
     return { name := mangledName, type := encodedType, laws }
 
@@ -383,6 +389,8 @@ def encodeIndPredicate (val : InductiveVal) : OutputM Unit := do
 def encodeDefn (defns : List DefinitionVal) : OutputM Unit := do
   let encodedDefns ← defns.mapM fun defn => do
     let eqns ← TransforM.getEquationsFor defn.name
+    if eqns.isEmpty then
+      throwError m!"{defn.name} has no equations"
     let encodedEqns ← eqns.mapM encodeTerm
     let encodedType ← encodeType defn.type
     let mangled ← mangleName defn.name
