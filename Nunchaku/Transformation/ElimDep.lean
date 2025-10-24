@@ -450,6 +450,8 @@ partial def preEliminateConst (const : Name) (us : List Level) :
   | ``PUnit.unit =>
     let [lvl] := us | throwError m!"Type incorrect PUnit.unit"
     return some <| ((← mkAuxiliaryUnitValue lvl), [])
+  | ``Unit.unit =>
+    return some <| ((← mkAuxiliaryUnitValue 1), [])
   | _ => return none
 
 partial def preEliminateApp (fn : Name) (us : List Level) (args : Array Expr) :
