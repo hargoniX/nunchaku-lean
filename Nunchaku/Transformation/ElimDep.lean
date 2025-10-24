@@ -6,6 +6,7 @@ import Nunchaku.Util.AddDecls
 import Lean.Meta.CollectFVars
 import Nunchaku.Util.Decode
 import Nunchaku.Util.AuxiliaryConsts
+import Lean.Meta.Match.MatchEqsExt
 
 namespace Nunchaku
 namespace Transformation
@@ -390,10 +391,35 @@ partial def mkAuxiliaryMatcher (fn : Name) (motive : Expr) (info : Meta.MatcherI
       elimName
       specialisedType
       (TransforM.mkSorryAx specialisedType u)
-    trace[nunchaku.elimdep] m!"Created auxiliary matcher: {newFn}"
-    -- TODO: compute new equations
+    let eqns := (← Meta.Match.getEquationsFor fn).eqnNames
+    let newEqns ← eqns.mapM (transformEquation · fn newFn)
+    trace[nunchaku.elimdep] m!"Created auxiliary matcher: {newFn}, eqns: {newEqns}"
+    TransforM.injectEquations elimName newEqns.toList
     modify fun s => { s with matcherCache := s.matcherCache.insert (fn, motive) newFn }
     return newFn
+where
+  transformEquation (eqn : Name) (origName : Name) (elimExpr : Expr) : IndInvM Expr := do
+    let expr ← Meta.mkConstWithFreshMVarLevels eqn
+    let eq ← Meta.inferType expr
+    Meta.forallBoundedTelescope eq (some info.numParams) fun args body => do
+      let .forallE _ type body _ := body | unreachable!
+      let typeLevel ← Meta.getLevel type
+      let motiveLevel ← Meta.getLevel (← Meta.inferType motive)
+      if !(← Meta.isLevelDefEq typeLevel motiveLevel) then
+        throwError m!"Failed to instantiate motive argument {motive} for {type}"
+      let body := body.instantiate1 motive
+      -- In case we are dealing with just a lambda that drops the first argument
+      let body ← Core.betaReduce body
+      let body ← Core.transform body (pre := fun expr => do
+        expr.withApp fun fn args => do
+          if fn.isConstOf origName then
+            let args := args.eraseIdx! info.numParams
+            return .visit (mkAppN elimExpr args)
+          else
+            return .continue
+      )
+      let body ← Meta.mkForallFVars elimExpr.getAppArgs body
+      Meta.mkForallFVars args body
 
 def auxiliaryUnitCtor : Name := `unit
 

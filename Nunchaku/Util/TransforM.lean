@@ -45,6 +45,12 @@ public def getEquations : TransforM (Std.HashMap Name (List Expr)) := do
 public def getEquationsFor (decl : Name) : TransforM (List Expr) := do
   return (← get).equations.getD decl []
 
+public def injectEquations (decl : Name) (eqs : List Expr) : TransforM Unit := do
+  if (← get).equations.contains decl then
+    throwError m!"Trying to inject equations for already existing decl {decl}"
+  else
+    modify fun s => { s with equations := s.equations.insert decl eqs }
+
 public def replaceEquations (equations : Std.HashMap Name (List Expr)) : TransforM Unit :=
   modify fun s => { s with equations }
 
@@ -59,7 +65,7 @@ def preprocessEquation (eq : Expr) : MetaM Expr := do
 
 def findEquationsForDefn (info : DefinitionVal) : MetaM (Array Expr) := do
   if ← Meta.isMatcher info.name then
-    (← Match.getEquationsFor info.name).eqnNames.mapM equationTheoremType
+    return #[]
   else
     let some eqns ← getEqnsFor? info.name
       | throwError s!"Unable to find equations for {mkConst info.name}"
