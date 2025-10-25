@@ -728,11 +728,13 @@ partial def elimPropInduct (info : InductiveVal) (elimName : Name) (stencil : Ar
           (fun idx _ => return enrichedStencil[idx]!.isProof)
           elimValue
           (fun b s _ => elimValue b s)
-  let paramStencil := stencil[0...info.numParams].toArray
-  let nparams :=
-    info.numParams
-    - paramStencil.countP ArgKind.isProof
-    + paramStencil.countP ArgKind.isType
+  /-
+  We set `nparams` to `0` because of inductives that takes generic types.
+  In these situations we will inject the generic premises of the shape
+  `α → Prop` right when binding `{α : Type}` because the next binder might
+  already refer to `α` in some way or form and might thus have to be restricted.
+  -/
+  let nparams := 0
   let newCtors ← info.ctors.mapM (elimPropCtor elimName stencil)
 
   let decl := {
@@ -958,11 +960,10 @@ partial def invariantForInduct (info : InductiveVal) : DepM Name := do
   }
   trace[nunchaku.elimdep] m!"Proposing inv {invType} {invCtors.map (·.type)}"
 
-  let paramStencil := stencil[0...info.numParams].toArray
-  let nparams :=
-    info.numParams
-    - paramStencil.countP ArgKind.isProof
-    + paramStencil.countP ArgKind.isType
+  /-
+  See note about nparams on the generic prop inductive eliminator.
+  -/
+  let nparams := 0
   TransforM.recordDecl <| .inductDecl info.levelParams nparams [decl] false
   return invName
 

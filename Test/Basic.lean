@@ -2,6 +2,19 @@ import Nunchaku
 
 /--
 info: Nunchaku found a counter example:
+val x := (Nat.succ Nat.zero)
+val y := Nat.zero
+---
+error: unsolved goals
+x y : Nat
+⊢ (if (x == y) = true then panicWithPosWithDecl "Test.Basic" "_example" 13 38 "Ahh" else default + 1) = 0
+-/
+#guard_msgs in
+example (x y : Nat) : (if x == y then panic! "Ahh" else default + 1) = 0 := by
+  nunchaku
+
+/--
+info: Nunchaku found a counter example:
 val m := Nat.zero
 val n := Nat.zero
 ---
@@ -345,20 +358,25 @@ a b : Bool
 example (a b : Bool) : Foo a := by
   nunchaku
 
-end MyFoo
-
--- TODO: make this inductive work again with two parameters
+inductive TwoFoo (a b : Bool) where
+  | ctor (h : if a = a then True else True) : TwoFoo a b
 
 /--
-info: Nunchaku found a counter example:
-val x := (Nat.succ Nat.zero)
-val y := Nat.zero
+info: Nunchaku is convinced that the theorem is true.
 ---
 error: unsolved goals
-x y : Nat
-⊢ (if (x == y) = true then panicWithPosWithDecl "Test.Basic" "_example" 362 38 "Ahh" else default + 1) = 0
+a b : Bool
+⊢ TwoFoo a b
 -/
 #guard_msgs in
-example (x y : Nat) : (if x == y then panic! "Ahh" else default + 1) = 0 := by
+example (a b : Bool) : TwoFoo a b := by
   nunchaku
 
+end MyFoo
+
+
+-- TODO: probably a bug in projection index shifting
+set_option trace.nunchaku true in
+example {l : List α} {i} (h : i < l.reverse.length) :
+    l.reverse[i] = l[l.length - 1 - i]'(Nat.sub_one_sub_lt_of_lt (by simpa using h)) := by
+  nunchaku
