@@ -432,7 +432,7 @@ def encodeComponent (component : List LeanIdentifier) : OutputM Unit := do
       addCommand <| .valDecl mangled encoded
     | ttype => throwError m!"Don't know how to handle {mkFVar fvar} : {type} : {ttype}"
   | [.const name] =>
-    trace[nunchaku.output] m!"Encoding constant: {name}"
+    trace[nunchaku.output] m!"Encoding constant: {mkConst name}"
     let constInfo ← getConstInfo name
     match constInfo with
     | .axiomInfo val | .opaqueInfo val =>

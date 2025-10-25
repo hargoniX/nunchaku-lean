@@ -249,9 +249,14 @@ def correctProjIndex (typeName : Name) (idx : Nat) : DepM Nat := do
   let inductStencil ← argStencil inductInfo.toConstantVal
   let ctorStencil ← argStencil (← getConstVal ctorName)
   let ctorStencil := ctorStencil.drop inductStencil.size
-  let offset := ctorStencil[0...idx].toArray.countP ArgKind.isProof
-  assert! idx >= offset
-  return idx - offset
+  let slice := ctorStencil[0...idx].toArray
+  let newIdx :=
+    idx
+      - slice.countP ArgKind.isProof
+      + inductStencil.countP ArgKind.isProp
+      + inductStencil.countP ArgKind.isValue
+  trace[nunchaku.elimdep] m!"Adjusting projection on {typeName} from {idx} to {newIdx}"
+  return newIdx
 
 def maxLit : Nat := 2^16
 
