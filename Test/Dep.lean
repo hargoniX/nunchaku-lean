@@ -225,7 +225,7 @@ example {f : α → β} (xs : Vec (Vec α m) n) : xs.length = (xs.map (fun v => 
 
 /--
 info: Nunchaku found a counter example:
-val inst := (Decidable.isFalse false)
+val inst := Decidable.isFalse
 val p := false
 ---
 error: unsolved goals

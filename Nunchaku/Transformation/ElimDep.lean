@@ -223,17 +223,6 @@ def argStencil (info : ConstantVal) : DepM (Array ArgKind) := do
   modify fun s => { s with argCache := s.argCache.insert info.name stencil }
   return stencil
 
-/--
-Given some argument stencil and an array filter drop all elements of that array that are proofs
-according to the stencil.
--/
-def filterProofsWithStencil (stencil : Array ArgKind) (xs : Array α) : Array α := Id.run do
-  let mut new := #[]
-  for h : idx in 0...xs.size do
-    if !stencil[idx]!.isProof then
-      new := new.push xs[idx]
-  new
-
 -- TODO: dedup with specialise
 def elimCtorName (inductElimName : Name) (ctorName : Name) : MetaM Name := do
   let .str _ n := ctorName | throwError m!"Weird ctor name {ctorName}"
@@ -250,11 +239,7 @@ def correctProjIndex (typeName : Name) (idx : Nat) : DepM Nat := do
   let ctorStencil ← argStencil (← getConstVal ctorName)
   let ctorStencil := ctorStencil.drop inductStencil.size
   let slice := ctorStencil[0...idx].toArray
-  let newIdx :=
-    idx
-      - slice.countP ArgKind.isProof
-      + inductStencil.countP ArgKind.isProp
-      + inductStencil.countP ArgKind.isValue
+  let newIdx := idx - slice.countP ArgKind.isProof
   trace[nunchaku.elimdep] m!"Adjusting projection on {typeName} from {idx} to {newIdx}"
   return newIdx
 
@@ -491,6 +476,23 @@ partial def preEliminateApp (fn : Name) (us : List Level) (args : Array Expr) :
     return some <| mkApp2 (mkConst ``Inhabited.default [lvl]) α inst
   | _ => return none
 
+def argIsCtorIrrelevant (ctorStencil : Array ArgKind) (inductInfo : InductiveVal) (idx : Nat) :
+    IndInvM Bool := do
+  if idx < inductInfo.numParams then
+    let inductStencil ← argStencil inductInfo.toConstantVal
+    return inductStencil[idx]!.isInductiveErasable
+  else
+    return ctorStencil[idx]!.isProof
+
+def filterCtorArgs (ctorStencil : Array ArgKind) (inductInfo : InductiveVal) (xs : Array α) :
+    IndInvM (Array α) := do
+  let mut new := #[]
+  for h : idx in 0...xs.size do
+    if !(← argIsCtorIrrelevant ctorStencil inductInfo idx) then
+      let arg := xs[idx]
+      new := new.push arg
+  return new
+
 mutual
 
 /--
@@ -542,29 +544,6 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
           if TransforM.isBuiltin fn then
             let args ← args.mapM (elimValueOrProp' · subst)
             return mkAppN (.const fn us) args
-          else if let .inductInfo info ← getConstInfo fn then
-            let fn ← elimConst fn
-            let stencil ← argStencil info.toConstantVal
-            let mut newArgs := #[]
-            if ← Meta.isPropFormerType info.type then
-              for idx in 0...args.size do
-                match stencil[idx]! with
-                | .proof => continue
-                | .value | .prop =>
-                  let arg := args[idx]!
-                  newArgs := newArgs.push (← elimValueOrProp' arg subst)
-                | .typeformer | .type =>
-                  let arg := args[idx]!
-                  newArgs := newArgs.push (← elimValue' arg subst)
-                  newArgs := newArgs.push (← invariantPredForD arg subst)
-            else
-              for idx in 0...args.size do
-                match stencil[idx]! with
-                | .proof | .value | .prop => continue
-                | _ =>
-                  let arg := args[idx]!
-                  newArgs := newArgs.push (← elimValueOrProp' arg subst)
-            return mkAppN (.const fn us) newArgs
           else if let some info ← Meta.getMatcherInfo? fn then
             -- In the following we assume matches are always just fully applied
             let motive := args[info.numParams]!
@@ -572,9 +551,42 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
             let args := args.eraseIdx! info.numParams |>.map Option.some
             elimExprRaw' (← Meta.mkAppOptM' fn args) inProp subst
           else
-            let fn ← elimConst fn
-            let args ← args.filterMapM (elimValuePropNoProof · subst)
-            return mkAppN (.const fn us) args
+            match ← getConstInfo fn with
+            | .inductInfo info =>
+              let fn ← elimConst fn
+              let stencil ← argStencil info.toConstantVal
+              let mut newArgs := #[]
+              if ← Meta.isPropFormerType info.type then
+                for idx in 0...args.size do
+                  match stencil[idx]! with
+                  | .proof => continue
+                  | .value | .prop =>
+                    let arg := args[idx]!
+                    newArgs := newArgs.push (← elimValueOrProp' arg subst)
+                  | .typeformer | .type =>
+                    let arg := args[idx]!
+                    newArgs := newArgs.push (← elimValue' arg subst)
+                    newArgs := newArgs.push (← invariantPredForD arg subst)
+              else
+                for idx in 0...args.size do
+                  match stencil[idx]! with
+                  | .proof | .value | .prop => continue
+                  | _ =>
+                    let arg := args[idx]!
+                    newArgs := newArgs.push (← elimValueOrProp' arg subst)
+              return mkAppN (.const fn us) newArgs
+            | .ctorInfo info =>
+              let .str inductName _ := fn | throwError m!"Weird ctor name {fn}"
+              let stencil ← argStencil info.toConstantVal
+              let inductInfo ← getConstInfoInduct inductName
+              let fn ← elimConst fn
+              let args ← filterCtorArgs stencil inductInfo args
+              let args ← args.mapM (elimValueOrProp' · subst)
+              return mkAppN (.const fn us) args
+            | _ =>
+              let fn ← elimConst fn
+              let args ← args.filterMapM (elimValuePropNoProof · subst)
+              return mkAppN (.const fn us) args
       | _ =>
         let fn ← elimValue' fn subst
         let args ← args.filterMapM (elimValuePropNoProof · subst)
@@ -749,14 +761,14 @@ partial def elimPropInduct (info : InductiveVal) (elimName : Name) (stencil : Ar
   }
   return (decl, nparams)
 
-partial def elimValueCtor (inductElimName : Name) (inductStencil : Array ArgKind) (ctorName : Name) :
-    DepM Constructor := do
+partial def elimValueCtor (inductElimName : Name) (inductInfo : InductiveVal)
+    (inductStencil : Array ArgKind) (ctorName : Name) : DepM Constructor := do
   let info ← getConstVal ctorName
   let elimName ← elimCtorName inductElimName ctorName
   let stencil ← argStencil info
   let elimType ← IndInvM.run <|
     elimForall info.type
-      (fun idx _ => return stencil[idx]!.isProof)
+      (fun idx _ => argIsCtorIrrelevant stencil inductInfo idx)
       elimValue
       fun body subst _ =>
         body.withApp fun origInduct args => do
@@ -783,7 +795,7 @@ partial def elimValueInduct (info : InductiveVal) (elimName : Name) (stencil : A
   let nparams :=
     info.numParams - stencil[0...info.numParams].toArray.countP ArgKind.isInductiveErasable
 
-  let newCtors ← info.ctors.mapM (elimValueCtor elimName stencil)
+  let newCtors ← info.ctors.mapM (elimValueCtor elimName info stencil)
 
   let decl := {
     name := elimName,
@@ -888,8 +900,8 @@ partial def elimConst (name : Name) : DepM Name := do
     trace[nunchaku.elimdep] m!"Done working {name}"
     return (← get).constCache[name]!
 
-partial def ctorToInvariant (inductInvName : Name) (inductStencil : Array ArgKind)
-    (ctorName : Name) : DepM Constructor := do
+partial def ctorToInvariant (inductInvName : Name) (inductInfo : InductiveVal)
+    (inductStencil : Array ArgKind) (ctorName : Name) : DepM Constructor := do
   let info ← getConstVal ctorName
   let ctorStencil ← argStencil info
   let elimName ← elimCtorName inductInvName ctorName
@@ -919,7 +931,7 @@ partial def ctorToInvariant (inductInvName : Name) (inductStencil : Array ArgKin
             return newArgs
           let elimCtorName ← elimConst ctorName
           let argCandidates := changedFVars.zip syntheticMask |>.filter Prod.snd |>.map Prod.fst
-          let ctorArgs := filterProofsWithStencil ctorStencil argCandidates
+          let ctorArgs ← filterCtorArgs ctorStencil inductInfo argCandidates
           let args := args.push (mkAppN (mkConst elimCtorName lparams) ctorArgs)
           return mkAppN (mkConst inductInvName lparams) args
 
@@ -957,7 +969,7 @@ partial def invariantForInduct (info : InductiveVal) : DepM Name := do
 
   let stencil ← argStencil info.toConstantVal
 
-  let invCtors := ← info.ctors.mapM (ctorToInvariant invName stencil)
+  let invCtors := ← info.ctors.mapM (ctorToInvariant invName info stencil)
   let decl := {
     name := invName,
     type := invType,

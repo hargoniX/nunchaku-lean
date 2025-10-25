@@ -400,7 +400,7 @@ info: Nunchaku found a counter example:
 inductive α where | $α_0 | $α_1
 val b := $α_1
 val f := (fun (v_0 : α) . $α_1)
-val l := (List.cons $α_0 List.nil)
+val l := (List.cons $α_0 (List.cons $α_0 (List.cons $α_0 List.nil)))
 ---
 error: unsolved goals
 α : Type u_1
@@ -416,9 +416,9 @@ example {f : α → α} (h : b ∈ List.map f l) : ∃ a, b ∈ l ∧ f a = b :=
 
 /--
 info: Nunchaku found a counter example:
-inductive α where | $α_0 | $α_1
+inductive α where | $α_0
 witness _witness_of := List.nil
-val a := $α_1
+val a := $α_0
 val l := List.nil
 ---
 error: unsolved goals

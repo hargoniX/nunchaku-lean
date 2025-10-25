@@ -28,8 +28,8 @@ example (n m : Nat) (h : n = m) : n ≠ m := by nunchaku
 
 /--
 info: Nunchaku found a counter example:
-val m := (Nat.succ Nat.zero)
-val n := Nat.zero
+val m := Nat.zero
+val n := (Nat.succ Nat.zero)
 ---
 error: unsolved goals
 n m : Nat
@@ -374,9 +374,9 @@ example (a b : Bool) : TwoFoo a b := by
 
 end MyFoo
 
-
--- TODO: probably a bug in projection index shifting
-set_option trace.nunchaku true in
-example {l : List α} {i} (h : i < l.reverse.length) :
-    l.reverse[i] = l[l.length - 1 - i]'(Nat.sub_one_sub_lt_of_lt (by simpa using h)) := by
+/-
+TODO: multi binder functions
+example {l : List α} {x : α} {i : Nat} :
+    (l[i]'sorry) = x := by
   nunchaku
+-/
