@@ -374,9 +374,6 @@ example (a b : Bool) : TwoFoo a b := by
 
 end MyFoo
 
-/-
-TODO: multi binder functions
-example {l : List α} {x : α} {i : Nat} :
-    (l[i]'sorry) = x := by
+example {l : List α} {x : α} {i : Nat} (h : i < l.length) :
+    l[i] = x := by
   nunchaku
--/

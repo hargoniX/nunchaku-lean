@@ -551,6 +551,11 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
             let args := args.eraseIdx! info.numParams |>.map Option.some
             elimExprRaw' (← Meta.mkAppOptM' fn args) inProp subst
           else
+            let defaultBehavior fn args := do
+              let fn ← elimConst fn
+              let args ← args.filterMapM (elimValuePropNoProof · subst)
+              return mkAppN (.const fn us) args
+
             match ← getConstInfo fn with
             | .inductInfo info =>
               let fn ← elimConst fn
@@ -583,10 +588,20 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
               let args ← filterCtorArgs stencil inductInfo args
               let args ← args.mapM (elimValueOrProp' · subst)
               return mkAppN (.const fn us) args
-            | _ =>
-              let fn ← elimConst fn
-              let args ← args.filterMapM (elimValuePropNoProof · subst)
-              return mkAppN (.const fn us) args
+            | .defnInfo .. =>
+              if let some { fromClass := true, ..} ← getProjectionFnInfo? fn then
+                /-
+                This optimization acts in situations such as `a < b` when `a` and `b`'s types are
+                known and then reduces it to the underlying function from the TC instance.
+                -/
+                let newExpr ← Meta.whnfI expr
+                if newExpr != expr then
+                  elimExprRaw' newExpr inProp subst
+                else
+                  defaultBehavior fn args
+              else
+                defaultBehavior fn args
+            | _ => defaultBehavior fn args
       | _ =>
         let fn ← elimValue' fn subst
         let args ← args.filterMapM (elimValuePropNoProof · subst)
