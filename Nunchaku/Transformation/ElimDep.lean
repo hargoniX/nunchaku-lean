@@ -479,6 +479,11 @@ partial def preEliminateApp (fn : Name) (us : List Level) (args : Array Expr) :
     let thenE := mkConst ``Bool.true
     let elseE := mkConst ``Bool.false
     return some <| mkApp4 (mkConst ``classicalIf [1]) α p thenE elseE
+  | ``panic | ``panicCore | ``panicWithPos | ``panicWithPosWithDecl =>
+    let lvl := us[0]!
+    let α := args[0]!
+    let inst := args[1]!
+    return some <| mkApp2 (mkConst ``Inhabited.default [lvl]) α inst
   | _ => return none
 
 mutual

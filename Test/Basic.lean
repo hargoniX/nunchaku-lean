@@ -348,3 +348,17 @@ example (a b : Bool) : Foo a := by
 end MyFoo
 
 -- TODO: make this inductive work again with two parameters
+
+/--
+info: Nunchaku found a counter example:
+val x := (Nat.succ Nat.zero)
+val y := Nat.zero
+---
+error: unsolved goals
+x y : Nat
+⊢ (if (x == y) = true then panicWithPosWithDecl "Test.Basic" "_example" 362 38 "Ahh" else default + 1) = 0
+-/
+#guard_msgs in
+example (x y : Nat) : (if x == y then panic! "Ahh" else default + 1) = 0 := by
+  nunchaku
+
