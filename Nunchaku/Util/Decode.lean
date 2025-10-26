@@ -41,7 +41,6 @@ end Simple
 
 variable [Monad m] [MonadDecode m]
 
-
 def decodeTerm (t : NunTerm) : m NunTerm := do
   match t with
   | .var .. | .builtin .. => return t

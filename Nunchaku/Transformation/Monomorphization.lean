@@ -30,8 +30,20 @@ open Decode
 
 abbrev DecodeM := ReaderT DecodeCtx TransforM
 
+def decodeUninterpretedTypeInhabitant (name : String) : DecodeM String := do
+  let some endPos := name.revPosOf '_' | throwError m!"Weird type inhabitant name: {name}"
+  let typeName := name.extract ⟨1⟩ endPos
+  let typeId := name.extract endPos name.endPos
+  if !(← read).decodeTable.contains typeName then
+    throwError "Ahhh"
+  let decodedTypeName := (← read).decodeTable[typeName]!.fst
+  return s!"${decodedTypeName}{typeId}"
+
 def decodeConstName (name : String) : DecodeM String :=
-  return (← read).decodeTable[name]? |>.map Prod.fst |>.getD name
+  if name.startsWith "$" && !name.startsWith "$$" then
+    decodeUninterpretedTypeInhabitant name
+  else
+    return (← read).decodeTable[name]?.map Prod.fst |>.getD name
 
 def GroundTypeArg.toNunType : GroundTypeArg → NunType
   | .const name args => .const name.toString (args.map GroundTypeArg.toNunType).toList
@@ -53,8 +65,8 @@ def decodeType (t : NunType) : DecodeM NunType := do
 
 instance : MonadDecode DecodeM where
   decodeConstName := decodeConstName
-  decodeUninterpretedTypeName := pure
-  decodeUninterpretedTypeInhabitant := pure
+  decodeUninterpretedTypeName := decodeConstName
+  decodeUninterpretedTypeInhabitant := decodeUninterpretedTypeInhabitant
   decodeType := decodeType
 
 def decode (model : NunModel) : DecodeM NunModel := do
