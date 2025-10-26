@@ -299,9 +299,9 @@ example {x : α} {xs : List α} {f : α → List β} :
 
 /--
 info: Nunchaku found a counter example:
-inductive α where | $α_0
-val a := $α_0
-val as := (List.cons $α_0 List.nil)
+inductive α where | $α_0 | $α_1
+val a := $α_1
+val as := (List.cons $α_1 List.nil)
 val bs := List.nil
 ---
 error: unsolved goals
@@ -398,9 +398,9 @@ example {f : α → β} {a b : α} : List.map f [a] = [f b] := by
 /--
 info: Nunchaku found a counter example:
 inductive α where | $α_0 | $α_1
-val b := $α_0
-val f := (fun (v_0 : α) . $α_0)
-val l := (List.cons $α_1 List.nil)
+val b := $α_1
+val f := (fun (v_0 : α) . $α_1)
+val l := (List.cons $α_0 List.nil)
 ---
 error: unsolved goals
 α : Type u_1

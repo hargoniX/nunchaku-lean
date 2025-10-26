@@ -61,7 +61,6 @@ public meta def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
           throwError s!"The external prover produced unexpected output:\n  {err}\nstdout:\n{stdout}stderr:\n{stderr}"
 
 public meta def runNunchaku (g : MVarId) (cfg : NunchakuConfig) : MetaM NunResult := do
-  let (_, g) ← g.intros
   TransforM.run g cfg do
     withoutModifyingEnv do
       let (problem, back) ←

@@ -2,9 +2,6 @@ import Nunchaku
 import Test.Eval.Sound
 import Test.Eval.Perf
 
---#eval_nunchaku_sound_module Init.Data.Array.Basic "array_basic.csv"
---#eval_nunchaku_sound_module Init.Data.Array.Lemmas "array_lemmas.csv"
-
 -- TODO: Figure out where Subtype.elim_20 did not get killed
 #eval_nunchaku_sound_decl Array.size_uset
 
