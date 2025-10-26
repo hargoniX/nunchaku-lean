@@ -260,15 +260,12 @@ where
           let encodedRhs ← go body locals
           return .imply encodedLhs encodedRhs
     | .letE .. =>
-      if !expr.letNondep! then
-        throwError m!"Can't encode dependent let {expr}"
-
       Meta.letBoundedTelescope expr (some 1) fun arg body => do
         let arg := arg[0]!
         let argId ← freshNunId
         let argFVar := arg.fvarId!
         let locals := locals.insert argFVar argId
-        let encodedValue ← go ((← argFVar.getValue?).get!) locals
+        let encodedValue ← go ((← argFVar.getValue? (allowNondep := true)).get!) locals
         let encodedBody ← go body locals
         return .let (idToVar argId) encodedValue encodedBody
     | .mdata _ e => go e locals

@@ -126,7 +126,6 @@ inductive SecComTyping (Γ: TypeEnv) : (lvl : SecLevel) → (com : Com) → Prop
   | while (h1 : Γ ⊢ b : σ) (h2 : (Γ, σ) ⊢ c) : (Γ, σ) ⊢ .while b c
   | cast (h : (Γ, .high) ⊢ c) : (Γ, .low) ⊢ c
 
-
 -- TODO: currently broken due to lambda lifting
 
 /-

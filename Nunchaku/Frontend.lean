@@ -7,6 +7,7 @@ import Nunchaku.Transformation
 meta import Nunchaku.Transformation
 meta import Nunchaku.Util.NunchakuPrinter
 meta import Lean.Elab.Tactic.BVDecide.External
+meta import Lean.Meta.Tactic.Intro
 
 /-!
 This module contains the main entry point to the nunchaku tactic.
@@ -16,7 +17,7 @@ namespace Nunchaku
 
 open Lean Elab Tactic
 
-meta def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
+public meta def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
     MetaM NunResult := do
   IO.FS.withTempFile fun nunHandle nunPath => do
     withTraceNode `nunchaku.solver (fun _ => return "Serializing Nunchaku problem") do
@@ -60,6 +61,7 @@ meta def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
           throwError s!"The external prover produced unexpected output:\n  {err}\nstdout:\n{stdout}stderr:\n{stderr}"
 
 public meta def runNunchaku (g : MVarId) (cfg : NunchakuConfig) : MetaM NunResult := do
+  let (_, g) ← g.intros
   TransforM.run g cfg do
     withoutModifyingEnv do
       let (problem, back) ←

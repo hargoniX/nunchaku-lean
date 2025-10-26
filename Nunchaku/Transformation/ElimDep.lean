@@ -653,11 +653,11 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
         let fvarId := arg.fvarId!
         let name ← fvarId.getUserName
         let newType ← elimValue' (← fvarId.getType) subst
-        let newValue ← elimValueOrProp' (← fvarId.getValue?).get! subst
+        let newValue ← elimValueOrProp' (← fvarId.getValue? (allowNondep := true)).get! subst
 
         Meta.withLetDecl name newType newValue (nondep := nondep) fun replacedArg => do
           let newBody ← elimExpr' body inProp (subst.insert fvarId replacedArg)
-          Meta.mkLetFVars #[replacedArg] newBody
+          Meta.mkLetFVars (generalizeNondepLet := false) #[replacedArg] newBody
   | .mdata _ e => elimExpr' e inProp subst
   | .proj typeName idx struct =>
     let struct ← elimValue' struct subst

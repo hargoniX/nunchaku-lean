@@ -209,7 +209,7 @@ partial def collectExpr (expr : Expr) : CollectM Unit := do
         let var := var.fvarId!
         let type ← var.getType
         collectExpr type
-        let value := (← var.getValue?).get!
+        let value := (← var.getValue? (allowNondep := true)).get!
         collectExpr value
       collectExpr body
   | .mdata _ e => collectExpr e

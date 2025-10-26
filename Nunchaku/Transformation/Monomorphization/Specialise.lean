@@ -213,11 +213,11 @@ partial def specialiseExprRaw (expr : Expr) (subst : Meta.FVarSubst) : Specializ
       let fvarId := arg.fvarId!
       let name ← fvarId.getUserName
       let newType ← specialiseExpr (← fvarId.getType) subst
-      let newValue ← specialiseExpr (← fvarId.getValue?).get! subst
+      let newValue ← specialiseExpr (← fvarId.getValue? (allowNondep := true)).get! subst
 
       Meta.withLetDecl name newType newValue (nondep := nondep) fun replacedArg => do
         let newBody ← specialiseExpr body (subst.insert fvarId replacedArg)
-        Meta.mkLetFVars #[replacedArg] newBody
+        Meta.mkLetFVars (generalizeNondepLet := false) #[replacedArg] newBody
   | .mdata _ e => specialiseExpr e subst
   | .proj _ idx struct =>
     let structType ← Meta.inferType struct
