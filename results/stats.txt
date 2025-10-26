@@ -1,0 +1,318 @@
+= RESULTS for perf
+== RESULTS for perf/list_basic.csv
+result
+SAT             83
+ERR_NUNCHAKU    69
+ERR_ENCODING    18
+UNKNOWN          8
+Name: count, dtype: int64
+
+== RESULTS for perf/list_lemmas.csv
+result
+SAT             370
+ERR_NUNCHAKU    286
+ERR_ENCODING    144
+UNKNOWN          80
+UNSAT             1
+Name: count, dtype: int64
+
+== RESULTS for perf/nat_basic.csv
+result
+SAT             312
+UNKNOWN         164
+ERR_NUNCHAKU      6
+ERR_ENCODING      4
+UNSAT             2
+Name: count, dtype: int64
+
+== RESULTS for perf/nat_lemmas.csv
+result
+SAT             354
+UNKNOWN         323
+ERR_ENCODING     16
+ERR_NUNCHAKU      5
+UNSAT             1
+Name: count, dtype: int64
+
+== RESULTS for perf/int_basic.csv
+result
+SAT    8
+Name: count, dtype: int64
+
+== RESULTS for perf/int_lemmas.csv
+result
+ERR_NUNCHAKU    88
+SAT             79
+UNKNOWN         11
+ERR_ENCODING     5
+Name: count, dtype: int64
+
+== RESULTS for perf/fin_basic.csv
+result
+SAT             19
+UNKNOWN          6
+ERR_ENCODING     1
+Name: count, dtype: int64
+
+== RESULTS for perf/fin_lemmas.csv
+result
+SAT             171
+UNKNOWN         112
+ERR_ENCODING     15
+ERR_NUNCHAKU      6
+Name: count, dtype: int64
+
+== RESULTS for perf/option_basic.csv
+result
+SAT             26
+ERR_NUNCHAKU    10
+ERR_ENCODING     9
+UNKNOWN          1
+Name: count, dtype: int64
+
+== RESULTS for perf/option_lemmas.csv
+result
+SAT             260
+ERR_NUNCHAKU    223
+ERR_ENCODING     59
+UNKNOWN          16
+UNSAT             2
+Name: count, dtype: int64
+
+== RESULTS for perf/bitvec_basic.csv
+result
+UNKNOWN         21
+SAT              7
+ERR_NUNCHAKU     1
+Name: count, dtype: int64
+
+== RESULTS for perf/bitvec_lemmas.csv
+result
+UNKNOWN         586
+SAT              46
+ERR_NUNCHAKU     25
+ERR_ENCODING      9
+Name: count, dtype: int64
+
+== RESULTS for perf/array_basic.csv
+result
+SAT             23
+ERR_NUNCHAKU     6
+UNKNOWN          5
+ERR_ENCODING     2
+Name: count, dtype: int64
+
+== RESULTS for perf/array_lemmas.csv
+result
+ERR_ENCODING    599
+SAT             172
+UNKNOWN          87
+ERR_NUNCHAKU     40
+UNSAT             2
+Name: count, dtype: int64
+
+== RESULTS for perf/sum_basic.csv
+result
+SAT             17
+ERR_ENCODING     6
+Name: count, dtype: int64
+
+== RESULTS for perf/sum_lemmas.csv
+result
+SAT             47
+ERR_ENCODING    35
+Name: count, dtype: int64
+
+== RESULTS for perf/subtype_basic.csv
+result
+ERR_ENCODING    5
+Name: count, dtype: int64
+
+== RESULTS for perf/vector_basic.csv
+result
+ERR_ENCODING    4
+SAT             4
+ERR_NUNCHAKU    3
+UNKNOWN         1
+Name: count, dtype: int64
+
+== RESULTS for perf/vector_lemmas.csv
+result
+ERR_ENCODING    451
+SAT             164
+UNKNOWN          98
+ERR_NUNCHAKU     29
+UNSAT             2
+Name: count, dtype: int64
+
+== RESULTS for perf overall
+result
+SAT             2162
+UNKNOWN         1519
+ERR_ENCODING    1382
+ERR_NUNCHAKU     797
+UNSAT             10
+Name: count, dtype: int64
+
+
+= RESULTS for sound
+== RESULTS for sound/list_basic.csv
+result
+UNSAT           93
+ERR_NUNCHAKU    31
+UNKNOWN         25
+ERR_ENCODING    18
+SAT              1
+Name: count, dtype: int64
+
+== RESULTS for sound/list_lemmas.csv
+result
+UNKNOWN         294
+ERR_ENCODING    130
+UNSAT           124
+ERR_NUNCHAKU    109
+SAT              26
+Name: count, dtype: int64
+
+== RESULTS for sound/nat_basic.csv
+result
+UNKNOWN         185
+UNSAT            64
+SAT              48
+ERR_NUNCHAKU      6
+ERR_ENCODING      4
+Name: count, dtype: int64
+
+== RESULTS for sound/nat_lemmas.csv
+result
+UNKNOWN         335
+SAT              46
+UNSAT            23
+ERR_ENCODING     11
+ERR_NUNCHAKU      4
+Name: count, dtype: int64
+
+== RESULTS for sound/int_basic.csv
+result
+UNSAT      7
+UNKNOWN    1
+Name: count, dtype: int64
+
+== RESULTS for sound/int_lemmas.csv
+result
+UNKNOWN         82
+UNSAT           58
+ERR_NUNCHAKU     7
+ERR_ENCODING     5
+Name: count, dtype: int64
+
+== RESULTS for sound/fin_basic.csv
+result
+UNSAT           10
+UNKNOWN          6
+ERR_ENCODING     1
+Name: count, dtype: int64
+
+== RESULTS for sound/fin_lemmas.csv
+result
+UNKNOWN         145
+UNSAT            92
+SAT              17
+ERR_ENCODING     15
+ERR_NUNCHAKU      6
+Name: count, dtype: int64
+
+== RESULTS for sound/option_basic.csv
+result
+UNSAT           33
+ERR_ENCODING     9
+ERR_NUNCHAKU     2
+Name: count, dtype: int64
+
+== RESULTS for sound/option_lemmas.csv
+result
+UNSAT           311
+ERR_ENCODING     53
+ERR_NUNCHAKU     34
+UNKNOWN          33
+Name: count, dtype: int64
+
+== RESULTS for sound/bitvec_basic.csv
+result
+UNSAT           24
+UNKNOWN          4
+ERR_NUNCHAKU     1
+Name: count, dtype: int64
+
+== RESULTS for sound/bitvec_lemmas.csv
+result
+UNKNOWN         563
+UNSAT            66
+ERR_NUNCHAKU     20
+ERR_ENCODING      8
+SAT               8
+Name: count, dtype: int64
+
+== RESULTS for sound/array_basic.csv
+result
+UNKNOWN         13
+UNSAT            9
+ERR_NUNCHAKU     6
+ERR_ENCODING     2
+SAT              1
+Name: count, dtype: int64
+
+== RESULTS for sound/array_lemmas.csv
+result
+ERR_ENCODING    517
+UNKNOWN         132
+UNSAT            75
+SAT              42
+ERR_NUNCHAKU     23
+Name: count, dtype: int64
+
+== RESULTS for sound/sum_basic.csv
+result
+UNSAT           17
+ERR_ENCODING     6
+Name: count, dtype: int64
+
+== RESULTS for sound/sum_lemmas.csv
+result
+UNSAT           31
+ERR_ENCODING    29
+UNKNOWN          1
+Name: count, dtype: int64
+
+== RESULTS for sound/subtype_basic.csv
+result
+ERR_ENCODING    4
+Name: count, dtype: int64
+
+== RESULTS for sound/vector_basic.csv
+result
+ERR_ENCODING    4
+UNKNOWN         3
+ERR_NUNCHAKU    2
+UNSAT           1
+Name: count, dtype: int64
+
+== RESULTS for sound/vector_lemmas.csv
+result
+ERR_ENCODING    375
+UNKNOWN         108
+UNSAT            76
+SAT              31
+ERR_NUNCHAKU     19
+Name: count, dtype: int64
+
+== RESULTS for sound overall
+result
+UNKNOWN         1930
+ERR_ENCODING    1191
+UNSAT           1114
+ERR_NUNCHAKU     270
+SAT              220
+Name: count, dtype: int64
+
+
