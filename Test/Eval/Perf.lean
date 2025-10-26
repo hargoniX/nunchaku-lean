@@ -1,4 +1,5 @@
 import Nunchaku
+import Test.Eval.RbSet
 #exit
 #eval_nunchaku_perf_module Init.Data.List.Basic "results/perf/list_basic.csv"
 #eval_nunchaku_perf_module Init.Data.List.Lemmas "results/perf/list_lemmas.csv"
@@ -24,7 +25,4 @@ import Nunchaku
 #eval_nunchaku_perf_module Init.Data.Sum.Basic "results/perf/sum_basic.csv"
 #eval_nunchaku_perf_module Init.Data.Sum.Lemmas "results/perf/sum_lemmas.csv"
 
-#eval_nunchaku_perf_module Init.Data.Subtype.Basic "results/perf/subtype_basic.csv"
-
-#eval_nunchaku_perf_module Init.Data.Vector.Basic "results/perf/vector_basic.csv"
-#eval_nunchaku_perf_module Init.Data.Vector.Lemmas "results/perf/vector_lemmas.csv"
+#eval_nunchaku_perf_module Test.Eval.RbSet "results/perf/rbset.csv"

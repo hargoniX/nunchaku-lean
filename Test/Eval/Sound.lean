@@ -1,4 +1,5 @@
 import Nunchaku
+import Test.Eval.RbSet
 #exit
 #eval_nunchaku_sound_module Init.Data.List.Basic "results/sound/list_basic.csv"
 #eval_nunchaku_sound_module Init.Data.List.Lemmas "results/sound/list_lemmas.csv"
@@ -24,7 +25,4 @@ import Nunchaku
 #eval_nunchaku_sound_module Init.Data.Sum.Basic "results/sound/sum_basic.csv"
 #eval_nunchaku_sound_module Init.Data.Sum.Lemmas "results/sound/sum_lemmas.csv"
 
-#eval_nunchaku_sound_module Init.Data.Subtype.Basic "results/sound/subtype_basic.csv"
-
-#eval_nunchaku_sound_module Init.Data.Vector.Basic "results/sound/vector_basic.csv"
-#eval_nunchaku_sound_module Init.Data.Vector.Lemmas "results/sound/vector_lemmas.csv"
+#eval_nunchaku_sound_module Test.Eval.RbSet "results/sound/rbset.csv"

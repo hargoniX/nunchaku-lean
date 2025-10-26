@@ -373,9 +373,3 @@ example (a b : Bool) : TwoFoo a b := by
   nunchaku
 
 end MyFoo
-
-/-
-example {l : List α} {x : α} {i : Nat} (h : i < l.length) :
-    l[i] = x := by
-  nunchaku
-  -/
