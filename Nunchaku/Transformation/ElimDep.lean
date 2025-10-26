@@ -127,33 +127,25 @@ def DepM.run (x : DepM α) : TransforM (α × DecodeCtx) := do
   let unitSet := Std.HashSet.ofList <| unitCache.values.map Name.toString
   return (p, { decodeTable, unitSet })
 
-def isProof (e : Expr) : DepM Bool := do
+def getKind (e : Expr) : DepM ExprKind := do
   match (← get).exprKindCache[e]? with
-  | some k => return k == .proof
+  | some k => return k
   | none =>
     if ← Meta.isProof e then
       modify fun s => { s with exprKindCache := s.exprKindCache.insert e .proof }
-      return true
-    else if ← Meta.isProp e then
+      return .proof
+    else if ← Meta.isPropFormerType (← Meta.inferType e) then
       modify fun s => { s with exprKindCache := s.exprKindCache.insert e .prop }
-      return false
+      return .prop
     else
       modify fun s => { s with exprKindCache := s.exprKindCache.insert e .other }
-      return false
+      return .other
+
+def isProof (e : Expr) : DepM Bool := do
+  return (← getKind e) == .proof
 
 def isProp (e : Expr) : DepM Bool := do
-  match (← get).exprKindCache[e]? with
-  | some k => return k == .prop
-  | none =>
-    if ← Meta.isProp e then
-      modify fun s => { s with exprKindCache := s.exprKindCache.insert e .prop }
-      return true
-    else if ← Meta.isProof e then
-      modify fun s => { s with exprKindCache := s.exprKindCache.insert e .proof }
-      return false
-    else
-      modify fun s => { s with exprKindCache := s.exprKindCache.insert e .other }
-      return false
+  return (← getKind e) == .prop
 
 def isNonPropTypeFormer (expr : Expr) : MetaM Bool := do
   let some level ← Meta.typeFormerTypeLevel expr | return false
