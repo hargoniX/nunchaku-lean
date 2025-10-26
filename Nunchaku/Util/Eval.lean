@@ -120,7 +120,7 @@ meta def tryNunchakuOn (evalProblem : Problem) : MetaM Result := do
   let g := evalProblem.g
   let (_, g) ← g.intros
 
-  TransforM.run g { timeout := 1 } do
+  TransforM.run g { timeout := 2 } do
     withoutModifyingEnv do
       let { timeMs := encodingMs, x := res } ← timedRun (Transformation.pipeline.run g)
       match res with
