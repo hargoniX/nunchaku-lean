@@ -466,6 +466,13 @@ partial def preEliminateApp (fn : Name) (us : List Level) (args : Array Expr) :
     let α := args[0]!
     let inst := args[1]!
     return some <| mkApp2 (mkConst ``Inhabited.default [lvl]) α inst
+  | ``False.rec =>
+    let motive := args[0]!
+    let .lam _ _ body _ := motive |
+      throwError m!"Don't know how to encode False.rec with {args}"
+    if body.hasLooseBVars then
+      throwError m!"Don't know how to encode False.rec with {args}"
+    return some <| TransforM.mkSorryAx body us[0]!
   | _ => return none
 
 def argIsCtorIrrelevant (ctorStencil : Array ArgKind) (inductInfo : InductiveVal) (idx : Nat) :

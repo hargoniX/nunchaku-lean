@@ -272,3 +272,29 @@ example : Exists (α := True) fun _ => False := by
   nunchaku
 
 end DepExists
+
+namespace Unreachable
+
+def head1 (xs : List Nat) (h : xs.isEmpty = false) : Nat :=
+  match h2 : xs with
+  | [] => absurd h2 (by grind)
+  | x :: _ => x
+
+def head2 (xs : List Nat) (h : xs.isEmpty = false) : Nat :=
+  match xs with
+  | [] => nomatch h
+  | x :: _ => x
+
+/--
+info: Nunchaku wasn't able to prove or disprove the theorem.
+---
+error: unsolved goals
+xs : List Nat
+h : xs.isEmpty = false
+⊢ head1 xs h = head2 xs h
+-/
+#guard_msgs in
+example (xs : List Nat) (h : xs.isEmpty = false) : head1 xs h = head2 xs h := by
+  nunchaku
+
+end Unreachable
