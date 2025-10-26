@@ -26,13 +26,15 @@ public meta def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
       nunHandle.putStr problem
       nunHandle.flush
 
+    if cfg.solvers.isEmpty then
+      throwError m!"No solvers configured"
+    let solvers := cfg.solvers.map (·.toCliArg) |>.toList |> String.intercalate ","
     -- TODO: configurable solver path
     let cmd := "nunchaku"
     let mut args := #[
       "--checks",
-      -- TODO: proper solver params
       "-s",
-      "cvc4",
+      solvers,
       "-i",
       "nunchaku",
       "-o",
