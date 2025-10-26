@@ -203,7 +203,7 @@ def argStencil (info : ConstantVal) : DepM (Array ArgKind) := do
         drop := drop.push .proof
       else if ← Meta.isPropFormerType argType then
         drop := drop.push .prop
-      else if argType.isType then
+      else if ← Meta.isType arg then
         drop := drop.push .type
       else if ← Meta.isTypeFormerType argType then
         drop := drop.push .typeformer
