@@ -102,13 +102,14 @@ def instantiateStencilWith (remainder : Expr) (stencil : Array (Nat × GroundTyp
       (stencilPos : Nat) (lastArgPos : Nat) : MetaM Expr := do
   if h : stencilPos < stencil.size then
     let (argPos, arg) := stencil[stencilPos]
-    Meta.forallBoundedTelescope remainder (some (argPos - lastArgPos - 1)) fun args body => do
+    Meta.forallBoundedTelescope remainder (some (argPos - lastArgPos)) fun args body => do
       let argExpr ← arg.toExpr
       let .forallE _ type body _ := body | unreachable!
+      trace[nunchaku.mono] m!"Instantiating arg of type {type} with {argExpr}"
       if !(← Meta.isDefEq (← Meta.inferType argExpr) type) then
         throwError m!"Failed to instantiate type argument {argExpr} for {type}"
       let body := body.instantiate1 argExpr
-      let body ← instantiateStencilWith body stencil (stencilPos + 1) argPos
+      let body ← instantiateStencilWith body stencil (stencilPos + 1) (argPos + 1)
       Meta.mkForallFVars args body
   else
     return remainder
