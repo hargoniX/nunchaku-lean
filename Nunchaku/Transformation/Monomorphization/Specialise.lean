@@ -143,12 +143,11 @@ partial def specialiseExprRaw (expr : Expr) (subst : Meta.FVarSubst) : Specializ
       let specialisedInductName := (← get).specialisationCache[pattern]!
       let specialisedName ← specialisedCtorName specialisedInductName info.name
       return .const specialisedName []
-    | .inductInfo info | .defnInfo info =>
+    | .inductInfo info | .defnInfo info | .axiomInfo info | .opaqueInfo info =>
       let pattern : FlowVariable × GroundInput := ⟨⟨info.name⟩, ⟨#[]⟩⟩
       specialiseConst const pattern.2
       let specialisedName := (← get).specialisationCache[pattern]!
       return .const specialisedName []
-    | .axiomInfo .. | .opaqueInfo .. => return expr
     | .recInfo .. | .quotInfo .. | .thmInfo .. =>
       throwError m!"Cannot monomorphise {expr}"
   | .app .. =>
@@ -169,7 +168,8 @@ partial def specialiseExprRaw (expr : Expr) (subst : Meta.FVarSubst) : Specializ
             let remainingArgs ← others.mapM (specialiseExpr · subst)
             let specialisedName ← specialisedCtorName specialisedInductName info.name
             return mkAppN (.const specialisedName []) remainingArgs
-          | .inductInfo info | .defnInfo info =>
+          -- TODO: opaques need some additional treatment
+          | .inductInfo info | .defnInfo info | .axiomInfo info | .opaqueInfo info =>
             let (others, targets) ← partitionMonoArgPositions info.name args
             let pattern : FlowVariable × GroundInput :=
               ⟨⟨info.name⟩, ⟨← targets.mapM (fun (e, _) => groundTypeOfExpr e)⟩⟩
@@ -177,9 +177,6 @@ partial def specialiseExprRaw (expr : Expr) (subst : Meta.FVarSubst) : Specializ
             let specialisedName := (← get).specialisationCache[pattern]!
             let remainingArgs ← others.mapM (specialiseExpr · subst)
             return mkAppN (.const specialisedName []) remainingArgs
-          | .axiomInfo .. | .opaqueInfo .. =>
-            let args ← args.mapM (specialiseExpr · subst)
-            return mkAppN (.const fn us) args
           | .recInfo .. | .quotInfo .. | .thmInfo .. =>
             throwError m!"Cannot monomorphise {expr}"
       | _ =>
