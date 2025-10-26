@@ -529,6 +529,11 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
   | .app .. =>
     expr.withApp fun fn args => do
       match fn with
+      | .const ``Exists [0] =>
+        -- This exists is being used to encode a dependent and
+        let lhs ← elimExprRaw' args[0]! true subst
+        let rhs ← elimExprRaw' args[1]! false subst
+        return mkAnd lhs rhs
       | .const fn us =>
         match ← preEliminateApp fn us args with
         | some expr => elimExpr' expr inProp subst

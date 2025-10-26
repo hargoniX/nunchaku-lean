@@ -202,7 +202,6 @@ where
     | .app fn arg =>
       match_expr expr with
       | Not p => return .not (← go p locals)
-      -- TODO Asserting
       | And lhs rhs => return .and (← go lhs locals) (← go rhs locals)
       | Or lhs rhs => return .or (← go lhs locals) (← go rhs locals)
       | Eq _ lhs rhs => return .eq (← go lhs locals) (← go rhs locals)
@@ -223,10 +222,8 @@ where
             let encodedBody ← go body locals
             return .exists (idToVar argId) encodedType encodedBody
         else
-          -- TODO
           throwError m!"Missing support for lambda free exists {expr}"
       | _ => return .app (← go fn locals) (← go arg locals)
-    -- TODO: We can probably make these full telescopes
     | .lam .. =>
       Meta.lambdaBoundedTelescope expr 1 fun arg body => do
         let arg := arg[0]!

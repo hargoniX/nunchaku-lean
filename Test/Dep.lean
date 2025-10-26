@@ -236,3 +236,39 @@ inst : Decidable p
 #guard_msgs in
 example [inst : Decidable p] : p := by
   nunchaku
+
+namespace DepExists
+
+def foo (h : True) : Prop := True
+
+/--
+info: Nunchaku found a counter example:
+---
+error: unsolved goals
+⊢ ∃ x, True
+-/
+#guard_msgs in
+example : Exists (α := False) fun _ => True := by
+  nunchaku
+
+/--
+info: Nunchaku is convinced that the theorem is true.
+---
+error: unsolved goals
+⊢ Exists foo
+-/
+#guard_msgs in
+example : Exists (α := True) foo := by
+  nunchaku
+
+/--
+info: Nunchaku found a counter example:
+---
+error: unsolved goals
+⊢ ∃ x, False
+-/
+#guard_msgs in
+example : Exists (α := True) fun _ => False := by
+  nunchaku
+
+end DepExists
