@@ -134,7 +134,7 @@ def getKind (e : Expr) : DepM ExprKind := do
     if ← Meta.isProof e then
       modify fun s => { s with exprKindCache := s.exprKindCache.insert e .proof }
       return .proof
-    else if ← Meta.isPropFormerType (← Meta.inferType e) then
+    else if ← Meta.isProp e then
       modify fun s => { s with exprKindCache := s.exprKindCache.insert e .prop }
       return .prop
     else
@@ -871,6 +871,7 @@ partial def elimAxiomOpaque (info : ConstantVal) : DepM Unit := do
 
   let stencil ← argStencil info
   let newType ← elimDataConstType info.type stencil
+  trace[nunchaku.elimdep] m!"New type for {info.name}: {newType}"
 
   let decl := {
     name := elimName,
