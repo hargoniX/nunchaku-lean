@@ -27,10 +27,12 @@ public section
 inductive NunchakuConfig.Solvers where
   | cvc4
   | smbc
+  | kodkod
 
 def NunchakuConfig.Solvers.toCliArg : Solvers → String
   | .cvc4 => "cvc4"
   | .smbc => "smbc"
+  | .kodkod => "kodkod"
 
 /--
 The configuration options for `nunchaku`.
@@ -41,7 +43,7 @@ structure NunchakuConfig where
   /-- Whether to look for a counter-model, if set to `false` looks for a model instead. -/
   falsify : Bool := true
   /-- The list of portfolio solvers to try. -/
-  solvers : Array NunchakuConfig.Solvers := #[.cvc4, .smbc]
+  solvers : Array NunchakuConfig.Solvers := #[.cvc4, .smbc, .kodkod]
 
 declare_config_elab elabNunchakuConfig Nunchaku.NunchakuConfig
 
