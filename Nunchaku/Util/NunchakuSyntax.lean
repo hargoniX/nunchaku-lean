@@ -10,6 +10,10 @@ namespace Nunchaku
 
 public section
 
+inductive NunAttribute where
+  | wf
+  deriving Inhabited, Repr, DecidableEq, Ord
+
 inductive NunType where
   | prop
   | type
@@ -140,6 +144,17 @@ structure NunPropSpec where
   laws : List NunTerm
   deriving Inhabited, Repr
 
+structure NunPredSpec where
+  /--
+  The constructors and basic information about the predicate.
+  -/
+  spec : NunPropSpec
+  /--
+  Attributes such as [wf] on the predicate.
+  -/
+  attributes : List NunAttribute
+  deriving Inhabited, Repr
+
 /--
 A monomorphized Nunchaku command.
 -/
@@ -155,7 +170,7 @@ inductive NunCommand where
   /--
   `pred specs.`
   -/
-  | predDecl (specs : List NunPropSpec)
+  | predDecl (specs : List NunPredSpec)
   /--
   `rec specs.`
   -/

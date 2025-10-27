@@ -263,7 +263,7 @@ partial def specialiseInduct (info : InductiveVal) (input : GroundInput) : Speci
   for (oldCtor, newCtor) in info.ctors.zip newCtors do
     modify fun s =>
       { s with specialisationCache := s.specialisationCache.insert (⟨oldCtor⟩, input) newCtor.name }
-  TransforM.recordDecl <| .inductDecl [] nparams [decl] false
+  TransforM.recordDerivedDecl name <| .inductDecl [] nparams [decl] false
 
 partial def specialiseEquation (name : Name) (eq : Expr) (input : GroundInput) :
     SpecializeM Expr := do
@@ -290,7 +290,7 @@ partial def specialiseOpaque (info : OpaqueVal) (input : GroundInput) : Speciali
     value := TransforM.mkSorryAx specType u,
     isUnsafe := info.isUnsafe
   }
-  TransforM.recordDecl <| .opaqueDecl defn
+  TransforM.recordDerivedDecl name <| .opaqueDecl defn
 
 partial def specialiseAxiom (info : AxiomVal) (input : GroundInput) : SpecializeM Unit := do
   let name := info.name
@@ -303,7 +303,7 @@ partial def specialiseAxiom (info : AxiomVal) (input : GroundInput) : Specialize
     type := specType,
     isUnsafe := info.isUnsafe
   }
-  TransforM.recordDecl <| .axiomDecl defn
+  TransforM.recordDerivedDecl name <| .axiomDecl defn
 
 partial def specialiseDefn (info : DefinitionVal) (input : GroundInput) : SpecializeM Unit := do
   let name := info.name
@@ -320,7 +320,7 @@ partial def specialiseDefn (info : DefinitionVal) (input : GroundInput) : Specia
     hints := .opaque,
     safety := .safe
   }
-  TransforM.recordDecl <| .defnDecl defn
+  TransforM.recordDerivedDecl name <| .defnDecl defn
 
   let equations ← TransforM.getEquationsFor name
   let newEqs ← equations.mapM (specialiseEquation name · input)

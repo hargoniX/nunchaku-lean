@@ -835,7 +835,7 @@ partial def elimInduct (info : InductiveVal) : DepM Unit := do
       elimValueInduct info elimName stencil
 
   trace[nunchaku.elimdep] m!"Proposing {decl.type} {decl.ctors.map (·.type)}"
-  TransforM.recordDecl <| .inductDecl info.levelParams nparams [decl] false
+  TransforM.recordDerivedDecl name <| .inductDecl info.levelParams nparams [decl] false
 
 partial def elimEquation (eq : Expr) : DepM Expr := do
   trace[nunchaku.elimdep] m!"Working eq {eq}"
@@ -870,7 +870,7 @@ partial def elimDefn (info : DefinitionVal) : DepM Unit := do
     hints := .opaque,
   }
 
-  TransforM.recordDecl <| .defnDecl decl
+  TransforM.recordDerivedDecl name <| .defnDecl decl
   let equations ← TransforM.getEquationsFor name
   let newEqs := ← equations.mapM elimEquation
   modify fun s => { s with newEquations := s.newEquations.insert elimName newEqs }
@@ -892,7 +892,7 @@ partial def elimAxiomOpaque (info : ConstantVal) : DepM Unit := do
     isUnsafe := false
   }
 
-  TransforM.recordDecl <| .axiomDecl decl
+  TransforM.recordDerivedDecl name <| .axiomDecl decl
 
 partial def elimTheorem (info : TheoremVal) : DepM Unit := do
   throwError m!"Proofs should be erased but tried to work: {info.name}"
@@ -1001,7 +1001,9 @@ partial def invariantForInduct (info : InductiveVal) : DepM Name := do
   See note about nparams on the generic prop inductive eliminator.
   -/
   let nparams := 0
-  TransforM.recordDecl <| .inductDecl info.levelParams nparams [decl] false
+  TransforM.recordNewDecl <| .inductDecl info.levelParams nparams [decl] false
+  -- All inductive invariants are wf
+  TransforM.addAttribute decl.name .wf
   return invName
 
 partial def invariantPredForD (oldType : Expr) (subst : Meta.FVarSubst) :

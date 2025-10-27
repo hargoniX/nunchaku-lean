@@ -90,6 +90,7 @@ public instance : ToFormat NunPropSpec where
       acc ++ ";" ++ .line ++ ToFormat.format law
     spec.name ++ " : " ++ ToFormat.format spec.type ++ " :=" ++ .nest 2 (Format.line ++ laws)
 
+
 public instance : ToFormat NunCommand where
   format problem := private
     match problem with
@@ -100,12 +101,18 @@ public instance : ToFormat NunCommand where
         let fmt := ToFormat.format spec
         acc ++ .line ++ "and " ++ fmt
       "data " ++ combined ++ "."
-    | .predDecl specs =>
-      let first := ToFormat.format specs[0]!
+    | .predDecl specs => Id.run do
+      let firstSpec := specs[0]!
+      let mut wf := false
+      if firstSpec.attributes.contains .wf then
+        assert! specs.all (·.attributes.contains .wf)
+        wf := true
+      let first := ToFormat.format firstSpec.spec
       let combined := specs.tail.foldl (init := first) fun acc spec =>
-        let fmt := ToFormat.format spec
+        let fmt := ToFormat.format spec.spec
         acc ++ .line ++ "and " ++ fmt
-      "pred " ++ combined ++ "."
+      let attrs : Format := if wf then "[wf]" else ""
+      "pred ".toFormat ++ attrs ++ combined ++ ".".toFormat
     | .recDecl specs =>
       let first := ToFormat.format specs[0]!
       let combined := specs.tail.foldl (init := first) fun acc spec =>

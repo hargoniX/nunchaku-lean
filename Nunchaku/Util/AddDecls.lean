@@ -68,8 +68,21 @@ public def addDeclsScc (decls : List Declaration) : TransforM Unit := do
 
 namespace TransforM
 
-public def recordDecl (decl : Declaration) : TransforM Unit :=
+public def addAttribute (decl : Name) (attr : NunAttribute) : TransforM Unit :=
+  modify fun s => { s with
+    attributes := s.attributes.alter decl fun | some s => s.insert attr | none => some { attr }
+  }
+
+public def getAttributes (decl : Name) : TransforM (Std.TreeSet NunAttribute) :=
+  return (← get).attributes.getD decl {}
+
+public def recordNewDecl (decl : Declaration) : TransforM Unit :=
   modify fun s => { s with freshDecls := decl :: s.freshDecls }
+
+public def recordDerivedDecl (orig : Name) (decl : Declaration) : TransforM Unit := do
+  recordNewDecl decl
+  let name := decl.getNames.head!
+  modify fun s => { s with attributes := s.attributes.insert name (s.attributes.getD orig {}) }
 
 public def addDecls : TransforM Unit := do
   let decls := (← get).freshDecls

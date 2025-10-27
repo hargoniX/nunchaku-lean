@@ -6,6 +6,7 @@ public import Nunchaku.Attr
 public meta import Nunchaku.Attr -- TODO: this should not be necessary
 import Lean.Meta.Match.MatchEqsExt
 import Nunchaku.Util.AuxiliaryConsts
+public import Nunchaku.Util.NunchakuSyntax
 
 /-!
 This module contains the definition of the `TransforM` monad which is the core
@@ -20,6 +21,7 @@ public structure TransforM.State where
   equations : Std.HashMap Name (List Expr)
   nameIdx : Nat := 0
   freshDecls : List Declaration := []
+  attributes : Std.HashMap Lean.Name (Std.TreeSet NunAttribute) := {}
 
 public abbrev TransforM := ReaderT NunchakuConfig <| StateRefT TransforM.State MetaM
 

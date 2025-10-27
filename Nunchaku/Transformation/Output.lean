@@ -7,6 +7,7 @@ import Nunchaku.Util.NunchakuBuilder
 import Nunchaku.Util.NunchakuPrinter
 import Nunchaku.Util.AuxiliaryConsts
 import Lean.Util.SCC
+import Nunchaku.Util.AddDecls
 
 /-!
 This module contains the transformation for turning a monomorphized and dependently typed eliminated
@@ -372,11 +373,12 @@ def encodeIndPredicate (val : InductiveVal) : OutputM Unit := do
     let encodedArgTypes ← argTypes.mapM encodeType
     let encodedOutType ← encodeType outType
     let encodedType := .ofList (encodedArgTypes.toList ++ [encodedOutType]) (by simp)
+    let attrs ← TransforM.getAttributes val.name
 
     if val.ctors.isEmpty then
       throwError m!"{val.name} has no constructors"
     let laws ← val.ctors.mapM encodePredCtor
-    return { name := mangledName, type := encodedType, laws }
+    return { spec := { name := mangledName, type := encodedType, laws }, attributes := attrs.toList }
 
   addCommand <| .predDecl encodedTypes
 

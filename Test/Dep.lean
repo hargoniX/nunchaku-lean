@@ -113,7 +113,7 @@ structure EmptyFin where
   h : False -- to avoid encoding 0 < n
 
 /--
-info: Nunchaku wasn't able to prove or disprove the theorem.
+info: Nunchaku is convinced that the theorem is true.
 ---
 error: unsolved goals
 ⊢ OnlyEmptyLists EmptyFin
@@ -126,13 +126,11 @@ end Ex4
 
 namespace Ex5
 
-axiom a : Type
-
 inductive Vect : Nat → Type where
   | nil : Vect .zero
-  | cons (x : a) (xs : Vect n) : Vect n.succ
+  | cons (x : Nat) (xs : Vect n) : Vect n.succ
 
-def Vect.toList (x : Vect n) : List a :=
+def Vect.toList (x : Vect n) : List Nat :=
   match x with
   | .nil => .nil
   | .cons x xs => x :: xs.toList
@@ -145,7 +143,7 @@ inductive MyProp : Prop where
   | intro (n : Nat) (x : Vect n) (h : mylen (Vect.toList x) ≠ n) : MyProp
 
 /--
-info: Nunchaku wasn't able to prove or disprove the theorem.
+info: Nunchaku found a counter example:
 ---
 error: unsolved goals
 ⊢ MyProp
@@ -210,7 +208,7 @@ example (xs : Vec α n) : xs.length = 0 := by
   nunchaku
 
 /--
-info: Nunchaku wasn't able to prove or disprove the theorem.
+info: Nunchaku is convinced that the theorem is true.
 ---
 error: unsolved goals
 α β : Type
