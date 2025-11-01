@@ -66,7 +66,7 @@ def preprocessEquation (eq : Expr) : MetaM Expr := do
     Meta.mkForallFVars args body
 
 def findEquationsForDefn (info : DefinitionVal) : MetaM (Array Expr) := do
-  if ← Meta.isMatcher info.name then
+  if (← Meta.isMatcher info.name) || (isCasesOnRecursor (← getEnv) info.name) then
     return #[]
   else
     let some eqns ← getEqnsFor? info.name
