@@ -1,6 +1,6 @@
 module
 
-namespace Nunchaku
+namespace Chako
 
 public section
 
@@ -13,4 +13,4 @@ opaque classicalIf {α : Sort u} (d : Prop) (t e : α) : α := t
 
 end
 
-end Nunchaku
+end Chako

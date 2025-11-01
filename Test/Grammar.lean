@@ -1,4 +1,4 @@
-import Nunchaku
+import Chako
 
 /-!
 The following example is taken from https://www.tcs.ifi.lmu.de/staff/jasmin-blanchette/sqj2013-relational.pdf
@@ -9,12 +9,14 @@ inductive Alphabet where
   | a
   | b
 
-instance : BEq Alphabet where
-  beq
+def Alphabet.beq : Alphabet → Alphabet → Bool
     | .a, .a => true
     | .b, .b => true
     | .a, .b => false
     | .b, .a => false
+
+instance foo : BEq Alphabet where
+  beq := Alphabet.beq
 
 /-!
 This is an erroneous version of the grammar
@@ -39,23 +41,23 @@ inductive B : List Alphabet → Prop where
 
 end
 
-open Classical
-noncomputable def count (x : Alphabet) (xs : List Alphabet) : Nat :=
+def count (x : Alphabet) (xs : List Alphabet) : Nat :=
   match xs with
   | [] => 0
-  | y :: ys => (if x = y then 1 else 0) + count x ys
+  | y :: ys => (if x == y then 1 else 0) + count x ys
 
 /-
 TODO: this is going to work with the predicate optimization
 TODO: re-evaluate with bultin count then
 
+set_option trace.chako true in
 theorem sound (h : S w) : count .a w = count .b w := by
-  nunchaku
+  chako
 -/
 
 /-
 TODO: this doesn't work at all :(
 
 theorem complete (w : List Alphabet) (h : count .a w = count .b w) : S w := by
-  nunchaku
+  chako
 -/

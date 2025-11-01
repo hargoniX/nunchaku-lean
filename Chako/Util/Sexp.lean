@@ -1,7 +1,7 @@
 module
 import Std.Internal.Parsec
 
-namespace Nunchaku
+namespace Chako
 
 public inductive Sexp where
   | atom (id : String)
@@ -53,4 +53,4 @@ public def parse (input : String) : Except String Sexp :=
   Parser.run Parser.sexp input
 
 end Sexp
-end Nunchaku
+end Chako

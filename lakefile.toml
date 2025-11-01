@@ -1,6 +1,6 @@
-name = "nunchaku"
+name = "chako"
 version = "0.1.0"
-defaultTargets = ["Nunchaku"]
+defaultTargets = ["Chako"]
 testRunner = "Test"
 
 [[lean_lib]]
@@ -8,5 +8,6 @@ name = "Test"
 leanOptions = { experimental.module = true }
 
 [[lean_lib]]
-name = "Nunchaku"
+name = "Chako"
 leanOptions = { experimental.module = true }
+precompileModules = true

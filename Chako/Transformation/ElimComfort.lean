@@ -1,12 +1,12 @@
 module
 
-public import Nunchaku.Util.Pipeline
-public import Nunchaku.Util.Model
-import Nunchaku.Util.LocalContext
-import Nunchaku.Util.AddDecls
+public import Chako.Util.Pipeline
+public import Chako.Util.Model
+import Chako.Util.LocalContext
+import Chako.Util.AddDecls
 import Lean.Meta.Tactic.Clear
 
-namespace Nunchaku
+namespace Chako
 namespace Transformation
 namespace ElimComfort
 
@@ -68,11 +68,11 @@ public def transformation : Transformation MVarId MVarId NunResult NunResult whe
     name := "ElimComfort"
     encode g := do
       let g ← ComfortM.run <| encode g
-      trace[nunchaku.elimcomfort] m!"Result: {g}"
+      trace[chako.elimcomfort] m!"Result: {g}"
       return (g, ())
     decode _ res := return res
   }
 
 end ElimComfort
 end Transformation
-end Nunchaku
+end Chako

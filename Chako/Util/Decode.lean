@@ -1,10 +1,10 @@
 module
-import Nunchaku.Util.NunchakuBuilder
-import Nunchaku.Util.NunchakuPrinter
-public import Nunchaku.Util.Model
+import Chako.Util.NunchakuBuilder
+import Chako.Util.NunchakuPrinter
+public import Chako.Util.Model
 
 
-namespace Nunchaku
+namespace Chako
 namespace Decode
 
 public class MonadDecode (m : Type → Type) where
@@ -71,4 +71,4 @@ public def decodeModel (model : NunModel) : m NunModel := do
 end MonadDecode
 
 end Decode
-end Nunchaku
+end Chako

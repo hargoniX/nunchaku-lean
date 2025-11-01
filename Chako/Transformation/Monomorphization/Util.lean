@@ -1,9 +1,9 @@
 module
 
 public import Lean.Meta.Basic
-public import Nunchaku.Util.TransforM
+public import Chako.Util.TransforM
 
-namespace Nunchaku
+namespace Chako
 namespace Transformation
 namespace Monomorphization
 
@@ -189,4 +189,4 @@ end
 
 end Monomorphization
 end Transformation
-end Nunchaku
+end Chako

@@ -1,15 +1,15 @@
 module
 
-public import Nunchaku.Util.Pipeline
-public import Nunchaku.Util.Model
-import Nunchaku.Util.Decode
+public import Chako.Util.Pipeline
+public import Chako.Util.Model
+import Chako.Util.Decode
 
 /-!
 This module contains the transformation for abstracting free variables that are types formers into
 into axioms in order to enable specialisations of types that depend on free variables.
 -/
 
-namespace Nunchaku
+namespace Chako
 namespace Transformation
 namespace AbstractTypes
 
@@ -60,7 +60,7 @@ public def transformation : Transformation Lean.MVarId Lean.MVarId NunResult Nun
           continue
         let fvar := decl.fvarId
         if (← fvar.getType) matches .sort (.succ ..) then
-          trace[nunchaku.abstract] m!"Going to abstract {mkFVar fvar}"
+          trace[chako.abstract] m!"Going to abstract {mkFVar fvar}"
           let name ← mkAuxDeclName (← fvar.getUserName)
           let axiomDecl := {
             name,
@@ -79,7 +79,7 @@ public def transformation : Transformation Lean.MVarId Lean.MVarId NunResult Nun
       -- TODO: Possibly think about local instances
       Meta.withLCtx' newLCtx do
         let g := (← Meta.mkFreshExprMVar (some newType) .natural g.name).mvarId!
-        trace[nunchaku.abstract] m!"Result: {g}"
+        trace[chako.abstract] m!"Result: {g}"
         return (g, { decodeTable })
     decode ctx res :=
       ReaderT.run (res.mapM decode) ctx
@@ -87,4 +87,4 @@ public def transformation : Transformation Lean.MVarId Lean.MVarId NunResult Nun
 
 end AbstractTypes
 end Transformation
-end Nunchaku
+end Chako

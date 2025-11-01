@@ -1,9 +1,9 @@
 module
 import Lean.Util.SCC
 public import Lean.AddDecl
-public import Nunchaku.Util.TransforM
+public import Chako.Util.TransforM
 
-namespace Nunchaku
+namespace Chako
 
 open Lean Core
 
@@ -30,7 +30,7 @@ def declarationDependencies (decl : Declaration) : TransforM (List Name) := do
   | .inductDecl .. | .mutualDefnDecl ..  | .thmDecl .. | .quotDecl .. => unreachable!
 
 def addComponent (component : List Declaration) : TransforM Unit := do
-  trace[nunchaku] m!"Adding {component.map (·.getTopLevelNames)}"
+  trace[chako] m!"Adding {component.map (·.getTopLevelNames)}"
   match component with
   | [] => unreachable!
   | [decl] => addDecl decl
@@ -91,4 +91,4 @@ public def addDecls : TransforM Unit := do
 
 end TransforM
 
-end Nunchaku
+end Chako

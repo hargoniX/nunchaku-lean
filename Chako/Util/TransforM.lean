@@ -2,18 +2,18 @@ module
 
 import Lean.Meta.Eqns
 import Lean.Meta.Reduce
-public import Nunchaku.Attr
-public meta import Nunchaku.Attr -- TODO: this should not be necessary
+public import Chako.Attr
+public meta import Chako.Attr -- TODO: this should not be necessary
 import Lean.Meta.Match.MatchEqsExt
-import Nunchaku.Util.AuxiliaryConsts
-public import Nunchaku.Util.NunchakuSyntax
+import Chako.Util.AuxiliaryConsts
+public import Chako.Util.NunchakuSyntax
 
 /-!
 This module contains the definition of the `TransforM` monad which is the core
-monad that almost all operations of the Nunchaku tactic operate in.
+monad that almost all operations of the Chako tactic operate in.
 -/
 
-namespace Nunchaku
+namespace Chako
 
 open Lean Meta
 
@@ -23,7 +23,7 @@ public structure TransforM.State where
   freshDecls : List Declaration := []
   attributes : Std.HashMap Lean.Name (Std.TreeSet NunAttribute) := {}
 
-public abbrev TransforM := ReaderT NunchakuConfig <| StateRefT TransforM.State MetaM
+public abbrev TransforM := ReaderT ChakoConfig <| StateRefT TransforM.State MetaM
 
 namespace TransforM
 
@@ -35,11 +35,11 @@ public def mkSorryAx (ty : Expr) (lvl : Level) : Expr :=
 
 def builtins : Std.HashSet Name :=
   .ofList [``True, ``False, ``Not, ``And, ``Or, ``Eq, ``Ne, ``Iff, ``Exists,
-    ``Nunchaku.classicalIf]
+    ``Chako.classicalIf]
 
 public def isBuiltin (n : Name) : Bool := builtins.contains n
 
-public def getConfig : TransforM NunchakuConfig := do return (← read)
+public def getConfig : TransforM ChakoConfig := do return (← read)
 
 public def getEquations : TransforM (Std.HashMap Name (List Expr)) := do
   return (← get).equations
@@ -86,7 +86,7 @@ def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) := do
     if visited.contains elem || isBuiltin elem then
       continue
     visited := visited.insert elem
-    trace[nunchaku.equations] m!"Working {elem}"
+    trace[chako.equations] m!"Working {elem}"
     let constInfo ← getConstInfo elem
     match constInfo with
     | .defnInfo info =>
@@ -127,18 +127,18 @@ public def mkFreshName (name : Name) (pref : String := "") : TransforM Name := d
   modify fun s => { s with nameIdx := s.nameIdx + 1}
   return Name.str name s!"{pref}{idx}"
 
-public def run (g : MVarId) (cfg : NunchakuConfig) (x : TransforM α) : MetaM α := do
+public def run (g : MVarId) (cfg : ChakoConfig) (x : TransforM α) : MetaM α := do
   let equations ←
-    withTraceNode `nunchaku.equations (fun _ => return m!"Looking for equations") do
+    withTraceNode `chako.equations (fun _ => return m!"Looking for equations") do
       findEquations g
-  withTraceNode `nunchaku.equations (fun _ => return m!"Collected Equations") do
+  withTraceNode `chako.equations (fun _ => return m!"Collected Equations") do
     for (name, eqns) in equations do
-      trace[nunchaku.equations] m!"- {name}"
+      trace[chako.equations] m!"- {name}"
       for eq in eqns do
-        trace[nunchaku.equations] m!"  - {eq}"
+        trace[chako.equations] m!"  - {eq}"
 
   StateRefT'.run' (ReaderT.run x cfg) { equations }
 
 end TransforM
 
-end Nunchaku
+end Chako

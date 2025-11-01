@@ -1,8 +1,8 @@
 module
 
-public import Nunchaku.Transformation.Monomorphization.Util
+public import Chako.Transformation.Monomorphization.Util
 
-namespace Nunchaku
+namespace Chako
 namespace Transformation
 namespace Monomorphization
 namespace Collect
@@ -229,10 +229,10 @@ def collectMVar (g : MVarId) : CollectM Unit := do
   for decl in ← getLCtx do
     if decl.isImplementationDetail then
       continue
-    trace[nunchaku.mono] m!"Collecting constraints for {mkFVar decl.fvarId}"
+    trace[chako.mono] m!"Collecting constraints for {mkFVar decl.fvarId}"
     collectFVar decl.fvarId
 
-  trace[nunchaku.mono] m!"Collecting constraints for goal: {← g.getType}"
+  trace[chako.mono] m!"Collecting constraints for goal: {← g.getType}"
   collectExpr (← instantiateMVars (← g.getType))
 
 public partial def collectConstraints (g : MVarId) : MonoAnalysisM (List FlowConstraint) := do
@@ -243,4 +243,4 @@ public partial def collectConstraints (g : MVarId) : MonoAnalysisM (List FlowCon
 end Collect
 end Monomorphization
 end Transformation
-end Nunchaku
+end Chako

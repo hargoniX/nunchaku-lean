@@ -1,7 +1,7 @@
-import Nunchaku
+import Chako
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val x := (Nat.succ Nat.zero)
 val y := Nat.zero
 ---
@@ -11,10 +11,10 @@ x y : Nat
 -/
 #guard_msgs in
 example (x y : Nat) : (if x == y then panic! "Ahh" else default + 1) = 0 := by
-  nunchaku
+  chako
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val m := Nat.zero
 val n := Nat.zero
 ---
@@ -24,10 +24,10 @@ h : n = m
 ⊢ n ≠ m
 -/
 #guard_msgs in
-example (n m : Nat) (h : n = m) : n ≠ m := by nunchaku
+example (n m : Nat) (h : n = m) : n ≠ m := by chako
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val m := Nat.zero
 val n := (Nat.succ Nat.zero)
 ---
@@ -36,17 +36,17 @@ n m : Nat
 ⊢ n.add n = n.add m
 -/
 #guard_msgs in
-example (n m : Nat) : n.add n = n.add m := by nunchaku
+example (n m : Nat) : n.add n = n.add m := by chako
 
 /--
-info: Nunchaku wasn't able to prove or disprove the theorem.
+info: Chako wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 n m : Nat
 ⊢ n.add m = m.add n
 -/
 #guard_msgs in
-example (n m : Nat) : n.add m = m.add n := by nunchaku (timeout := 1)
+example (n m : Nat) : n.add m = m.add n := by chako (timeout := 1)
 
 
 inductive MyEven : Nat → Prop where
@@ -54,7 +54,7 @@ inductive MyEven : Nat → Prop where
   | succ : MyEven n → MyEven n.succ.succ
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val n := (Nat.succ Nat.zero)
 ---
 error: unsolved goals
@@ -62,10 +62,10 @@ n : Nat
 ⊢ MyEven n
 -/
 #guard_msgs in
-example (n : Nat) : MyEven n := by nunchaku
+example (n : Nat) : MyEven n := by chako
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val n := Nat.zero
 ---
 error: unsolved goals
@@ -74,21 +74,21 @@ h : MyEven n
 ⊢ MyEven n.succ
 -/
 #guard_msgs in
-example (n : Nat) (h : MyEven n) : MyEven n.succ := by nunchaku
+example (n : Nat) (h : MyEven n) : MyEven n.succ := by chako
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 n : Nat
 ⊢ n ≠ n.succ
 -/
 #guard_msgs in
-example (n : Nat) : n ≠ n.succ := by nunchaku
+example (n : Nat) : n ≠ n.succ := by chako
 
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val n := Nat.zero
 ---
 error: unsolved goals
@@ -100,10 +100,10 @@ n : Nat
 example (n : Nat) :
     let m := n + (.succ .zero)
     m = n := by
-  nunchaku
+  chako
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val m := Nat.zero
 val n := Nat.zero
 ---
@@ -117,7 +117,7 @@ example (n : Nat) :
     let m := n + (.succ .zero)
     m = n := by
   intro m
-  nunchaku
+  chako
 
 namespace Mutual
 
@@ -133,7 +133,7 @@ inductive Odd : Nat → Prop where
 end
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val m := Nat.zero
 val n := Nat.zero
 ---
@@ -145,7 +145,7 @@ h2 : Even m
 -/
 #guard_msgs in
 example (n m : Nat) (h1 : Even n) (h2 : Even m) : Odd (n.add m) := by
-  nunchaku
+  chako
 
 mutual
 
@@ -160,14 +160,14 @@ inductive B where
 end
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 x : A
 ⊢ A.step (B.step x) ≠ x
 -/
 #guard_msgs in
-example (x : A) : (.step (.step x)) ≠ x := by nunchaku
+example (x : A) : (.step (.step x)) ≠ x := by chako
 
 mutual
 
@@ -184,7 +184,7 @@ def isOdd (n : Nat) : Bool :=
 end
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val n := Nat.zero
 ---
 error: unsolved goals
@@ -194,7 +194,7 @@ h : isEven n = true
 -/
 #guard_msgs in
 example (n : Nat) (h : isEven n) : isEven n.succ := by
-  nunchaku
+  chako
 
 mutual
 
@@ -211,7 +211,7 @@ def IsOdd (n : Nat) : Prop :=
 end
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val n := Nat.zero
 ---
 error: unsolved goals
@@ -221,10 +221,10 @@ h : IsEven n
 -/
 #guard_msgs in
 example (n : Nat) (h : IsEven n) : IsEven n.succ := by
-  nunchaku
+  chako
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val n := Nat.zero
 ---
 error: unsolved goals
@@ -233,7 +233,7 @@ n : Nat
 -/
 #guard_msgs in
 example (n : Nat) : IsEven n ↔ isOdd n := by
-  nunchaku
+  chako
 
 end Mutual
 
@@ -243,7 +243,7 @@ def isZero (n : Nat) : Bool :=
   | _ + 1 => false
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val n := (Nat.succ Nat.zero)
 ---
 error: unsolved goals
@@ -252,10 +252,10 @@ n : Nat
 -/
 #guard_msgs in
 example (n : Nat) : isZero n := by
-  nunchaku
+  chako
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val a := Nat.zero
 val b := (Nat.succ Nat.zero)
 ---
@@ -265,13 +265,11 @@ a b : Nat
 -/
 #guard_msgs in
 example (a b : Nat) : Nat.ble a b ↔ Nat.beq a b := by
-  nunchaku
+  chako
 
 
 /--
-info: Nunchaku found a counter example:
-val a := Nat.zero
-val b := Nat.zero
+info: Chako wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 a b : Nat
@@ -279,11 +277,11 @@ a b : Nat
 -/
 #guard_msgs in
 example (a b : Nat) : Nat.blt a b ↔ a < b := by
-  nunchaku
+  chako
 
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val k := Nat.zero
 val m := Nat.zero
 val n := Nat.zero
@@ -294,21 +292,23 @@ n m k : Nat
 -/
 #guard_msgs in
 example {n m k : Nat} : n + m = n + k → m ≠ k := by
-  nunchaku
-
-/-
-TODO: CVC4 currently straight up gives up on this. However if we specialised instances
-(should lean or nunchaku do that?) it just works.
-
-
-set_option trace.nunchaku true in
-example {n m : Nat} : n < m → n ≤ m := by
-  nunchaku
-
-  -/
+  chako
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako found a counter example:
+val m := Nat.zero
+val n := Nat.zero
+---
+error: unsolved goals
+n m : Nat
+⊢ n ≤ m → n < m
+-/
+#guard_msgs in
+example {n m : Nat} : n ≤ m → n < m := by
+  chako
+
+/--
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 a b : Unit
@@ -316,10 +316,10 @@ a b : Unit
 -/
 #guard_msgs in
 example (a b : Unit) : a = b := by
-  nunchaku
+  chako
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val a := PUnit.punit
 val b := PUnit.punit
 ---
@@ -329,10 +329,10 @@ a b : Unit
 -/
 #guard_msgs in
 example (a b : Unit) : a ≠ b := by
-  nunchaku
+  chako
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 a b : Unit
@@ -340,7 +340,7 @@ a b : Unit
 -/
 #guard_msgs in
 example (a b : Unit) : a = Unit.unit := by
-  nunchaku
+  chako
 
 namespace MyFoo
 
@@ -348,7 +348,7 @@ inductive Foo (a : Bool) where
   | ctor (h : if a = a then True else True) : Foo a
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 a b : Bool
@@ -356,13 +356,13 @@ a b : Bool
 -/
 #guard_msgs in
 example (a b : Bool) : Foo a := by
-  nunchaku
+  chako
 
 inductive TwoFoo (a b : Bool) where
   | ctor (h : if a = a then True else True) : TwoFoo a b
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 a b : Bool
@@ -370,6 +370,6 @@ a b : Bool
 -/
 #guard_msgs in
 example (a b : Bool) : TwoFoo a b := by
-  nunchaku
+  chako
 
 end MyFoo

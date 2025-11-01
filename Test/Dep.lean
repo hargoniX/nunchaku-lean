@@ -1,4 +1,4 @@
-import Nunchaku
+import Chako
 
 
 structure Foo where
@@ -7,7 +7,7 @@ structure Foo where
   h : x = y
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 f : Foo
@@ -15,10 +15,10 @@ f : Foo
 -/
 #guard_msgs in
 example (f : Foo) : f.x = f.y := by
-  nunchaku
+  chako
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 producer : Nat → Foo
@@ -26,10 +26,10 @@ producer : Nat → Foo
 -/
 #guard_msgs in
 example (producer : Nat → Foo) : (producer .zero).x = (producer .zero).y := by
-  nunchaku
+  chako
 
 /--
-info: Nunchaku wasn't able to prove or disprove the theorem.
+info: Chako wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 xs : List Foo
@@ -37,27 +37,27 @@ xs : List Foo
 -/
 #guard_msgs in
 example (xs : List Foo) : ∀ x ∈ xs, x.x = x.y := by
-  nunchaku
+  chako
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 ⊢ 0 = Nat.zero
 -/
 #guard_msgs in
 example : 0 = .zero := by
-  nunchaku
+  chako
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 ⊢ 1 = Nat.zero.succ
 -/
 #guard_msgs in
 example : 1 = .succ .zero := by
-  nunchaku
+  chako
 
 namespace HiddenQuantifiers
 
@@ -75,14 +75,14 @@ inductive Bar {α : Type} (p : α → Prop) : α → Prop where
   | intro (x : α) (h : p x) : Bar p x
 
 /--
-info: Nunchaku wasn't able to prove or disprove the theorem.
+info: Chako wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 ⊢ Hidden Val (Bar fun v => v.x = v.y)
 -/
 #guard_msgs in
 example : Hidden Val (Bar (fun v => v.x = v.y)) := by
-  nunchaku
+  chako
 
 end Ex1
 
@@ -92,14 +92,14 @@ inductive Bar : Val → Prop
   | intro (v : Val) (h : v.x = v.y) : Bar v
 
 /--
-info: Nunchaku wasn't able to prove or disprove the theorem.
+info: Chako wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 ⊢ Hidden Val Bar
 -/
 #guard_msgs in
 example : Hidden Val Bar := by
-  nunchaku
+  chako
 
 end Ex2
 
@@ -113,14 +113,14 @@ structure EmptyFin where
   h : False -- to avoid encoding 0 < n
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 ⊢ OnlyEmptyLists EmptyFin
 -/
 #guard_msgs in
 example : OnlyEmptyLists EmptyFin := by
-  nunchaku
+  chako
 
 end Ex4
 
@@ -143,14 +143,14 @@ inductive MyProp : Prop where
   | intro (n : Nat) (x : Vect n) (h : mylen (Vect.toList x) ≠ n) : MyProp
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 ---
 error: unsolved goals
 ⊢ MyProp
 -/
 #guard_msgs in
 example : MyProp := by
-  nunchaku (timeout := 1)
+  chako (timeout := 1)
 
 axiom foo (xs : Vect n) : mylen (Vect.toList xs) = n
 
@@ -177,7 +177,7 @@ def Vec.map (f : α → β) (x : Vec α n) : Vec β n :=
   | .cons x xs => .cons (f x) (map f xs)
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 α : Type
@@ -189,10 +189,10 @@ f : α → β
 -/
 #guard_msgs in
 example (xs : Vec α n) (f : α → β) : xs.length = (xs.map f).length := by
-  nunchaku
+  chako
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 inductive α where | $α_0
 val n := (Nat.succ Nat.zero)
 val xs := (Vec.cons Nat.zero $α_0 Vec.nil)
@@ -205,10 +205,10 @@ xs : Vec α n
 -/
 #guard_msgs in
 example (xs : Vec α n) : xs.length = 0 := by
-  nunchaku
+  chako
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 α β : Type
@@ -219,10 +219,10 @@ xs : Vec (Vec α m) n
 -/
 #guard_msgs in
 example {f : α → β} (xs : Vec (Vec α m) n) : xs.length = (xs.map (fun v => v.map f)).length := by
-  nunchaku
+  chako
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val inst := Decidable.isFalse
 val p := false
 ---
@@ -233,41 +233,41 @@ inst : Decidable p
 -/
 #guard_msgs in
 example [inst : Decidable p] : p := by
-  nunchaku
+  chako
 
 namespace DepExists
 
 def foo (h : True) : Prop := True
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 ---
 error: unsolved goals
 ⊢ ∃ x, True
 -/
 #guard_msgs in
 example : Exists (α := False) fun _ => True := by
-  nunchaku
+  chako
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 ⊢ Exists foo
 -/
 #guard_msgs in
 example : Exists (α := True) foo := by
-  nunchaku
+  chako
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 ---
 error: unsolved goals
 ⊢ ∃ x, False
 -/
 #guard_msgs in
 example : Exists (α := True) fun _ => False := by
-  nunchaku
+  chako
 
 end DepExists
 
@@ -284,7 +284,7 @@ def head2 (xs : List Nat) (h : xs.isEmpty = false) : Nat :=
   | x :: _ => x
 
 /--
-info: Nunchaku wasn't able to prove or disprove the theorem.
+info: Chako wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 xs : List Nat
@@ -293,6 +293,6 @@ h : xs.isEmpty = false
 -/
 #guard_msgs in
 example (xs : List Nat) (h : xs.isEmpty = false) : head1 xs h = head2 xs h := by
-  nunchaku
+  chako
 
 end Unreachable

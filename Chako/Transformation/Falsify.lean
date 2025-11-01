@@ -1,13 +1,13 @@
 module
 
-public import Nunchaku.Util.Pipeline
-public import Nunchaku.Util.Model
+public import Chako.Util.Pipeline
+public import Chako.Util.Model
 
 /-!
 This module contains the transformation for negating the goal should that be necessary.
 -/
 
-namespace Nunchaku
+namespace Chako
 namespace Transformation
 namespace Falsify
 
@@ -18,14 +18,14 @@ public def transformation : Transformation Lean.MVarId Lean.MVarId NunResult Nun
     encode g := g.withContext do
       if (← read).falsify then
         let g := (← Lean.Meta.mkFreshExprMVar (Lean.mkNot (← g.getType))).mvarId!
-        trace[nunchaku.falsify] m!"Result: {g}"
+        trace[chako.falsify] m!"Result: {g}"
         return (g, ())
       else
-        trace[nunchaku.falsify] m!"Result: {g}"
+        trace[chako.falsify] m!"Result: {g}"
         return (g, ())
     decode _ res := return res
   }
 
 end Falsify
 end Transformation
-end Nunchaku
+end Chako

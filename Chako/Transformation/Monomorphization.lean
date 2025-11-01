@@ -1,14 +1,14 @@
 module
 
-public import Nunchaku.Util.Pipeline
-public import Nunchaku.Util.Model
-import Nunchaku.Util.AddDecls
-import Nunchaku.Util.Decode
-import Nunchaku.Util.NunchakuPrinter
+public import Chako.Util.Pipeline
+public import Chako.Util.Model
+import Chako.Util.AddDecls
+import Chako.Util.Decode
+import Chako.Util.NunchakuPrinter
 
-import Nunchaku.Transformation.Monomorphization.Collect
-import Nunchaku.Transformation.Monomorphization.Solve
-import Nunchaku.Transformation.Monomorphization.Specialise
+import Chako.Transformation.Monomorphization.Collect
+import Chako.Transformation.Monomorphization.Solve
+import Chako.Transformation.Monomorphization.Specialise
 
 /-!
 This module contains the monomorphisation transformation, it is based on
@@ -16,7 +16,7 @@ This module contains the monomorphisation transformation, it is based on
 though restricted to the simplest possible fragment in Lean for now.
 -/
 
-namespace Nunchaku
+namespace Chako
 namespace Transformation
 namespace Monomorphization
 
@@ -83,11 +83,11 @@ public def transformation : Transformation MVarId MVarId NunResult NunResult whe
       if h : !constraintsSolvable constraints then
         throwError "The goal cannot be monomorphised."
       else
-        trace[nunchaku.mono] m!"Constraints: {constraints}"
+        trace[chako.mono] m!"Constraints: {constraints}"
         let solution := solveConstraints constraints (by simpa using h)
-        trace[nunchaku.mono] m!"Solution: {solution.toList}"
+        trace[chako.mono] m!"Solution: {solution.toList}"
         let (g, d) ← (specialize g).run { solution } monoAnalysis
-        trace[nunchaku.mono] m!"Result: {g}"
+        trace[chako.mono] m!"Result: {g}"
         return (g, d)
     decode ctx res :=
       ReaderT.run (res.mapM decode) ctx
@@ -95,4 +95,4 @@ public def transformation : Transformation MVarId MVarId NunResult NunResult whe
 
 end Monomorphization
 end Transformation
-end Nunchaku
+end Chako
