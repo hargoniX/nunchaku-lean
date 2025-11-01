@@ -5,22 +5,22 @@ import Lean.Util.Trace
 public import Lean.Elab.Tactic.Config
 
 /-!
-This module contains declarations of environment extensions etc. used in the `nunchaku` tactic.
+This module contains declarations of environment extensions etc. used in the `chako` tactic.
 -/
 
 open Lean
 
 namespace Chako
 
-initialize registerTraceClass `nunchaku
-initialize registerTraceClass `nunchaku.solver (inherited := true)
-initialize registerTraceClass `nunchaku.equations (inherited := true)
-initialize registerTraceClass `nunchaku.falsify (inherited := true)
-initialize registerTraceClass `nunchaku.elimdep (inherited := true)
-initialize registerTraceClass `nunchaku.elimcomfort (inherited := true)
-initialize registerTraceClass `nunchaku.abstract (inherited := true)
-initialize registerTraceClass `nunchaku.mono (inherited := true)
-initialize registerTraceClass `nunchaku.output (inherited := true)
+initialize registerTraceClass `chako
+initialize registerTraceClass `chako.solver (inherited := true)
+initialize registerTraceClass `chako.equations (inherited := true)
+initialize registerTraceClass `chako.falsify (inherited := true)
+initialize registerTraceClass `chako.elimdep (inherited := true)
+initialize registerTraceClass `chako.elimcomfort (inherited := true)
+initialize registerTraceClass `chako.abstract (inherited := true)
+initialize registerTraceClass `chako.mono (inherited := true)
+initialize registerTraceClass `chako.output (inherited := true)
 
 public section
 
@@ -35,7 +35,7 @@ def ChakoConfig.Solvers.toCliArg : Solvers → String
   | .kodkod => "kodkod"
 
 /--
-The configuration options for `nunchaku`.
+The configuration options for `chako`.
 -/
 structure ChakoConfig where
   /-- The number of seconds that the model finder is run before aborting. -/
@@ -48,10 +48,10 @@ structure ChakoConfig where
 declare_config_elab elabChakoConfig Chako.ChakoConfig
 
 /--
-Invoke the external model finder Chako in an attempt to find a counter example for the current
+Invoke the external model finder Nunchaku in an attempt to find a counter example for the current
 goal state.
 -/
-syntax (name := nunchakuStx) "nunchaku" Lean.Parser.Tactic.optConfig : tactic
+syntax (name := chakoStx) "chako" Lean.Parser.Tactic.optConfig : tactic
 
 end
 

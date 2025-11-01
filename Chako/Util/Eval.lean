@@ -227,13 +227,13 @@ meta def evalChako (targetModule : Name) (file : System.FilePath)
     resStr := resStr ++ s!"{res.duration.recoveryMs}"
     out.putStrLn resStr
 
-elab "#eval_nunchaku_sound_module" id:ident file:str : command => do
+elab "#eval_chako_sound_module" id:ident file:str : command => do
   Elab.Command.liftTermElabM (evalChako id.getId file.getString Problem.fromTheorem)
 
-elab "#eval_nunchaku_perf_module" id:ident file:str : command => do
+elab "#eval_chako_perf_module" id:ident file:str : command => do
   Elab.Command.liftTermElabM (evalChako id.getId file.getString Problem.mutationsFromTheorem)
 
-elab "#eval_nunchaku_sound_decl" id:ident : command => do
+elab "#eval_chako_sound_decl" id:ident : command => do
   Elab.Command.liftTermElabM do
     let .thmInfo cinfo ← getConstInfo id.getId
       | throwError m!"Not a theorem {id}"
@@ -241,7 +241,7 @@ elab "#eval_nunchaku_sound_decl" id:ident : command => do
     let res ← tryChakoOn problem[0]!
     logInfo m!"{res}"
 
-elab "#eval_nunchaku_perf_decl" id:ident : command => do
+elab "#eval_chako_perf_decl" id:ident : command => do
   Elab.Command.liftTermElabM do
     let .thmInfo cinfo ← getConstInfo id.getId
       | throwError m!"Not a theorem {id}"

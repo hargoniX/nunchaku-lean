@@ -105,7 +105,7 @@ def instantiateStencilWith (remainder : Expr) (stencil : Array (Nat × GroundTyp
     Meta.forallBoundedTelescope remainder (some (argPos - lastArgPos)) fun args body => do
       let argExpr ← arg.toExpr
       let .forallE _ type body _ := body | unreachable!
-      trace[nunchaku.mono] m!"Instantiating arg of type {type} with {argExpr}"
+      trace[chako.mono] m!"Instantiating arg of type {type} with {argExpr}"
       if !(← Meta.isDefEq (← Meta.inferType argExpr) type) then
         throwError m!"Failed to instantiate type argument {argExpr} for {type}"
       let body := body.instantiate1 argExpr
@@ -252,7 +252,7 @@ partial def specialiseInduct (info : InductiveVal) (input : GroundInput) : Speci
   let specName := (← get).specialisationCache[(FlowVariable.mk name, input)]!
   let (specType, _) ← specialiseConstType info.toConstantVal input
   let newCtors ← info.ctors.mapM (specialiseCtor specName · input)
-  trace[nunchaku.mono] m!"Proposing {specType} {newCtors.map (·.type)}"
+  trace[chako.mono] m!"Proposing {specType} {newCtors.map (·.type)}"
 
   let decl := {
     name := specName,
@@ -310,7 +310,7 @@ partial def specialiseDefn (info : DefinitionVal) (input : GroundInput) : Specia
   let specName := (← get).specialisationCache[(FlowVariable.mk name, input)]!
   let (specType, u) ← specialiseConstType info.toConstantVal input
 
-  trace[nunchaku.mono] m!"Proposing {specType}"
+  trace[chako.mono] m!"Proposing {specType}"
 
   let defn := {
     name := specName,
@@ -335,7 +335,7 @@ partial def specialiseConst (name : Name) (input : GroundInput) : SpecializeM Un
     modify fun s =>
       { s with specialisationCache := s.specialisationCache.insert (flow, input) specName }
 
-    trace[nunchaku.mono] m!"Specialising {name} for {input} as {specName}"
+    trace[chako.mono] m!"Specialising {name} for {input} as {specName}"
 
   let info ← getConstInfo name
   match info with
@@ -346,7 +346,7 @@ partial def specialiseConst (name : Name) (input : GroundInput) : SpecializeM Un
   | .axiomInfo info => specialiseAxiom info input
   | _ => unreachable!
 
-  trace[nunchaku.mono] m!"Specialising {name} for {input} done"
+  trace[chako.mono] m!"Specialising {name} for {input} done"
 
 end
 
@@ -355,7 +355,7 @@ public partial def specialize (g : MVarId) : SpecializeM MVarId := do
     for input in inputs do
       specialiseConst var.function input
 
-  trace[nunchaku.mono] m!"Specialising in {g}"
+  trace[chako.mono] m!"Specialising in {g}"
   let g ← mapMVarId g specialiseExpr
   return g
 

@@ -32,12 +32,12 @@ def run (pipe : Pipeline a b c d) (x : a) : TransforM (b × (c → TransforM d))
   match pipe with
   | .tip trans =>
     let (transformed, st) ←
-      withTraceNode `nunchaku (fun _ => return m!"Running transformation: {trans.inner.name}") do
+      withTraceNode `chako (fun _ => return m!"Running transformation: {trans.inner.name}") do
         trans.inner.encode x
     return (transformed, fun res => trans.inner.decode st res)
   | .compose start remainder =>
     let (transformed, st) ←
-      withTraceNode `nunchaku (fun _ => return m!"Running transformation: {start.inner.name}") do
+      withTraceNode `chako (fun _ => return m!"Running transformation: {start.inner.name}") do
         start.inner.encode x
     let (transformed, back) ← remainder.run transformed
     let fullBack res := do

@@ -232,7 +232,7 @@ def correctProjIndex (typeName : Name) (idx : Nat) : DepM Nat := do
   let ctorStencil := ctorStencil.drop inductStencil.size
   let slice := ctorStencil[0...idx].toArray
   let newIdx := idx - slice.countP ArgKind.isProof
-  trace[nunchaku.elimdep] m!"Adjusting projection on {typeName} from {idx} to {newIdx}"
+  trace[chako.elimdep] m!"Adjusting projection on {typeName} from {idx} to {newIdx}"
   return newIdx
 
 def maxLit : Nat := 2^16
@@ -377,7 +377,7 @@ partial def mkAuxiliaryMatcher (fn : Name) (motive : Expr) (info : Meta.MatcherI
       (TransforM.mkSorryAx specialisedType u)
     let eqns := (← Meta.Match.getEquationsFor fn).eqnNames
     let newEqns ← eqns.mapM (transformEquation · fn newFn)
-    trace[nunchaku.elimdep] m!"Created auxiliary matcher: {newFn}, eqns: {newEqns}"
+    trace[chako.elimdep] m!"Created auxiliary matcher: {newFn}, eqns: {newEqns}"
     TransforM.injectEquations elimName newEqns.toList
     modify fun s => { s with matcherCache := s.matcherCache.insert (fn, motive) newFn }
     return newFn
@@ -516,7 +516,7 @@ partial def elimExpr' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) : I
     return finishedExpr
 
 partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) : IndInvM Expr := do
-  trace[nunchaku.elimdep] m!"elimExpr': {expr}, prop?: {inProp}"
+  trace[chako.elimdep] m!"elimExpr': {expr}, prop?: {inProp}"
   if inProp && !(← isProp expr) then
     throwError m!"Called on non prop: {expr}"
 
@@ -834,11 +834,11 @@ partial def elimInduct (info : InductiveVal) : DepM Unit := do
     else
       elimValueInduct info elimName stencil
 
-  trace[nunchaku.elimdep] m!"Proposing {decl.type} {decl.ctors.map (·.type)}"
+  trace[chako.elimdep] m!"Proposing {decl.type} {decl.ctors.map (·.type)}"
   TransforM.recordDerivedDecl name <| .inductDecl info.levelParams nparams [decl] false
 
 partial def elimEquation (eq : Expr) : DepM Expr := do
-  trace[nunchaku.elimdep] m!"Working eq {eq}"
+  trace[chako.elimdep] m!"Working eq {eq}"
   Meta.forallTelescope eq fun args body => do
     let (_, { fvarSet, .. }) ← body.collectFVars |>.run {}
     let shouldDrop := fun _ arg => do
@@ -847,7 +847,7 @@ partial def elimEquation (eq : Expr) : DepM Expr := do
       else
         return false
     let res ← IndInvM.run <| elimForall' args body shouldDrop elimValueOrProp (fun b s _ => elimProp b s)
-    trace[nunchaku.elimdep] m!"New equation: {res}"
+    trace[chako.elimdep] m!"New equation: {res}"
     return res
 
 partial def elimDefn (info : DefinitionVal) : DepM Unit := do
@@ -859,7 +859,7 @@ partial def elimDefn (info : DefinitionVal) : DepM Unit := do
   let stencil ← argStencil info.toConstantVal
   let u ← Meta.getLevel info.type
   let newType ← elimDataConstType info.type stencil
-  trace[nunchaku.elimdep] m!"New type for {info.name}: {newType}"
+  trace[chako.elimdep] m!"New type for {info.name}: {newType}"
 
   let decl := {
     name := elimName,
@@ -883,7 +883,7 @@ partial def elimAxiomOpaque (info : ConstantVal) : DepM Unit := do
 
   let stencil ← argStencil info
   let newType ← elimDataConstType info.type stencil
-  trace[nunchaku.elimdep] m!"New type for {info.name}: {newType}"
+  trace[chako.elimdep] m!"New type for {info.name}: {newType}"
 
   let decl := {
     name := elimName,
@@ -906,7 +906,7 @@ partial def elimConst (name : Name) : DepM Name := do
       let elimName ← TransforM.mkFreshName name (pref := "elim_")
       modify fun s => { s with constCache := s.constCache.insert name elimName }
 
-    trace[nunchaku.elimdep] m!"Working {name}"
+    trace[chako.elimdep] m!"Working {name}"
 
     match info with
     | .inductInfo info => elimInduct info
@@ -917,7 +917,7 @@ partial def elimConst (name : Name) : DepM Name := do
     | .recInfo .. | .quotInfo .. =>
       throwError m!"Cannot elim dependent types in {name}"
 
-    trace[nunchaku.elimdep] m!"Done working {name}"
+    trace[chako.elimdep] m!"Done working {name}"
     return (← get).constCache[name]!
 
 partial def ctorToInvariant (inductInvName : Name) (inductInfo : InductiveVal)
@@ -995,7 +995,7 @@ partial def invariantForInduct (info : InductiveVal) : DepM Name := do
     type := invType,
     ctors := invCtors,
   }
-  trace[nunchaku.elimdep] m!"Proposing inv {invType} {invCtors.map (·.type)}"
+  trace[chako.elimdep] m!"Proposing inv {invType} {invCtors.map (·.type)}"
 
   /-
   See note about nparams on the generic prop inductive eliminator.
@@ -1123,7 +1123,7 @@ public def transformation : Transformation MVarId MVarId NunResult NunResult whe
     name := "ElimDep"
     encode g := do
       let (g, d)  ← elim g |>.run
-      trace[nunchaku.elimdep] m!"Result: {g}"
+      trace[chako.elimdep] m!"Result: {g}"
       return (g, d)
     decode ctx res :=
       ReaderT.run (res.mapM decode) ctx

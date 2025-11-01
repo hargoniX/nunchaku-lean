@@ -68,7 +68,7 @@ public def transformation : Transformation MVarId MVarId NunResult NunResult whe
     name := "ElimComfort"
     encode g := do
       let g ← ComfortM.run <| encode g
-      trace[nunchaku.elimcomfort] m!"Result: {g}"
+      trace[chako.elimcomfort] m!"Result: {g}"
       return (g, ())
     decode _ res := return res
   }

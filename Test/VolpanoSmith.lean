@@ -129,8 +129,8 @@ inductive SecComTyping (Γ: TypeEnv) : (lvl : SecLevel) → (com : Com) → Prop
 -- TODO: currently broken due to lambda lifting
 
 /-
-set_option trace.nunchaku true in
+set_option trace.chako true in
 example (Γ : TypeEnv) (c : Com) (s s' : State) (h : ((Γ, .high) ⊢ c) ∧ (c, s) ⇝* (.skip, s')) :
     ∀ v, Γ v = some .low → s v = s' v := by
-  nunchaku
+  chako
   -/

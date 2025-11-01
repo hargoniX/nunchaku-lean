@@ -60,7 +60,7 @@ public def transformation : Transformation Lean.MVarId Lean.MVarId NunResult Nun
           continue
         let fvar := decl.fvarId
         if (← fvar.getType) matches .sort (.succ ..) then
-          trace[nunchaku.abstract] m!"Going to abstract {mkFVar fvar}"
+          trace[chako.abstract] m!"Going to abstract {mkFVar fvar}"
           let name ← mkAuxDeclName (← fvar.getUserName)
           let axiomDecl := {
             name,
@@ -79,7 +79,7 @@ public def transformation : Transformation Lean.MVarId Lean.MVarId NunResult Nun
       -- TODO: Possibly think about local instances
       Meta.withLCtx' newLCtx do
         let g := (← Meta.mkFreshExprMVar (some newType) .natural g.name).mvarId!
-        trace[nunchaku.abstract] m!"Result: {g}"
+        trace[chako.abstract] m!"Result: {g}"
         return (g, { decodeTable })
     decode ctx res :=
       ReaderT.run (res.mapM decode) ctx

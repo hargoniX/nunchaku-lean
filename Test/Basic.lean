@@ -11,7 +11,7 @@ x y : Nat
 -/
 #guard_msgs in
 example (x y : Nat) : (if x == y then panic! "Ahh" else default + 1) = 0 := by
-  nunchaku
+  chako
 
 /--
 info: Chako found a counter example:
@@ -24,7 +24,7 @@ h : n = m
 ⊢ n ≠ m
 -/
 #guard_msgs in
-example (n m : Nat) (h : n = m) : n ≠ m := by nunchaku
+example (n m : Nat) (h : n = m) : n ≠ m := by chako
 
 /--
 info: Chako found a counter example:
@@ -36,7 +36,7 @@ n m : Nat
 ⊢ n.add n = n.add m
 -/
 #guard_msgs in
-example (n m : Nat) : n.add n = n.add m := by nunchaku
+example (n m : Nat) : n.add n = n.add m := by chako
 
 /--
 info: Chako wasn't able to prove or disprove the theorem.
@@ -46,7 +46,7 @@ n m : Nat
 ⊢ n.add m = m.add n
 -/
 #guard_msgs in
-example (n m : Nat) : n.add m = m.add n := by nunchaku (timeout := 1)
+example (n m : Nat) : n.add m = m.add n := by chako (timeout := 1)
 
 
 inductive MyEven : Nat → Prop where
@@ -62,7 +62,7 @@ n : Nat
 ⊢ MyEven n
 -/
 #guard_msgs in
-example (n : Nat) : MyEven n := by nunchaku
+example (n : Nat) : MyEven n := by chako
 
 /--
 info: Chako found a counter example:
@@ -74,7 +74,7 @@ h : MyEven n
 ⊢ MyEven n.succ
 -/
 #guard_msgs in
-example (n : Nat) (h : MyEven n) : MyEven n.succ := by nunchaku
+example (n : Nat) (h : MyEven n) : MyEven n.succ := by chako
 
 /--
 info: Chako is convinced that the theorem is true.
@@ -84,7 +84,7 @@ n : Nat
 ⊢ n ≠ n.succ
 -/
 #guard_msgs in
-example (n : Nat) : n ≠ n.succ := by nunchaku
+example (n : Nat) : n ≠ n.succ := by chako
 
 
 /--
@@ -100,7 +100,7 @@ n : Nat
 example (n : Nat) :
     let m := n + (.succ .zero)
     m = n := by
-  nunchaku
+  chako
 
 /--
 info: Chako found a counter example:
@@ -117,7 +117,7 @@ example (n : Nat) :
     let m := n + (.succ .zero)
     m = n := by
   intro m
-  nunchaku
+  chako
 
 namespace Mutual
 
@@ -145,7 +145,7 @@ h2 : Even m
 -/
 #guard_msgs in
 example (n m : Nat) (h1 : Even n) (h2 : Even m) : Odd (n.add m) := by
-  nunchaku
+  chako
 
 mutual
 
@@ -167,7 +167,7 @@ x : A
 ⊢ A.step (B.step x) ≠ x
 -/
 #guard_msgs in
-example (x : A) : (.step (.step x)) ≠ x := by nunchaku
+example (x : A) : (.step (.step x)) ≠ x := by chako
 
 mutual
 
@@ -194,7 +194,7 @@ h : isEven n = true
 -/
 #guard_msgs in
 example (n : Nat) (h : isEven n) : isEven n.succ := by
-  nunchaku
+  chako
 
 mutual
 
@@ -221,7 +221,7 @@ h : IsEven n
 -/
 #guard_msgs in
 example (n : Nat) (h : IsEven n) : IsEven n.succ := by
-  nunchaku
+  chako
 
 /--
 info: Chako found a counter example:
@@ -233,7 +233,7 @@ n : Nat
 -/
 #guard_msgs in
 example (n : Nat) : IsEven n ↔ isOdd n := by
-  nunchaku
+  chako
 
 end Mutual
 
@@ -252,7 +252,7 @@ n : Nat
 -/
 #guard_msgs in
 example (n : Nat) : isZero n := by
-  nunchaku
+  chako
 
 /--
 info: Chako found a counter example:
@@ -265,13 +265,11 @@ a b : Nat
 -/
 #guard_msgs in
 example (a b : Nat) : Nat.ble a b ↔ Nat.beq a b := by
-  nunchaku
+  chako
 
 
 /--
-info: Chako found a counter example:
-val a := Nat.zero
-val b := Nat.zero
+info: Chako wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 a b : Nat
@@ -279,7 +277,7 @@ a b : Nat
 -/
 #guard_msgs in
 example (a b : Nat) : Nat.blt a b ↔ a < b := by
-  nunchaku
+  chako
 
 
 /--
@@ -294,18 +292,20 @@ n m k : Nat
 -/
 #guard_msgs in
 example {n m k : Nat} : n + m = n + k → m ≠ k := by
-  nunchaku
+  chako
 
-/-
-TODO: CVC4 currently straight up gives up on this. However if we specialised instances
-(should lean or nunchaku do that?) it just works.
-
-
-set_option trace.nunchaku true in
-example {n m : Nat} : n < m → n ≤ m := by
-  nunchaku
-
-  -/
+/--
+info: Chako found a counter example:
+val m := Nat.zero
+val n := Nat.zero
+---
+error: unsolved goals
+n m : Nat
+⊢ n ≤ m → n < m
+-/
+#guard_msgs in
+example {n m : Nat} : n ≤ m → n < m := by
+  chako
 
 /--
 info: Chako is convinced that the theorem is true.
@@ -316,7 +316,7 @@ a b : Unit
 -/
 #guard_msgs in
 example (a b : Unit) : a = b := by
-  nunchaku
+  chako
 
 /--
 info: Chako found a counter example:
@@ -329,7 +329,7 @@ a b : Unit
 -/
 #guard_msgs in
 example (a b : Unit) : a ≠ b := by
-  nunchaku
+  chako
 
 /--
 info: Chako is convinced that the theorem is true.
@@ -340,7 +340,7 @@ a b : Unit
 -/
 #guard_msgs in
 example (a b : Unit) : a = Unit.unit := by
-  nunchaku
+  chako
 
 namespace MyFoo
 
@@ -356,7 +356,7 @@ a b : Bool
 -/
 #guard_msgs in
 example (a b : Bool) : Foo a := by
-  nunchaku
+  chako
 
 inductive TwoFoo (a b : Bool) where
   | ctor (h : if a = a then True else True) : TwoFoo a b
@@ -370,6 +370,6 @@ a b : Bool
 -/
 #guard_msgs in
 example (a b : Bool) : TwoFoo a b := by
-  nunchaku
+  chako
 
 end MyFoo

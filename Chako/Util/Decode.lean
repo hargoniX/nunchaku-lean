@@ -1,6 +1,6 @@
 module
-import Chako.Util.ChakoBuilder
-import Chako.Util.ChakoPrinter
+import Chako.Util.NunchakuBuilder
+import Chako.Util.NunchakuPrinter
 public import Chako.Util.Model
 
 

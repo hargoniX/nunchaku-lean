@@ -50,14 +50,14 @@ def count (x : Alphabet) (xs : List Alphabet) : Nat :=
 TODO: this is going to work with the predicate optimization
 TODO: re-evaluate with bultin count then
 
-set_option trace.nunchaku true in
+set_option trace.chako true in
 theorem sound (h : S w) : count .a w = count .b w := by
-  nunchaku
+  chako
 -/
 
 /-
 TODO: this doesn't work at all :(
 
 theorem complete (w : List Alphabet) (h : count .a w = count .b w) : S w := by
-  nunchaku
+  chako
 -/

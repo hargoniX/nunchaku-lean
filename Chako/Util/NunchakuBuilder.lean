@@ -1,6 +1,6 @@
 module
 
-public import Chako.Util.ChakoSyntax
+public import Chako.Util.NunchakuSyntax
 public import Std.Data.HashSet.Basic
 
 /-!

@@ -6,7 +6,7 @@ public import Chako.Attr
 public meta import Chako.Attr -- TODO: this should not be necessary
 import Lean.Meta.Match.MatchEqsExt
 import Chako.Util.AuxiliaryConsts
-public import Chako.Util.ChakoSyntax
+public import Chako.Util.NunchakuSyntax
 
 /-!
 This module contains the definition of the `TransforM` monad which is the core
@@ -86,7 +86,7 @@ def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) := do
     if visited.contains elem || isBuiltin elem then
       continue
     visited := visited.insert elem
-    trace[nunchaku.equations] m!"Working {elem}"
+    trace[chako.equations] m!"Working {elem}"
     let constInfo ← getConstInfo elem
     match constInfo with
     | .defnInfo info =>
@@ -129,13 +129,13 @@ public def mkFreshName (name : Name) (pref : String := "") : TransforM Name := d
 
 public def run (g : MVarId) (cfg : ChakoConfig) (x : TransforM α) : MetaM α := do
   let equations ←
-    withTraceNode `nunchaku.equations (fun _ => return m!"Looking for equations") do
+    withTraceNode `chako.equations (fun _ => return m!"Looking for equations") do
       findEquations g
-  withTraceNode `nunchaku.equations (fun _ => return m!"Collected Equations") do
+  withTraceNode `chako.equations (fun _ => return m!"Collected Equations") do
     for (name, eqns) in equations do
-      trace[nunchaku.equations] m!"- {name}"
+      trace[chako.equations] m!"- {name}"
       for eq in eqns do
-        trace[nunchaku.equations] m!"  - {eq}"
+        trace[chako.equations] m!"  - {eq}"
 
   StateRefT'.run' (ReaderT.run x cfg) { equations }
 

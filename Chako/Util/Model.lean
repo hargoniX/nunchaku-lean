@@ -3,9 +3,9 @@ module
 public import Lean.Expr
 public import Lean.Message
 public import Chako.Util.Sexp
-public import Chako.Util.ChakoSyntax
-import Chako.Util.ChakoBuilder
-import Chako.Util.ChakoPrinter
+public import Chako.Util.NunchakuSyntax
+import Chako.Util.NunchakuBuilder
+import Chako.Util.NunchakuPrinter
 import Std.Data.TreeSet.Basic
 
 /-!

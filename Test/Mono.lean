@@ -24,7 +24,7 @@ a b : Tree Nat
 -/
 #guard_msgs in
 example (a b : Tree Nat) : a.map Nat.succ = a := by
-  nunchaku
+  chako
 -/
 end Bar
 
@@ -40,9 +40,11 @@ def MList.map (xs : MList α) (f : α → β) : MList β :=
   | .cons x xs => .cons (f x) (map xs f)
 
 
-/-
 /--
-info: The prover found a counter example
+info: Chako found a counter example:
+inductive α where | $α_0
+val f := (fun (v_0 : α) . $α_0)
+val xs := Foo.MList.nil
 ---
 error: unsolved goals
 α : Type
@@ -52,8 +54,8 @@ f : α → α
 -/
 #guard_msgs in
 example (α : Type) (xs : MList α) (f : α → α) : xs.map f ≠ xs := by
-  nunchaku
--/
+  chako
+
 end Foo
 
 /--
@@ -64,7 +66,7 @@ error: unsolved goals
 -/
 #guard_msgs in
 example  : [].map id ≠ ([] : List Nat) := by
-  nunchaku
+  chako
 
 /--
 info: Chako found a counter example:
@@ -78,7 +80,7 @@ xs : List a
 -/
 #guard_msgs in
 example (xs : List a) : xs = [] := by
-  nunchaku
+  chako
 
 /--
 info: Chako found a counter example:
@@ -92,7 +94,7 @@ xs : List α
 -/
 #guard_msgs in
 example (xs : List α) : xs.map id ≠ xs := by
-  nunchaku
+  chako
 
 /--
 info: Chako found a counter example:
@@ -106,7 +108,7 @@ xs : List (List α)
 -/
 #guard_msgs in
 example (xs : List (List α)) : xs.map id ≠ xs := by
-  nunchaku
+  chako
 
 /--
 info: Chako found a counter example:
@@ -120,7 +122,7 @@ xs : List (List α)
 -/
 #guard_msgs in
 example (xs : List (List α)) : xs.map (·.map id) ≠ xs := by
-  nunchaku
+  chako
 
 def sumalt : List Nat → Nat :=
   List.foldr Nat.add .zero
@@ -135,7 +137,7 @@ h : xs ≠ []
 -/
 #guard_msgs in
 example (xs : List Nat) (h : xs ≠ []) : sumalt xs ≠ .zero := by
-  nunchaku
+  chako
 
 def sumalt' : List Nat → Nat :=
   List.foldr (· + ·) .zero
@@ -151,7 +153,7 @@ x y : Nat
 -/
 #guard_msgs in
 example (x y : Nat) : x + y ≠ x := by
-  nunchaku
+  chako
 
 /--
 info: Chako wasn't able to prove or disprove the theorem.
@@ -163,7 +165,7 @@ h : xs ≠ []
 -/
 #guard_msgs in
 example (xs : List Nat) (h : xs ≠ []) : sumalt' xs ≠ .zero := by
-  nunchaku
+  chako
 
 def foo (xs : List α) : List α := id xs
 
@@ -177,7 +179,7 @@ xs : List α
 -/
 #guard_msgs in
 example (xs : List α) : foo xs = id xs := by
-  nunchaku
+  chako
 
 /-
 /--
@@ -192,7 +194,7 @@ h : xs = []
 -/
 #guard_msgs in
 example (xs : List α) (h : xs = []) : xs.all f = false := by
-  nunchaku
+  chako
 -/
 inductive MyAll {α : Type} (p : α → Prop) : List α → Prop where
   | nil : MyAll p []
@@ -209,7 +211,7 @@ h : xs = []
 -/
 #guard_msgs in
 example (xs : List α) (h : xs = []) : MyAll (fun _ => False) xs := by
-  nunchaku
+  chako
 
 /-
 /-
@@ -218,8 +220,8 @@ inductive MyEven : Nat → Prop where
   | zero : MyEven Nat.zero
   | succ : MyEven n → MyEven (Nat.zero.succ.succ + n)
 
-set_option trace.nunchaku true in
-example (n : Nat) : MyEven n := by nunchaku
+set_option trace.chako true in
+example (n : Nat) : MyEven n := by chako
 -/
 -/
 
@@ -235,7 +237,7 @@ b : α✝
 -/
 #guard_msgs in
 example : [].foldl f b = b := by
-  nunchaku
+  chako
 
 /--
 info: Chako found a counter example:
@@ -255,28 +257,32 @@ h : as.concat a = bs.concat b
 #guard_msgs in
 example {as bs : List α} {a b : α} (h : as.concat a = bs.concat b) :
     ¬ (as = bs ∧ a = b) := by
-  nunchaku
+  chako
 
 
 /-
 -/
 
 /--
-info: The prover found a counter example
+info: Chako found a counter example:
+val $$anon_fun_0 := (fun (v_1 : α) . (fun (v_2 : α) . (if (v_1 = $α_0) then (?__ $$anon_fun_0 v_1 v_2) else (if (and (v_1 = $α_0) (v_2 = $α_0)) then Bool.false else (?__ $$anon_fun_0 v_1 v_2)))))
+inductive α where | $α_0
+val a := $α_0
+val as := List.nil
+val inst._@.Test.Mono.2021293408._hygCtx._hyg.8 := (BEq.mk $$anon_fun_0)
+val lt := (fun (v_0 : α) . (fun (v_1 : α) . Bool.false))
 ---
 error: unsolved goals
-α : Type u_1
+α : Type
 lt : α → α → Bool
 inst✝ : BEq α
 a : α
 as : List α
 ⊢ (a :: as).lex [] lt = true
 -/
---#guard_msgs in
-
-set_option trace.nunchaku true in
-example [BEq α] {a} {as : List α} : List.lex (a :: as) [] lt = true := by
-  nunchaku
+#guard_msgs in
+example {α : Type} {lt : α → α → Bool} [BEq α] {a} {as : List α} : List.lex (a :: as) [] lt = true := by
+  chako
 
 /--
 info: Chako found a counter example:
@@ -297,13 +303,13 @@ f : α → List β
 #guard_msgs in
 example {x : α} {xs : List α} {f : α → List β} :
     List.flatMap f (x :: xs) = List.flatMap f xs := by
-  nunchaku
+  chako
 
 /--
 info: Chako found a counter example:
-inductive α where | $α_0 | $α_1
-val a := $α_1
-val as := (List.cons $α_1 List.nil)
+inductive α where | $α_0
+val a := $α_0
+val as := (List.cons $α_0 List.nil)
 val bs := List.nil
 ---
 error: unsolved goals
@@ -314,18 +320,18 @@ as bs : List α
 -/
 #guard_msgs in
 example {a : α} {as : List α} (bs : List α) : a ∈ as → ¬ a ∈ as ++ bs := by
-  nunchaku
+  chako
 
 /-
 
 TODO: This has additional pre preconditions in the equation → requires more stuff
 
-set_option trace.nunchaku true in
+set_option trace.chako true in
 example [BEq α] : List.isSuffixOf ([] : List α) l = false := by
-  nunchaku
+  chako
 
 example [BEq α] {l : List α} : (l != []) = l.isEmpty := by
-  nunchaku
+  chako
 -/
 
 section
@@ -346,7 +352,7 @@ as : List Nat
 -/
 #guard_msgs in
 example {a : Nat} {as : List Nat} : myelem a as = false ↔ a ∈ as := by
-  nunchaku
+  chako
 
 end
 
@@ -355,7 +361,7 @@ end
 TODO: broken if output
 example {p : α → Bool} {as : List α} {bs : List α} :
     List.filterTR.loop p as bs = List.filter p as := by
-  nunchaku
+  chako
 -/
 
 -- TODO: This problem works if we get rid of the useless constraints on `xs`
@@ -376,7 +382,7 @@ xs : List ((α → β) × α)
 #guard_msgs in
 example {α β : Type} (xs : List ((α → β) × α)) :
     xs.map (fun (f, s) => f s) = [] := by
-  nunchaku
+  chako
 
 /--
 info: Chako found a counter example:
@@ -395,7 +401,7 @@ a b : α
 -/
 #guard_msgs in
 example {f : α → β} {a b : α} : List.map f [a] = [f b] := by
-  nunchaku
+  chako
 
 /--
 info: Chako found a counter example:
@@ -414,7 +420,7 @@ h : b ∈ List.map f l
 -/
 #guard_msgs in
 example {f : α → α} (h : b ∈ List.map f l) : ∃ a, b ∈ l ∧ f a = b := by
-  nunchaku
+  chako
 
 /--
 info: Chako found a counter example:
@@ -431,7 +437,7 @@ l : List α
 -/
 #guard_msgs in
 example {a : α} {l : List α} : a ∈ l ↔ ∃ s t : List α, l = s ++ t := by
-  nunchaku
+  chako
 
 namespace FunFlow
 
@@ -449,7 +455,7 @@ f : α → β
 -/
 #guard_msgs in
 example {α β : Type} (f : α → β) : (some f).isNone := by
-  nunchaku
+  chako
 
 end FunFlow
 
@@ -466,5 +472,5 @@ x y : α
 -/
 #guard_msgs in
 example (x y : α) : x = y := by
-  nunchaku
+  chako
 

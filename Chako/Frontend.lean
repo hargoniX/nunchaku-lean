@@ -5,12 +5,12 @@ public import Chako.Attr
 public meta import Chako.Util.Model
 import Chako.Transformation
 meta import Chako.Transformation
-meta import Chako.Util.ChakoPrinter
+meta import Chako.Util.NunchakuPrinter
 meta import Lean.Elab.Tactic.BVDecide.External
 meta import Lean.Meta.Tactic.Intro
 
 /-!
-This module contains the main entry point to the nunchaku tactic.
+This module contains the main entry point to the chako tactic.
 -/
 
 namespace Chako
@@ -20,9 +20,9 @@ open Lean Elab Tactic
 public meta def runSolver (problem : NunProblem) (cfg : ChakoConfig) :
     MetaM NunResult := do
   IO.FS.withTempFile fun nunHandle nunPath => do
-    withTraceNode `nunchaku.solver (fun _ => return "Serializing Chako problem") do
+    withTraceNode `chako.solver (fun _ => return "Serializing Chako problem") do
       let problem ← IO.lazyPure fun _ => toString problem
-      trace[nunchaku.output] s!"Handing problem to Chako:\n{problem}"
+      trace[chako.output] s!"Handing problem to Chako:\n{problem}"
       nunHandle.putStr problem
       nunHandle.flush
 
@@ -45,7 +45,7 @@ public meta def runSolver (problem : NunProblem) (cfg : ChakoConfig) :
       nunPath.toString
     ]
     let strArgs := String.intercalate " " args.toList
-    trace[nunchaku] m!"Calling solver with {strArgs}"
+    trace[chako] m!"Calling solver with {strArgs}"
 
     let out? ← BVDecide.External.runInterruptible (cfg.timeout + 2) { cmd, args, stdin := .piped, stdout := .piped, stderr := .null }
     match out? with
@@ -66,17 +66,17 @@ public meta def runChako (g : MVarId) (cfg : ChakoConfig) : MetaM NunResult := d
   TransforM.run g cfg do
     withoutModifyingEnv do
       let (problem, back) ←
-        withTraceNode `nunchaku (fun _ => return "Running forward pipeline") do
+        withTraceNode `chako (fun _ => return "Running forward pipeline") do
           Transformation.pipeline.run g
       let res ←
-        withTraceNode `nunchaku (fun _ => return "Running Chako") do
+        withTraceNode `chako (fun _ => return "Running Chako") do
           runSolver problem (← TransforM.getConfig)
-      withTraceNode `nunchaku (fun _ => return "Running the backwards pipeline") do
+      withTraceNode `chako (fun _ => return "Running the backwards pipeline") do
         back res
 
-@[tactic nunchakuStx]
+@[tactic chakoStx]
 public meta def evalChako : Tactic
-  | `(tactic| nunchaku $cfg:optConfig) => do
+  | `(tactic| chako $cfg:optConfig) => do
     let cfg ← elabChakoConfig cfg
     let res ← runChako (← getMainGoal) cfg
     logInfo m!"{res}"

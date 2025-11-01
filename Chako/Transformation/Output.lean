@@ -1,10 +1,10 @@
 module
 
 public import Chako.Util.Pipeline
-public import Chako.Util.ChakoSyntax
+public import Chako.Util.NunchakuSyntax
 public import Chako.Util.Model
-import Chako.Util.ChakoBuilder
-import Chako.Util.ChakoPrinter
+import Chako.Util.NunchakuBuilder
+import Chako.Util.NunchakuPrinter
 import Chako.Util.AuxiliaryConsts
 import Lean.Util.SCC
 import Chako.Util.AddDecls
@@ -311,7 +311,7 @@ def encodePredCtor (ctor : Name) : OutputM NunTerm := do
         else
           values := values.push arg
 
-      trace[nunchaku] m!"{values}, {props}, {concl}"
+      trace[chako] m!"{values}, {props}, {concl}"
       if h : 0 < props.size then
         let cond ← props[1:].foldlM (init := ← props[0].fvarId!.getType) fun acc prop => do
           let prop ← prop.fvarId!.getType
@@ -410,11 +410,11 @@ def encodeComponent (component : List LeanIdentifier) : OutputM Unit := do
   match component with
   | [.goal goal] =>
     let statement ← goal.getType
-    trace[nunchaku.output] m!"Encoding the goal: {statement}"
+    trace[chako.output] m!"Encoding the goal: {statement}"
     let encoded ← encodeTerm statement
     addCommand <| .goalDecl encoded
   | [.assumption fvar] =>
-    trace[nunchaku.output] m!"Encoding fvar: {mkFVar fvar}"
+    trace[chako.output] m!"Encoding fvar: {mkFVar fvar}"
     let type ← fvar.getType
     match ← Meta.inferType type with
     | .sort 0 =>
@@ -428,7 +428,7 @@ def encodeComponent (component : List LeanIdentifier) : OutputM Unit := do
       addCommand <| .valDecl mangled encoded
     | ttype => throwError m!"Don't know how to handle {mkFVar fvar} : {type} : {ttype}"
   | [.const name] =>
-    trace[nunchaku.output] m!"Encoding constant: {mkConst name}"
+    trace[chako.output] m!"Encoding constant: {mkConst name}"
     let constInfo ← getConstInfo name
     match constInfo with
     | .axiomInfo val | .opaqueInfo val =>
@@ -442,11 +442,11 @@ def encodeComponent (component : List LeanIdentifier) : OutputM Unit := do
     | .defnInfo val => encodeDefn [val]
     | .inductInfo val => encodeInduct val
     | .thmInfo val | .ctorInfo val | .recInfo val =>
-      trace[nunchaku.output] m!"Ignoring {val.name} as it should be irrelevant"
+      trace[chako.output] m!"Ignoring {val.name} as it should be irrelevant"
       return ()
     | .quotInfo _ => throwError "Cannot handle quotients"
   | .const name :: remainder =>
-    trace[nunchaku.output] m!"Encoding mutual component with {name}"
+    trace[chako.output] m!"Encoding mutual component with {name}"
     let constInfo ← getConstInfo name
     match constInfo with
     | .defnInfo val =>

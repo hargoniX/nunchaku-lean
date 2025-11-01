@@ -1,9 +1,9 @@
 module
 
 public import Chako.Util.Pipeline
-public import Chako.Util.ChakoSyntax
-public import Chako.Util.ChakoBuilder
-public import Chako.Util.ChakoPrinter
+public import Chako.Util.NunchakuSyntax
+public import Chako.Util.NunchakuBuilder
+public import Chako.Util.NunchakuPrinter
 public import Chako.Util.Model
 public import Chako.Util.TransforM
 public import Chako.Util.AddDecls

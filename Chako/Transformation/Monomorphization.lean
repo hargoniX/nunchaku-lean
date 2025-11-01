@@ -4,7 +4,7 @@ public import Chako.Util.Pipeline
 public import Chako.Util.Model
 import Chako.Util.AddDecls
 import Chako.Util.Decode
-import Chako.Util.ChakoPrinter
+import Chako.Util.NunchakuPrinter
 
 import Chako.Transformation.Monomorphization.Collect
 import Chako.Transformation.Monomorphization.Solve
@@ -83,11 +83,11 @@ public def transformation : Transformation MVarId MVarId NunResult NunResult whe
       if h : !constraintsSolvable constraints then
         throwError "The goal cannot be monomorphised."
       else
-        trace[nunchaku.mono] m!"Constraints: {constraints}"
+        trace[chako.mono] m!"Constraints: {constraints}"
         let solution := solveConstraints constraints (by simpa using h)
-        trace[nunchaku.mono] m!"Solution: {solution.toList}"
+        trace[chako.mono] m!"Solution: {solution.toList}"
         let (g, d) ← (specialize g).run { solution } monoAnalysis
-        trace[nunchaku.mono] m!"Result: {g}"
+        trace[chako.mono] m!"Result: {g}"
         return (g, d)
     decode ctx res :=
       ReaderT.run (res.mapM decode) ctx

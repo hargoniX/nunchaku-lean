@@ -15,7 +15,7 @@ f : Foo
 -/
 #guard_msgs in
 example (f : Foo) : f.x = f.y := by
-  nunchaku
+  chako
 
 /--
 info: Chako is convinced that the theorem is true.
@@ -26,7 +26,7 @@ producer : Nat → Foo
 -/
 #guard_msgs in
 example (producer : Nat → Foo) : (producer .zero).x = (producer .zero).y := by
-  nunchaku
+  chako
 
 /--
 info: Chako wasn't able to prove or disprove the theorem.
@@ -37,7 +37,7 @@ xs : List Foo
 -/
 #guard_msgs in
 example (xs : List Foo) : ∀ x ∈ xs, x.x = x.y := by
-  nunchaku
+  chako
 
 /--
 info: Chako is convinced that the theorem is true.
@@ -47,7 +47,7 @@ error: unsolved goals
 -/
 #guard_msgs in
 example : 0 = .zero := by
-  nunchaku
+  chako
 
 /--
 info: Chako is convinced that the theorem is true.
@@ -57,7 +57,7 @@ error: unsolved goals
 -/
 #guard_msgs in
 example : 1 = .succ .zero := by
-  nunchaku
+  chako
 
 namespace HiddenQuantifiers
 
@@ -82,7 +82,7 @@ error: unsolved goals
 -/
 #guard_msgs in
 example : Hidden Val (Bar (fun v => v.x = v.y)) := by
-  nunchaku
+  chako
 
 end Ex1
 
@@ -99,7 +99,7 @@ error: unsolved goals
 -/
 #guard_msgs in
 example : Hidden Val Bar := by
-  nunchaku
+  chako
 
 end Ex2
 
@@ -120,7 +120,7 @@ error: unsolved goals
 -/
 #guard_msgs in
 example : OnlyEmptyLists EmptyFin := by
-  nunchaku
+  chako
 
 end Ex4
 
@@ -150,7 +150,7 @@ error: unsolved goals
 -/
 #guard_msgs in
 example : MyProp := by
-  nunchaku (timeout := 1)
+  chako (timeout := 1)
 
 axiom foo (xs : Vect n) : mylen (Vect.toList xs) = n
 
@@ -189,7 +189,7 @@ f : α → β
 -/
 #guard_msgs in
 example (xs : Vec α n) (f : α → β) : xs.length = (xs.map f).length := by
-  nunchaku
+  chako
 
 /--
 info: Chako found a counter example:
@@ -205,7 +205,7 @@ xs : Vec α n
 -/
 #guard_msgs in
 example (xs : Vec α n) : xs.length = 0 := by
-  nunchaku
+  chako
 
 /--
 info: Chako is convinced that the theorem is true.
@@ -219,7 +219,7 @@ xs : Vec (Vec α m) n
 -/
 #guard_msgs in
 example {f : α → β} (xs : Vec (Vec α m) n) : xs.length = (xs.map (fun v => v.map f)).length := by
-  nunchaku
+  chako
 
 /--
 info: Chako found a counter example:
@@ -233,7 +233,7 @@ inst : Decidable p
 -/
 #guard_msgs in
 example [inst : Decidable p] : p := by
-  nunchaku
+  chako
 
 namespace DepExists
 
@@ -247,7 +247,7 @@ error: unsolved goals
 -/
 #guard_msgs in
 example : Exists (α := False) fun _ => True := by
-  nunchaku
+  chako
 
 /--
 info: Chako is convinced that the theorem is true.
@@ -257,7 +257,7 @@ error: unsolved goals
 -/
 #guard_msgs in
 example : Exists (α := True) foo := by
-  nunchaku
+  chako
 
 /--
 info: Chako found a counter example:
@@ -267,7 +267,7 @@ error: unsolved goals
 -/
 #guard_msgs in
 example : Exists (α := True) fun _ => False := by
-  nunchaku
+  chako
 
 end DepExists
 
@@ -293,6 +293,6 @@ h : xs.isEmpty = false
 -/
 #guard_msgs in
 example (xs : List Nat) (h : xs.isEmpty = false) : head1 xs h = head2 xs h := by
-  nunchaku
+  chako
 
 end Unreachable

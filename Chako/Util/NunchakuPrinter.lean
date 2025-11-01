@@ -1,7 +1,7 @@
 module
 
-public import Chako.Util.ChakoSyntax
-import Chako.Util.ChakoBuilder
+public import Chako.Util.NunchakuSyntax
+import Chako.Util.NunchakuBuilder
 
 /-!
 This module contains the implementation of the Chako pretty printer, used to dump Chako

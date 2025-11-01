@@ -30,7 +30,7 @@ def declarationDependencies (decl : Declaration) : TransforM (List Name) := do
   | .inductDecl .. | .mutualDefnDecl ..  | .thmDecl .. | .quotDecl .. => unreachable!
 
 def addComponent (component : List Declaration) : TransforM Unit := do
-  trace[nunchaku] m!"Adding {component.map (·.getTopLevelNames)}"
+  trace[chako] m!"Adding {component.map (·.getTopLevelNames)}"
   match component with
   | [] => unreachable!
   | [decl] => addDecl decl
