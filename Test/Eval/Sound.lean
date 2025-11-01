@@ -1,5 +1,6 @@
-import Nunchaku
+import Chako
 import Test.Eval.RbSet
+
 #exit
 #eval_nunchaku_sound_module Init.Data.List.Basic "results/sound/list_basic.csv"
 #eval_nunchaku_sound_module Init.Data.List.Lemmas "results/sound/list_lemmas.csv"

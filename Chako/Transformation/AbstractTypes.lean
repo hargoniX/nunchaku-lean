@@ -1,15 +1,15 @@
 module
 
-public import Nunchaku.Util.Pipeline
-public import Nunchaku.Util.Model
-import Nunchaku.Util.Decode
+public import Chako.Util.Pipeline
+public import Chako.Util.Model
+import Chako.Util.Decode
 
 /-!
 This module contains the transformation for abstracting free variables that are types formers into
 into axioms in order to enable specialisations of types that depend on free variables.
 -/
 
-namespace Nunchaku
+namespace Chako
 namespace Transformation
 namespace AbstractTypes
 
@@ -87,4 +87,4 @@ public def transformation : Transformation Lean.MVarId Lean.MVarId NunResult Nun
 
 end AbstractTypes
 end Transformation
-end Nunchaku
+end Chako

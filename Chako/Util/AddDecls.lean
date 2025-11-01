@@ -1,9 +1,9 @@
 module
 import Lean.Util.SCC
 public import Lean.AddDecl
-public import Nunchaku.Util.TransforM
+public import Chako.Util.TransforM
 
-namespace Nunchaku
+namespace Chako
 
 open Lean Core
 
@@ -91,4 +91,4 @@ public def addDecls : TransforM Unit := do
 
 end TransforM
 
-end Nunchaku
+end Chako

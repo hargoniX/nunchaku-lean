@@ -2,18 +2,18 @@ module
 
 public import Lean.Expr
 public import Lean.Message
-public import Nunchaku.Util.Sexp
-public import Nunchaku.Util.NunchakuSyntax
-import Nunchaku.Util.NunchakuBuilder
-import Nunchaku.Util.NunchakuPrinter
+public import Chako.Util.Sexp
+public import Chako.Util.ChakoSyntax
+import Chako.Util.ChakoBuilder
+import Chako.Util.ChakoPrinter
 import Std.Data.TreeSet.Basic
 
 /-!
-This module contains the definition of a Nunchaku result, including the kind of models
+This module contains the definition of a Chako result, including the kind of models
 nunchaku is capable of returning.
 -/
 
-namespace Nunchaku
+namespace Chako
 
 public section
 
@@ -160,13 +160,13 @@ instance : Lean.ToMessageData NunResult where
   toMessageData res :=
     -- TODO
     match res with
-    | .unsat => "Nunchaku is convinced that the theorem is true."
-    | .unknown => "Nunchaku wasn't able to prove or disprove the theorem."
-    | .sat model => m!"Nunchaku found a counter example:\n{model}"
+    | .unsat => "Chako is convinced that the theorem is true."
+    | .unknown => "Chako wasn't able to prove or disprove the theorem."
+    | .sat model => m!"Chako found a counter example:\n{model}"
 
 end NunResult
 
 
 end
 
-end Nunchaku
+end Chako

@@ -10,7 +10,7 @@ This module contains declarations of environment extensions etc. used in the `nu
 
 open Lean
 
-namespace Nunchaku
+namespace Chako
 
 initialize registerTraceClass `nunchaku
 initialize registerTraceClass `nunchaku.solver (inherited := true)
@@ -24,12 +24,12 @@ initialize registerTraceClass `nunchaku.output (inherited := true)
 
 public section
 
-inductive NunchakuConfig.Solvers where
+inductive ChakoConfig.Solvers where
   | cvc4
   | smbc
   | kodkod
 
-def NunchakuConfig.Solvers.toCliArg : Solvers → String
+def ChakoConfig.Solvers.toCliArg : Solvers → String
   | .cvc4 => "cvc4"
   | .smbc => "smbc"
   | .kodkod => "kodkod"
@@ -37,22 +37,22 @@ def NunchakuConfig.Solvers.toCliArg : Solvers → String
 /--
 The configuration options for `nunchaku`.
 -/
-structure NunchakuConfig where
+structure ChakoConfig where
   /-- The number of seconds that the model finder is run before aborting. -/
   timeout : Nat := 10
   /-- Whether to look for a counter-model, if set to `false` looks for a model instead. -/
   falsify : Bool := true
   /-- The list of portfolio solvers to try. -/
-  solvers : Array NunchakuConfig.Solvers := #[.cvc4, .smbc, .kodkod]
+  solvers : Array ChakoConfig.Solvers := #[.cvc4, .smbc, .kodkod]
 
-declare_config_elab elabNunchakuConfig Nunchaku.NunchakuConfig
+declare_config_elab elabChakoConfig Chako.ChakoConfig
 
 /--
-Invoke the external model finder Nunchaku in an attempt to find a counter example for the current
+Invoke the external model finder Chako in an attempt to find a counter example for the current
 goal state.
 -/
 syntax (name := nunchakuStx) "nunchaku" Lean.Parser.Tactic.optConfig : tactic
 
 end
 
-end Nunchaku
+end Chako

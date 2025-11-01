@@ -1,10 +1,10 @@
 module
 public meta import Lean.Elab.Command
 import Lean.Elab.Command
-meta import Nunchaku.Frontend
-meta import Nunchaku.Transformation
+meta import Chako.Frontend
+meta import Chako.Transformation
 
-namespace Nunchaku
+namespace Chako
 namespace Eval
 
 public section
@@ -116,7 +116,7 @@ meta def timedRun [Monad m] [MonadExceptOf Exception m] [MonadLiftT BaseIO m] (x
     let endTime ← IO.monoMsNow
     return ⟨.error ex, endTime - startTime⟩
 
-meta def tryNunchakuOn (evalProblem : Problem) : MetaM Result := do
+meta def tryChakoOn (evalProblem : Problem) : MetaM Result := do
   let g := evalProblem.g
   let (_, g) ← g.intros
 
@@ -193,7 +193,7 @@ meta def isBlackListed (declName : Name) : CoreM Bool := do
     <||> Meta.isMatcher declName
   | none => return true
 
-meta def evalNunchaku (targetModule : Name) (file : System.FilePath)
+meta def evalChako (targetModule : Name) (file : System.FilePath)
     (problemGenerator : TheoremVal → MetaM (Array Problem)) : MetaM Unit := do
   let env ← getEnv
   let some targetModuleIdx := env.getModuleIdx? targetModule |
@@ -210,7 +210,7 @@ meta def evalNunchaku (targetModule : Name) (file : System.FilePath)
   let out ← IO.FS.Handle.mk file .write
   out.putStrLn "theorem,mutant,result,encoding,nunchaku,recovery"
   targets.forM fun target => do
-    let res ← tryNunchakuOn target
+    let res ← tryChakoOn target
     let mut resStr := s!"{target.thm},"
     resStr := resStr ++ s!"{target.mutation.getD 0},"
     resStr :=
@@ -228,17 +228,17 @@ meta def evalNunchaku (targetModule : Name) (file : System.FilePath)
     out.putStrLn resStr
 
 elab "#eval_nunchaku_sound_module" id:ident file:str : command => do
-  Elab.Command.liftTermElabM (evalNunchaku id.getId file.getString Problem.fromTheorem)
+  Elab.Command.liftTermElabM (evalChako id.getId file.getString Problem.fromTheorem)
 
 elab "#eval_nunchaku_perf_module" id:ident file:str : command => do
-  Elab.Command.liftTermElabM (evalNunchaku id.getId file.getString Problem.mutationsFromTheorem)
+  Elab.Command.liftTermElabM (evalChako id.getId file.getString Problem.mutationsFromTheorem)
 
 elab "#eval_nunchaku_sound_decl" id:ident : command => do
   Elab.Command.liftTermElabM do
     let .thmInfo cinfo ← getConstInfo id.getId
       | throwError m!"Not a theorem {id}"
     let problem ← Problem.fromTheorem cinfo
-    let res ← tryNunchakuOn problem[0]!
+    let res ← tryChakoOn problem[0]!
     logInfo m!"{res}"
 
 elab "#eval_nunchaku_perf_decl" id:ident : command => do
@@ -248,10 +248,10 @@ elab "#eval_nunchaku_perf_decl" id:ident : command => do
     let problems ← Problem.mutationsFromTheorem cinfo
     for problem in problems do
       logInfo m!"{problem.g}"
-      let res ← tryNunchakuOn problem
+      let res ← tryChakoOn problem
       logInfo m!"{res}"
 
 end
 
 end Eval
-end Nunchaku
+end Chako

@@ -4,7 +4,7 @@ public import Lean.Meta.Basic
 public import Lean.Meta.Tactic.FVarSubst
 import Lean.Meta.Tactic.Util
 
-namespace Nunchaku
+namespace Chako
 
 open Lean Meta
 
@@ -91,4 +91,4 @@ public def mapExtendMVarId [MonadControlT MetaM m] [MonadLiftT MetaM m] [MonadEr
       let g := (← Lean.Meta.mkFreshExprMVar newType).mvarId!
       return g
 
-end Nunchaku
+end Chako

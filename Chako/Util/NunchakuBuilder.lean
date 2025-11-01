@@ -1,13 +1,13 @@
 module
 
-public import Nunchaku.Util.NunchakuSyntax
+public import Chako.Util.ChakoSyntax
 public import Std.Data.HashSet.Basic
 
 /-!
-This module contains utility functions for building Nunchaku syntax and problems.
+This module contains utility functions for building Chako syntax and problems.
 -/
 
-namespace Nunchaku
+namespace Chako
 
 public section
 
@@ -75,4 +75,4 @@ where
 
 end
 
-end Nunchaku
+end Chako

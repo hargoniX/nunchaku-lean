@@ -1,4 +1,4 @@
-import Nunchaku
+import Chako
 import Test.Eval.RbSet
 #exit
 #eval_nunchaku_perf_module Init.Data.List.Basic "results/perf/list_basic.csv"

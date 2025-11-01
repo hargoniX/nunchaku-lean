@@ -1,13 +1,13 @@
 module
 
 import Lean.Meta.Basic
-public import Nunchaku.Util.TransforM
+public import Chako.Util.TransforM
 
 /-!
 This module contains the definition of an abstract notion of a reduction pipeline.
 -/
 
-namespace Nunchaku
+namespace Chako
 
 open Lean
 
@@ -49,4 +49,4 @@ end Pipeline
 
 end
 
-end Nunchaku
+end Chako

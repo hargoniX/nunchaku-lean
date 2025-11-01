@@ -1,8 +1,8 @@
 module
 
-public import Nunchaku.Transformation.Monomorphization.Util
+public import Chako.Transformation.Monomorphization.Util
 
-namespace Nunchaku
+namespace Chako
 namespace Transformation
 namespace Monomorphization
 namespace Solve
@@ -138,4 +138,4 @@ public partial def solveConstraints (constraints : List FlowConstraint)
 end Solve
 end Monomorphization
 end Transformation
-end Nunchaku
+end Chako

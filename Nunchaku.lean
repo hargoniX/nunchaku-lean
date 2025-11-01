@@ -1,6 +1,6 @@
 module
 
-public meta import Nunchaku.Attr
-public meta import Nunchaku.Frontend
-import Nunchaku.Transformation
-import Nunchaku.Util
+public meta import Chako.Attr
+public meta import Chako.Frontend
+import Chako.Transformation
+import Chako.Util

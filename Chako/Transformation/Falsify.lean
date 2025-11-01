@@ -1,13 +1,13 @@
 module
 
-public import Nunchaku.Util.Pipeline
-public import Nunchaku.Util.Model
+public import Chako.Util.Pipeline
+public import Chako.Util.Model
 
 /-!
 This module contains the transformation for negating the goal should that be necessary.
 -/
 
-namespace Nunchaku
+namespace Chako
 namespace Transformation
 namespace Falsify
 
@@ -28,4 +28,4 @@ public def transformation : Transformation Lean.MVarId Lean.MVarId NunResult Nun
 
 end Falsify
 end Transformation
-end Nunchaku
+end Chako

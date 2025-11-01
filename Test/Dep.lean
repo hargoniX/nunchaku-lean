@@ -1,4 +1,4 @@
-import Nunchaku
+import Chako
 
 
 structure Foo where
@@ -7,7 +7,7 @@ structure Foo where
   h : x = y
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 f : Foo
@@ -18,7 +18,7 @@ example (f : Foo) : f.x = f.y := by
   nunchaku
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 producer : Nat → Foo
@@ -29,7 +29,7 @@ example (producer : Nat → Foo) : (producer .zero).x = (producer .zero).y := by
   nunchaku
 
 /--
-info: Nunchaku wasn't able to prove or disprove the theorem.
+info: Chako wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 xs : List Foo
@@ -40,7 +40,7 @@ example (xs : List Foo) : ∀ x ∈ xs, x.x = x.y := by
   nunchaku
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 ⊢ 0 = Nat.zero
@@ -50,7 +50,7 @@ example : 0 = .zero := by
   nunchaku
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 ⊢ 1 = Nat.zero.succ
@@ -75,7 +75,7 @@ inductive Bar {α : Type} (p : α → Prop) : α → Prop where
   | intro (x : α) (h : p x) : Bar p x
 
 /--
-info: Nunchaku wasn't able to prove or disprove the theorem.
+info: Chako wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 ⊢ Hidden Val (Bar fun v => v.x = v.y)
@@ -92,7 +92,7 @@ inductive Bar : Val → Prop
   | intro (v : Val) (h : v.x = v.y) : Bar v
 
 /--
-info: Nunchaku wasn't able to prove or disprove the theorem.
+info: Chako wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 ⊢ Hidden Val Bar
@@ -113,7 +113,7 @@ structure EmptyFin where
   h : False -- to avoid encoding 0 < n
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 ⊢ OnlyEmptyLists EmptyFin
@@ -143,7 +143,7 @@ inductive MyProp : Prop where
   | intro (n : Nat) (x : Vect n) (h : mylen (Vect.toList x) ≠ n) : MyProp
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 ---
 error: unsolved goals
 ⊢ MyProp
@@ -177,7 +177,7 @@ def Vec.map (f : α → β) (x : Vec α n) : Vec β n :=
   | .cons x xs => .cons (f x) (map f xs)
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 α : Type
@@ -192,7 +192,7 @@ example (xs : Vec α n) (f : α → β) : xs.length = (xs.map f).length := by
   nunchaku
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 inductive α where | $α_0
 val n := (Nat.succ Nat.zero)
 val xs := (Vec.cons Nat.zero $α_0 Vec.nil)
@@ -208,7 +208,7 @@ example (xs : Vec α n) : xs.length = 0 := by
   nunchaku
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 α β : Type
@@ -222,7 +222,7 @@ example {f : α → β} (xs : Vec (Vec α m) n) : xs.length = (xs.map (fun v => 
   nunchaku
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val inst := Decidable.isFalse
 val p := false
 ---
@@ -240,7 +240,7 @@ namespace DepExists
 def foo (h : True) : Prop := True
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 ---
 error: unsolved goals
 ⊢ ∃ x, True
@@ -250,7 +250,7 @@ example : Exists (α := False) fun _ => True := by
   nunchaku
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 ⊢ Exists foo
@@ -260,7 +260,7 @@ example : Exists (α := True) foo := by
   nunchaku
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 ---
 error: unsolved goals
 ⊢ ∃ x, False
@@ -284,7 +284,7 @@ def head2 (xs : List Nat) (h : xs.isEmpty = false) : Nat :=
   | x :: _ => x
 
 /--
-info: Nunchaku wasn't able to prove or disprove the theorem.
+info: Chako wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 xs : List Nat

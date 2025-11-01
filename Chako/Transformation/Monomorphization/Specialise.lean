@@ -1,10 +1,10 @@
 module
 
-public import Nunchaku.Transformation.Monomorphization.Util
-import Nunchaku.Util.LocalContext
-import Nunchaku.Util.AddDecls
+public import Chako.Transformation.Monomorphization.Util
+import Chako.Util.LocalContext
+import Chako.Util.AddDecls
 
-namespace Nunchaku
+namespace Chako
 namespace Transformation
 namespace Monomorphization
 namespace Specialise
@@ -362,4 +362,4 @@ public partial def specialize (g : MVarId) : SpecializeM MVarId := do
 end Specialise
 end Monomorphization
 end Transformation
-end Nunchaku
+end Chako

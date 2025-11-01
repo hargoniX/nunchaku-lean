@@ -1,14 +1,14 @@
 module
-public import Nunchaku.Util.Pipeline
-public import Nunchaku.Util.Model
-import Nunchaku.Util.LocalContext
-import Nunchaku.Util.AddDecls
+public import Chako.Util.Pipeline
+public import Chako.Util.Model
+import Chako.Util.LocalContext
+import Chako.Util.AddDecls
 import Lean.Meta.CollectFVars
-import Nunchaku.Util.Decode
-import Nunchaku.Util.AuxiliaryConsts
+import Chako.Util.Decode
+import Chako.Util.AuxiliaryConsts
 import Lean.Meta.Match.MatchEqsExt
 
-namespace Nunchaku
+namespace Chako
 namespace Transformation
 namespace ElimDep
 
@@ -1131,4 +1131,4 @@ public def transformation : Transformation MVarId MVarId NunResult NunResult whe
 
 end ElimDep
 end Transformation
-end Nunchaku
+end Chako

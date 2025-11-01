@@ -1,20 +1,20 @@
 module
 
-public import Nunchaku.Util.Pipeline
-public import Nunchaku.Util.NunchakuSyntax
-public import Nunchaku.Util.Model
-import Nunchaku.Util.NunchakuBuilder
-import Nunchaku.Util.NunchakuPrinter
-import Nunchaku.Util.AuxiliaryConsts
+public import Chako.Util.Pipeline
+public import Chako.Util.ChakoSyntax
+public import Chako.Util.Model
+import Chako.Util.ChakoBuilder
+import Chako.Util.ChakoPrinter
+import Chako.Util.AuxiliaryConsts
 import Lean.Util.SCC
-import Nunchaku.Util.AddDecls
+import Chako.Util.AddDecls
 
 /-!
 This module contains the transformation for turning a monomorphized and dependently typed eliminated
-fragment of Lean into Nunchaku logic.
+fragment of Lean into Chako logic.
 -/
 
-namespace Nunchaku
+namespace Chako
 namespace Transformation
 namespace Output
 
@@ -286,7 +286,7 @@ def arrowN (n : Nat) (type : Expr) : MetaM (Array Expr × Expr) :=
 def encodePredCtor (ctor : Name) : OutputM NunTerm := do
   let info ← getConstInfoCtor ctor
   /-
-  Nunchaku expects our ctors to be of the form
+  Chako expects our ctors to be of the form
   forall xs, cond => Pred ys
   While in Lean we have two additional freedoms:
   1. Conditions and data can be mixed in the quantifiers
@@ -576,4 +576,4 @@ public def transformation : Transformation Lean.MVarId NunProblem NunResult NunR
 
 end Output
 end Transformation
-end Nunchaku
+end Chako

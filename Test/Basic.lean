@@ -1,7 +1,7 @@
-import Nunchaku
+import Chako
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val x := (Nat.succ Nat.zero)
 val y := Nat.zero
 ---
@@ -14,7 +14,7 @@ example (x y : Nat) : (if x == y then panic! "Ahh" else default + 1) = 0 := by
   nunchaku
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val m := Nat.zero
 val n := Nat.zero
 ---
@@ -27,7 +27,7 @@ h : n = m
 example (n m : Nat) (h : n = m) : n ≠ m := by nunchaku
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val m := Nat.zero
 val n := (Nat.succ Nat.zero)
 ---
@@ -39,7 +39,7 @@ n m : Nat
 example (n m : Nat) : n.add n = n.add m := by nunchaku
 
 /--
-info: Nunchaku wasn't able to prove or disprove the theorem.
+info: Chako wasn't able to prove or disprove the theorem.
 ---
 error: unsolved goals
 n m : Nat
@@ -54,7 +54,7 @@ inductive MyEven : Nat → Prop where
   | succ : MyEven n → MyEven n.succ.succ
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val n := (Nat.succ Nat.zero)
 ---
 error: unsolved goals
@@ -65,7 +65,7 @@ n : Nat
 example (n : Nat) : MyEven n := by nunchaku
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val n := Nat.zero
 ---
 error: unsolved goals
@@ -77,7 +77,7 @@ h : MyEven n
 example (n : Nat) (h : MyEven n) : MyEven n.succ := by nunchaku
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 n : Nat
@@ -88,7 +88,7 @@ example (n : Nat) : n ≠ n.succ := by nunchaku
 
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val n := Nat.zero
 ---
 error: unsolved goals
@@ -103,7 +103,7 @@ example (n : Nat) :
   nunchaku
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val m := Nat.zero
 val n := Nat.zero
 ---
@@ -133,7 +133,7 @@ inductive Odd : Nat → Prop where
 end
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val m := Nat.zero
 val n := Nat.zero
 ---
@@ -160,7 +160,7 @@ inductive B where
 end
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 x : A
@@ -184,7 +184,7 @@ def isOdd (n : Nat) : Bool :=
 end
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val n := Nat.zero
 ---
 error: unsolved goals
@@ -211,7 +211,7 @@ def IsOdd (n : Nat) : Prop :=
 end
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val n := Nat.zero
 ---
 error: unsolved goals
@@ -224,7 +224,7 @@ example (n : Nat) (h : IsEven n) : IsEven n.succ := by
   nunchaku
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val n := Nat.zero
 ---
 error: unsolved goals
@@ -243,7 +243,7 @@ def isZero (n : Nat) : Bool :=
   | _ + 1 => false
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val n := (Nat.succ Nat.zero)
 ---
 error: unsolved goals
@@ -255,7 +255,7 @@ example (n : Nat) : isZero n := by
   nunchaku
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val a := Nat.zero
 val b := (Nat.succ Nat.zero)
 ---
@@ -269,7 +269,7 @@ example (a b : Nat) : Nat.ble a b ↔ Nat.beq a b := by
 
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val a := Nat.zero
 val b := Nat.zero
 ---
@@ -283,7 +283,7 @@ example (a b : Nat) : Nat.blt a b ↔ a < b := by
 
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val k := Nat.zero
 val m := Nat.zero
 val n := Nat.zero
@@ -308,7 +308,7 @@ example {n m : Nat} : n < m → n ≤ m := by
   -/
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 a b : Unit
@@ -319,7 +319,7 @@ example (a b : Unit) : a = b := by
   nunchaku
 
 /--
-info: Nunchaku found a counter example:
+info: Chako found a counter example:
 val a := PUnit.punit
 val b := PUnit.punit
 ---
@@ -332,7 +332,7 @@ example (a b : Unit) : a ≠ b := by
   nunchaku
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 a b : Unit
@@ -348,7 +348,7 @@ inductive Foo (a : Bool) where
   | ctor (h : if a = a then True else True) : Foo a
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 a b : Bool
@@ -362,7 +362,7 @@ inductive TwoFoo (a b : Bool) where
   | ctor (h : if a = a then True else True) : TwoFoo a b
 
 /--
-info: Nunchaku is convinced that the theorem is true.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 a b : Bool

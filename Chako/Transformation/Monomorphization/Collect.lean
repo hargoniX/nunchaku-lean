@@ -1,8 +1,8 @@
 module
 
-public import Nunchaku.Transformation.Monomorphization.Util
+public import Chako.Transformation.Monomorphization.Util
 
-namespace Nunchaku
+namespace Chako
 namespace Transformation
 namespace Monomorphization
 namespace Collect
@@ -243,4 +243,4 @@ public partial def collectConstraints (g : MVarId) : MonoAnalysisM (List FlowCon
 end Collect
 end Monomorphization
 end Transformation
-end Nunchaku
+end Chako

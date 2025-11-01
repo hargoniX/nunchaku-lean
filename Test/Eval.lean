@@ -1,4 +1,4 @@
-import Nunchaku
+import Chako
 import Test.Eval.Sound
 import Test.Eval.Perf
 

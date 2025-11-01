@@ -1,14 +1,14 @@
 module
 
-public import Nunchaku.Util.NunchakuSyntax
-import Nunchaku.Util.NunchakuBuilder
+public import Chako.Util.ChakoSyntax
+import Chako.Util.ChakoBuilder
 
 /-!
-This module contains the implementation of the Nunchaku pretty printer, used to dump Nunchaku
+This module contains the implementation of the Chako pretty printer, used to dump Chako
 problems to the external solver.
 -/
 
-namespace Nunchaku
+namespace Chako
 
 open Std
 
@@ -131,4 +131,4 @@ public instance : ToString NunProblem where
   toString problem := private
     ToFormat.format problem |>.pretty
 
-end Nunchaku
+end Chako

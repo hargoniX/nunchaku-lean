@@ -1,11 +1,11 @@
 module
 
 public import Lean.Meta.Basic
-public import Nunchaku.Attr
-public meta import Nunchaku.Util.Model
-import Nunchaku.Transformation
-meta import Nunchaku.Transformation
-meta import Nunchaku.Util.NunchakuPrinter
+public import Chako.Attr
+public meta import Chako.Util.Model
+import Chako.Transformation
+meta import Chako.Transformation
+meta import Chako.Util.ChakoPrinter
 meta import Lean.Elab.Tactic.BVDecide.External
 meta import Lean.Meta.Tactic.Intro
 
@@ -13,16 +13,16 @@ meta import Lean.Meta.Tactic.Intro
 This module contains the main entry point to the nunchaku tactic.
 -/
 
-namespace Nunchaku
+namespace Chako
 
 open Lean Elab Tactic
 
-public meta def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
+public meta def runSolver (problem : NunProblem) (cfg : ChakoConfig) :
     MetaM NunResult := do
   IO.FS.withTempFile fun nunHandle nunPath => do
-    withTraceNode `nunchaku.solver (fun _ => return "Serializing Nunchaku problem") do
+    withTraceNode `nunchaku.solver (fun _ => return "Serializing Chako problem") do
       let problem ← IO.lazyPure fun _ => toString problem
-      trace[nunchaku.output] s!"Handing problem to Nunchaku:\n{problem}"
+      trace[nunchaku.output] s!"Handing problem to Chako:\n{problem}"
       nunHandle.putStr problem
       nunHandle.flush
 
@@ -50,36 +50,36 @@ public meta def runSolver (problem : NunProblem) (cfg : NunchakuConfig) :
     let out? ← BVDecide.External.runInterruptible (cfg.timeout + 2) { cmd, args, stdin := .piped, stdout := .piped, stderr := .null }
     match out? with
     | .timeout =>
-      let mut err := "Nunchaku timed out while solving the problem.\n"
+      let mut err := "Chako timed out while solving the problem.\n"
       err := err ++ "Consider increasing the timeout with the `timeout` config option.\n"
       throwError err
     | .success { exitCode := exitCode, stdout := stdout, stderr := stderr} =>
       if exitCode == 255 then
-        throwError s!"Failed to execute Nunchaku:\n{stderr}"
+        throwError s!"Failed to execute Chako:\n{stderr}"
       else
         match NunResult.parse stdout with
         | .ok res => return res
         | .error err =>
           throwError s!"The external prover produced unexpected output:\n  {err}\nstdout:\n{stdout}stderr:\n{stderr}"
 
-public meta def runNunchaku (g : MVarId) (cfg : NunchakuConfig) : MetaM NunResult := do
+public meta def runChako (g : MVarId) (cfg : ChakoConfig) : MetaM NunResult := do
   TransforM.run g cfg do
     withoutModifyingEnv do
       let (problem, back) ←
         withTraceNode `nunchaku (fun _ => return "Running forward pipeline") do
           Transformation.pipeline.run g
       let res ←
-        withTraceNode `nunchaku (fun _ => return "Running Nunchaku") do
+        withTraceNode `nunchaku (fun _ => return "Running Chako") do
           runSolver problem (← TransforM.getConfig)
       withTraceNode `nunchaku (fun _ => return "Running the backwards pipeline") do
         back res
 
 @[tactic nunchakuStx]
-public meta def evalNunchaku : Tactic
+public meta def evalChako : Tactic
   | `(tactic| nunchaku $cfg:optConfig) => do
-    let cfg ← elabNunchakuConfig cfg
-    let res ← runNunchaku (← getMainGoal) cfg
+    let cfg ← elabChakoConfig cfg
+    let res ← runChako (← getMainGoal) cfg
     logInfo m!"{res}"
   | _ => throwUnsupportedSyntax
 
-end Nunchaku
+end Chako
