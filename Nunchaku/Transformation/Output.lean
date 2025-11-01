@@ -235,7 +235,7 @@ where
         let locals := locals.insert arg.fvarId! argId
         let encodedType ← encodeType argType
         let encodedBody ← go body locals
-        return .lam (idToVar argId) encodedType encodedBody
+        return .lam [(idToVar argId, encodedType)] encodedBody
     | .forallE _ _ body _ =>
       if (← Meta.inferType expr) != .sort 0 then
         throwError m!"Can't encode forall in non Prop term {expr}"
@@ -497,7 +497,9 @@ def decodeTerm (t : NunTerm) : DecodeM NunTerm := do
   match t with
   | .var .. | .builtin .. => return t
   | .const name => return .const (← decodeConstName name)
-  | .lam id ty body => return .lam id (← decodeType ty) (← decodeTerm body)
+  | .lam binders body =>
+    let binders ← binders.mapM fun (id, ty) => do return (id, ← decodeType ty)
+    return .lam binders (← decodeTerm body)
   | .forall id ty body => return .forall id (← decodeType ty) (← decodeTerm body)
   | .exists id ty body => return .exists id (← decodeType ty) (← decodeTerm body)
   | .let id value body => return .let id (← decodeTerm value) (← decodeTerm body)

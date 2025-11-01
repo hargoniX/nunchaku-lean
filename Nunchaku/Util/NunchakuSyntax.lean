@@ -90,7 +90,7 @@ inductive NunTerm where
   /--
   A lambda abstraction `λ (id : ty) . body`
   -/
-  | lam (id : String) (ty : NunType) (body : NunTerm)
+  | lam (vars : List (String × NunType)) (body : NunTerm)
   /--
   A forall abstraction `∀ (id : ty) . body`
   -/

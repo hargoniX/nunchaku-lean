@@ -60,8 +60,9 @@ partial def NunTerm.format (term : NunTerm) : Std.Format :=
       let args := args.map NunTerm.format
       let args := Format.joinSep args.toList " "
       "(" ++ NunTerm.format fn ++ " " ++ args ++ ")"
-  | .lam id ty body =>
-    .paren ("fun (" ++ id ++ " : " ++ ToFormat.format ty ++ ") . " ++ body.format )
+  | .lam binders body =>
+    binders.foldr (init := body.format) fun (id, ty) acc =>
+      .paren ("fun (" ++ id ++ " : " ++ ToFormat.format ty ++ ") . " ++ acc)
   | .forall id ty body =>
     .paren ("forall (" ++ id ++ " : " ++ ToFormat.format ty ++ ") . " ++ body.format )
   | .exists id ty body =>
@@ -111,7 +112,7 @@ public instance : ToFormat NunCommand where
       let combined := specs.tail.foldl (init := first) fun acc spec =>
         let fmt := ToFormat.format spec.spec
         acc ++ .line ++ "and " ++ fmt
-      let attrs : Format := if wf then "[wf]" else ""
+      let attrs : Format := if wf then "[wf] " else ""
       "pred ".toFormat ++ attrs ++ combined ++ ".".toFormat
     | .recDecl specs =>
       let first := ToFormat.format specs[0]!

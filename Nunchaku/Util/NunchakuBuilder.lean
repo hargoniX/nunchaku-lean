@@ -45,8 +45,10 @@ def NunTerm.collectUsedConstants (t : NunTerm) (s : Std.HashSet String := {}) :
   match t with
   | .var .. | .builtin .. => s
   | .const name => s.insert name
-  | .lam _ ty body =>
-    let s := ty.collectUsedConstants s
+  | .lam binders body => Id.run do
+    let mut s := s
+    for (_, ty) in binders do
+      s := ty.collectUsedConstants s
     body.collectUsedConstants s
   | .forall _ ty body =>
     let s := ty.collectUsedConstants s

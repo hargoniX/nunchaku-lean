@@ -74,10 +74,19 @@ where
       | "fun" =>
         match args with
         -- Two formats for some reason
-        | [.list [.atom varId, ty], body] | [.list [.list [.atom varId, ty]], body] =>
+        | [.list [.atom varId, ty], body] =>
           let body ← withReader (fun vars => vars.insert varId) do
             go body
-          return .lam varId (← parseType ty) body
+          return .lam [(varId, (← parseType ty))] body
+        | [.list binders, body] =>
+          let binders ← binders.mapM
+            fun
+              | .list [.atom varId, ty] => do return (varId, (← parseType ty))
+              | _ => throw s!"Unexpected fun: {t}"
+          let newVars := binders.map Prod.fst
+          let body ← withReader (fun vars => vars.insertMany newVars) do
+            go body
+          return .lam binders body
         | _ => throw s!"Unexpected fun: {t}"
       | "if" =>
         let [discr, t, e] := args
