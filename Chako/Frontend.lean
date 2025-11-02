@@ -20,9 +20,9 @@ open Lean Elab Tactic
 public meta def runSolver (problem : NunProblem) (cfg : ChakoConfig) :
     MetaM NunResult := do
   IO.FS.withTempFile fun nunHandle nunPath => do
-    withTraceNode `chako.solver (fun _ => return "Serializing Chako problem") do
+    withTraceNode `chako.solver (fun _ => return "Serializing Nunchaku problem") do
       let problem ← IO.lazyPure fun _ => toString problem
-      trace[chako.output] s!"Handing problem to Chako:\n{problem}"
+      trace[chako.output] s!"Handing problem to Nunchaku:\n{problem}"
       nunHandle.putStr problem
       nunHandle.flush
 
@@ -69,7 +69,7 @@ public meta def runChako (g : MVarId) (cfg : ChakoConfig) : MetaM NunResult := d
         withTraceNode `chako (fun _ => return "Running forward pipeline") do
           Transformation.pipeline.run g
       let res ←
-        withTraceNode `chako (fun _ => return "Running Chako") do
+        withTraceNode `chako (fun _ => return "Running Nunchaku") do
           runSolver problem (← TransforM.getConfig)
       withTraceNode `chako (fun _ => return "Running the backwards pipeline") do
         back res
