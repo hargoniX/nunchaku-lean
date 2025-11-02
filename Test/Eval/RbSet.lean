@@ -124,10 +124,12 @@ def contains (t : Set) (d : Nat) : Bool :=
   match t with
   | .nil => false
   | .node left data _ right =>
-    match compare d data with
-    | .lt => left.contains d
-    | .eq => true
-    | .gt => right.contains d
+    if d = data then
+      true
+    else if d < data then
+      left.contains d
+    else
+      right.contains d
 
 def inorder : Set → List Nat
   | Set.nil => []
