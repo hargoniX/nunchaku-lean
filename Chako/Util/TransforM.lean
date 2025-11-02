@@ -65,13 +65,24 @@ public def preprocessEquation (eq : Expr) : MetaM Expr := do
     let body := mkApp3 (.const ``Eq [u]) α lhs rhs
     Meta.mkForallFVars args body
 
+
+public def equationIsNonTrivial (eq : Expr) : MetaM Bool := do
+  /-
+  For now our simple criterion is: If anything in the ∀ binder on the beginning of the equation
+  does not occur in the body we know we cannot translate it to nunchaku for sure and should
+  instead use the definition as the equation
+  -/
+  Meta.forallTelescope eq fun args body => do
+    let args := args.map Expr.fvarId!
+    return !args.all body.containsFVar
+
 def findEquationsForDefn (info : DefinitionVal) : MetaM (Array Expr) := do
   if (← Meta.isMatcher info.name) || (isCasesOnRecursor (← getEnv) info.name) then
     return #[]
   else
     let some eqns ← getEqnsFor? info.name
       | throwError m!"Unable to find equations for {mkConst info.name}"
-    let eqns ← eqns.mapM (fun thm => do inferType (← mkConstWithLevelParams thm))
+    let eqns ← eqns.mapM fun thm => do inferType (← mkConstWithLevelParams thm)
     if ← eqns.anyM equationIsNonTrivial then
       let some unfoldThm ← getUnfoldEqnFor? info.name
         | throwError m!"Unable to find unfold equation for {info.name}"
@@ -79,16 +90,6 @@ def findEquationsForDefn (info : DefinitionVal) : MetaM (Array Expr) := do
       return #[eq]
     else
       return eqns
-where
-  equationIsNonTrivial (eq : Expr) : MetaM Bool := do
-    /-
-    For now our simple criterion is: If anything in the ∀ binder on the beginning of the equation
-    does not occur in the body we know we cannot translate it to nunchaku for sure and should
-    instead use the definition as the equation
-    -/
-    Meta.forallTelescope eq fun args body => do
-      let args := args.map Expr.fvarId!
-      return !args.all body.containsFVar
 
 def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) := do
   let mut worklist : Array Name ← initializeWorklist g

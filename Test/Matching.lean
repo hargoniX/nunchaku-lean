@@ -148,9 +148,34 @@ def listSameLen (xs ys : List α) : Bool :=
   | _ :: xs, _ :: ys => listSameLen xs ys
   | _, _ => false
 
+/--
+info: Chako found a counter example:
+inductive α where | $α_0
+val xs := (List.cons $α_0 List.nil)
+val ys := List.nil
+---
+error: unsolved goals
+α : Type u_1
+xs ys : List α
+⊢ listSameLen xs ys = true
+-/
+#guard_msgs in
 example (xs ys : List α) : listSameLen xs ys := by
   chako
 
-#check listSameLen.eq_def
+/--
+info: Chako found a counter example:
+inductive α where | $α_0
+val xs := List.nil
+val ys := List.nil
+---
+error: unsolved goals
+α : Type u_1
+xs ys : List α
+⊢ xs.zip ys ≠ []
+-/
+#guard_msgs in
+example (xs ys : List α) : xs.zip ys ≠ [] := by
+  chako
 
 end Matching

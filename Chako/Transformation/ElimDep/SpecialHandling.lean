@@ -107,15 +107,41 @@ public partial def mkAuxiliaryMatcher (fn : Name) (params : Array Expr) (motive 
       (TransforM.mkSorryAx specialisedType u)
 
     let eqns := (← Meta.Match.getEquationsForImpl fn).eqnNames
-    let newEqns ← liftM <| eqns.mapM fun eqn => do
-      let eqn ← Meta.inferType (← Meta.mkConstWithFreshMVarLevels eqn)
+    let eqns ← liftM <| eqns.mapM fun eqn => do Meta.inferType (← Meta.mkConstWithFreshMVarLevels eqn)
+    let eqns ←
+      if ← liftM <| eqns.anyM TransforM.equationIsNonTrivial then
+        let eq ← mkUnfoldTheorem fn
+        pure #[eq]
+      else
+        pure eqns
+
+    let newEqns ← eqns.mapM fun eqn => do
       let eqn ← TransforM.preprocessEquation eqn
       specialiseMatcherLikeEquationFor newFn params motive eqn
-    TransforM.injectEquations elimName newEqns.toList
 
+    TransforM.injectEquations elimName newEqns.toList
     trace[chako.elimdep] m!"Created auxiliary matcher: {newFn}, eqns: {newEqns}"
     modify fun s => { s with matchLikeCache := s.matchLikeCache.insert (fn, params, motive) newFn }
     return newFn
+where
+  mkUnfoldTheorem (fn : Name) : MetaM Expr := do
+    let info ← getConstInfoDefn fn
+    Meta.lambdaTelescope (cleanupAnnotations := true) info.value fun xs body => do
+      let lhs := mkAppN (← mkConstWithLevelParams fn) xs
+      let eq ← Meta.mkForallFVars xs (← Meta.mkEq lhs body)
+      -- TODO: I'm just building this theorem because I don't know an easier way to
+      -- turn all the universe parameters into meta levels
+      let value ← Meta.mkLambdaFVars xs (← Meta.mkEqRefl lhs)
+      let thmName := .str fn "_eq_match_unfold"
+      addDecl <| .thmDecl {
+        name := thmName
+        levelParams := info.levelParams
+        type := eq
+        value := value
+      }
+      let eq ← Meta.inferType (← Meta.mkConstWithFreshMVarLevels thmName)
+      trace[chako] m!"Build unfolding theorem: {eq}"
+      return eq
 
 def mkAuxiliaryUnitType (lvl : Level) : DepM Name := do
   let some lvl := lvl.toNat | throwError "Non constant level in PUnit occurence"
