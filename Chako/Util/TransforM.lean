@@ -84,7 +84,7 @@ def findEquationsForDefn (info : DefinitionVal) : MetaM (Array Expr) := do
       | throwError m!"Unable to find equations for {mkConst info.name}"
     let eqns ← eqns.mapM fun thm => do inferType (← mkConstWithLevelParams thm)
     if ← eqns.anyM equationIsNonTrivial then
-      let some unfoldThm ← getUnfoldEqnFor? info.name
+      let some unfoldThm ← getUnfoldEqnFor? (nonRec := true) info.name
         | throwError m!"Unable to find unfold equation for {info.name}"
       let eq ← inferType (← mkConstWithLevelParams unfoldThm)
       return #[eq]
