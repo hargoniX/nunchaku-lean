@@ -81,7 +81,7 @@ example (x : List α) :
 
 inductive Vec (α : Type) : Nat → Type where
   | nil : Vec α 0
-  | cons (x : α) (xs : Vec α n) : Vec α n.succ
+  | cons (x : α) (xs : Vec α n) : Vec α (n + 1)
 
 /--
 info: Chako found a counter example:
@@ -130,7 +130,7 @@ structure MyFin (n : Nat) : Type where
 
 /--
 info: Chako found a counter example:
-val n := (Nat.succ Nat.zero)
+val n := (Nat.succ (Nat.succ Nat.zero))
 val x := (Matching.MyFin.mk Nat.zero)
 ---
 error: unsolved goals
@@ -142,5 +142,15 @@ x : MyFin n
 example {x : MyFin n} : MyFin.casesOn (motive := fun _ => Bool) x (fun _ _ => Bool.false) = Bool.true := by
   chako
 
+def listSameLen (xs ys : List α) : Bool :=
+  match xs, ys with
+  | [], [] => true
+  | _ :: xs, _ :: ys => listSameLen xs ys
+  | _, _ => false
+
+example (xs ys : List α) : listSameLen xs ys := by
+  chako
+
+#check listSameLen.eq_def
 
 end Matching

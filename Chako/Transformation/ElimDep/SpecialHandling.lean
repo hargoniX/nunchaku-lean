@@ -11,7 +11,6 @@ open Lean
 
 def specialiseParamsAndMotive (body : Expr) (params : Array Expr) (motive : Expr)
     (remainingParams : Nat := params.size) : MetaM Expr := do
-  trace[chako] m!"Specialising {remainingParams} binders in {body} for {params} and {motive}"
   match remainingParams with
   | 0 =>
     let body ← instantiateBinder body motive
@@ -25,7 +24,6 @@ where
   instantiateBinder (body : Expr) (param : Expr) : MetaM Expr := do
     let .forallE _ type body _ := body | unreachable!
     let paramType ← Meta.inferType param
-    trace[chako] m!"Trying to instantiate binder {type} with {param} : {paramType}"
     if !(← Meta.isDefEq type paramType) then
       throwError m!"Failed to instantiate motive argument {param} for {type}"
     let body := body.instantiate1 param
@@ -51,17 +49,18 @@ def mkCasesOnEquationForCtor (info : InductiveVal) (origFn : Name) (ctorIdx : Na
   Meta.forallBoundedTelescope body (some info.numIndices) fun _ body => do
   -- Skip the discriminant, we construct it ourselves
   let .forallE _ _ body _ := body | unreachable!
-  Meta.forallTelescope body fun alts _ => do
+  let eq ← Meta.forallTelescope body fun alts _ => do
     let alt := alts[ctorIdx]!
     Meta.forallTelescope (← Meta.inferType alt) fun altArgs resType => do
       let motiveArgs := resType.getAppArgs
       let indices := motiveArgs[0...(motiveArgs.size - 1)].toArray
       let discr := motiveArgs[motiveArgs.size - 1]!
       let lhsArgs := params ++ #[motive] ++ indices ++ #[discr] ++ alts
-      let lhs ← Meta.mkAppOptM origFn (lhsArgs.map Option.some) 
+      let lhs ← Meta.mkAppOptM origFn (lhsArgs.map Option.some)
       let rhs := mkAppN alt altArgs
       let eq ← Meta.mkEq lhs rhs
       Meta.mkForallFVars (params ++ #[motive] ++ alts ++ altArgs) eq
+  TransforM.preprocessEquation eq
 
 public partial def mkAuxiliaryCasesOn (fn : Name) (params : Array Expr) (motive : Expr)
     (info : InductiveVal) : DepM Expr := do
@@ -110,6 +109,7 @@ public partial def mkAuxiliaryMatcher (fn : Name) (params : Array Expr) (motive 
     let eqns := (← Meta.Match.getEquationsForImpl fn).eqnNames
     let newEqns ← liftM <| eqns.mapM fun eqn => do
       let eqn ← Meta.inferType (← Meta.mkConstWithFreshMVarLevels eqn)
+      let eqn ← TransforM.preprocessEquation eqn
       specialiseMatcherLikeEquationFor newFn params motive eqn
     TransforM.injectEquations elimName newEqns.toList
 

@@ -356,15 +356,23 @@ example {a : Nat} {as : List Nat} : myelem a as = false ↔ a ∈ as := by
 
 end
 
-/-
-
-TODO: broken if output
+/--
+info: Chako found a counter example:
+inductive α where | $α_0
+val as := List.nil
+val bs := (List.cons $α_0 List.nil)
+val p := (fun (v_0 : α) . Bool.false)
+---
+error: unsolved goals
+α : Type u_1
+p : α → Bool
+as bs : List α
+⊢ List.filterTR.loop p as bs = List.filter p as
+-/
+#guard_msgs in
 example {p : α → Bool} {as : List α} {bs : List α} :
     List.filterTR.loop p as bs = List.filter p as := by
   chako
--/
-
--- TODO: This problem works if we get rid of the useless constraints on `xs`
 
 /--
 info: Chako wasn't able to prove or disprove the theorem.
