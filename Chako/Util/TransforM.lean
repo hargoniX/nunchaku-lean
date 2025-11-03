@@ -129,7 +129,7 @@ def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) := do
   return defs
 where
   initializeWorklist (g : MVarId) : MetaM (Array Name) := g.withContext do
-    let mut used := (← g.getType).getUsedConstants
+    let mut used := (← instantiateMVars (← g.getType)).getUsedConstants
     for decl in ← getLCtx do
       if decl.isImplementationDetail then
         continue

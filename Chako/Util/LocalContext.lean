@@ -10,7 +10,7 @@ open Lean Meta
 
 @[inline]
 partial def mapLCtx [MonadControlT MetaM m] [MonadLiftT MetaM m] [MonadError m] [Monad m]
-    (lctx : LocalContext) (f : Expr → FVarSubst → m Expr) (processLetDecl : Bool) :
+    [MonadMCtx m] (lctx : LocalContext) (f : Expr → FVarSubst → m Expr) (processLetDecl : Bool) :
     m (LocalContext × FVarSubst) := do
   go 0 lctx {} f
 where
@@ -24,14 +24,16 @@ where
         if decl.isImplementationDetail then
           go (idx + 1) oldLCtx subst f
         else
-          let newType ← f decl.type subst
+          let declType ← instantiateMVars decl.type
+          let newType ← f declType subst
           withLocalDecl decl.userName decl.binderInfo newType fun newDecl =>
             go (idx + 1) oldLCtx (subst.insert decl.fvarId newDecl) f
       | some decl@(.ldecl ..) =>
         if decl.isLet && !processLetDecl then
           throwError m!"Let decls not supported"
         else
-          let newType ← f decl.type subst
+          let declType ← instantiateMVars decl.type
+          let newType ← f declType subst
           withLocalDecl decl.userName decl.binderInfo newType fun newDecl =>
             go (idx + 1) oldLCtx (subst.insert decl.fvarId newDecl) f
       | none => go (idx + 1) oldLCtx subst f
@@ -42,7 +44,7 @@ where
 
 @[inline]
 partial def mapExtendLCtx [MonadControlT MetaM m] [MonadLiftT MetaM m] [MonadError m] [Monad m]
-    (lctx : LocalContext) (mapper : Expr → FVarSubst → m Expr)
+    [MonadMCtx m] (lctx : LocalContext) (mapper : Expr → FVarSubst → m Expr)
     (extender : Expr → FVarSubst → FVarId → m (Option Expr)) : m (LocalContext × FVarSubst) :=
   go 0 lctx {}
 where
@@ -55,7 +57,7 @@ where
         if decl.isImplementationDetail then
           go (idx + 1) oldLCtx subst
         else
-          let origType := decl.type
+          let origType ← instantiateMVars decl.type
           let newType ← mapper origType subst
           withLocalDecl decl.userName decl.binderInfo newType fun newDecl => do
             if let some additional ← extender origType subst newDecl.fvarId! then
@@ -72,21 +74,23 @@ where
 
 @[specialize]
 public def mapMVarId [MonadControlT MetaM m] [MonadLiftT MetaM m] [MonadError m] [MonadLCtx m]
-    [Monad m] (g : MVarId) (f : Expr → FVarSubst → m Expr) (processLetDecl : Bool := false) : m MVarId :=
+    [MonadMCtx m] [Monad m] (g : MVarId) (f : Expr → FVarSubst → m Expr) (processLetDecl : Bool := false) : m MVarId :=
   g.withContext do
     let (newLCtx, subst) ← mapLCtx (← getLCtx) f processLetDecl
-    let newType ← f (← g.getType) subst
+    let gType ← instantiateMVars (← g.getType)
+    let newType ← f gType subst
     Meta.withLCtx' newLCtx do
       let g := (← Lean.Meta.mkFreshExprMVar newType).mvarId!
       return g
 
 @[specialize]
 public def mapExtendMVarId [MonadControlT MetaM m] [MonadLiftT MetaM m] [MonadError m] [MonadLCtx m]
-    [Monad m] (g : MVarId) (mapper : Expr → FVarSubst → m Expr)
+    [MonadMCtx m] [Monad m] (g : MVarId) (mapper : Expr → FVarSubst → m Expr)
     (extender : Expr → FVarSubst → FVarId → m (Option Expr)) : m MVarId :=
   g.withContext do
     let (newLCtx, subst) ← mapExtendLCtx (← getLCtx) mapper extender
-    let newType ← mapper (← g.getType) subst
+    let gType ← instantiateMVars (← g.getType)
+    let newType ← mapper gType subst
     Meta.withLCtx' newLCtx do
       let g := (← Lean.Meta.mkFreshExprMVar newType).mvarId!
       return g
