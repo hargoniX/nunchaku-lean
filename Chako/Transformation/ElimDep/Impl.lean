@@ -1,5 +1,6 @@
 module
 public import Chako.Transformation.ElimDep.Basic
+import Chako.Transformation.ElimDep.Trivial
 import Chako.Transformation.ElimDep.SpecialHandling
 import Chako.Util.LocalContext
 import Chako.Util.AddDecls
@@ -294,7 +295,6 @@ partial def elimProp (expr : Expr) (subst : Meta.FVarSubst) : IndInvM Expr := do
   elimProp' expr subst
 
 partial def elimDataConstType (expr : Expr) (stencil : Array ArgKind) : DepM Expr := do
-  -- Don't introduce predicates for data constant types
   IndInvM.run <|
     elimForall expr
       (fun idx _ => return stencil[idx]!.isProof)
@@ -608,6 +608,8 @@ partial def invariantPredFor (oldType : Expr) (subst : Meta.FVarSubst) :
   let oldType ← Core.betaReduce oldType
   let oldType ← unfoldTypeAliases oldType
   let oldType := oldType.consumeMData
+  if ← typeHasTrivialInvariant oldType then
+    return none
   match oldType with
   | .const .. | .app .. =>
     oldType.withApp fun fn args => do
@@ -629,17 +631,53 @@ partial def invariantPredFor (oldType : Expr) (subst : Meta.FVarSubst) :
           newArgs := newArgs.push (← elimValueOrProp' arg subst)
       return mkAppN (.const invInduct us) newArgs
   | .forallE .. =>
-    if ← Meta.isTypeFormerType oldType then
-      return none
+    /-
+    (x₁ : α₁) → (x₂ : α₂) → ... → β
 
-    let elimType ← elimValueOrProp' oldType subst
-    Meta.withLocalDeclD (n := OptionT IndInvM) `f elimType fun target => do
+    Each αᵢ can be:
+    - a proposition: we need to require it as an assumption in the inv
+    - a value: we need to require its inv as an assumption in the inv
+    - a type former: error higher polymorphism
+    - a prop former: do nothing
+
+    β can be:
+    - a proposition: we're working a proof, that should not be happening
+    - a value: we ned to ensure its inv as a concl in the inv
+    - a type: eror higher kinded types
+    - a prop: we don't need to generate an invariant at all
+    -/
+    if ← Meta.isPropFormerType oldType then
+      return none
+    else if ← Meta.isTypeFormerType oldType then
+      throwError m!"Higher kinded type detected: {oldType}"
+
+    let argsMask ← Meta.forallTelescope oldType fun args _ =>
+      args.mapM fun arg => return Bool.not (← isProof arg)
+
+    let elimType ← elimValue' oldType subst
+    let ret ← Meta.withLocalDeclD (n := IndInvM) `f elimType fun target => do
       let inv ←
-        elimForall oldType (subst := subst)
-          (fun _ e => Meta.isProof e)
-          (fun value subst => elimValue value subst)
-          fun dom subst args => invariantFor dom subst (mkAppN target args)
+        elimExtendForall oldType (subst := subst)
+          (fun _ _ => return false)
+          (fun value subst => elimValueOrProp' value subst)
+          (fun oldArgType subst newArg => do
+            if ← Meta.isPropFormerType oldArgType then
+              return none
+            else if ← Meta.isTypeFormerType oldArgType then
+              throwError m!"Higher ranked type detected: {oldType}"
+            else
+              let some inv ← invariantPredFor oldArgType subst | return none
+              return some <| mkApp inv (mkFVar newArg)
+          )
+          fun dom subst args => do
+            let args := args.zip argsMask |>.filter Prod.snd |>.map Prod.fst
+            if let some inv ← invariantFor dom subst (mkAppN target args) then
+              return inv
+            else
+              return mkConst ``True
+      let inv ← Core.betaReduce inv
       Meta.mkLambdaFVars #[target] inv
+    return ret
   | .fvar fvarId =>
     let some prop ← IndInvM.getPropFor? fvarId | return none
     return subst.apply (mkFVar prop)
