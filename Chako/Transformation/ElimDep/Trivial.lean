@@ -62,13 +62,14 @@ private partial def visitInduct (info : InductiveVal) : TrivialM Bool := do
     visitCtor info
 
 private partial def visitExpr (e : Expr) : TrivialM Bool := do
-  if (← read).knownTrivial.contains e then
-    return true
-  else if ← Meta.isPropFormerType e then
-    return true
   let e ← Meta.zetaReduce e
   let e ← Core.betaReduce e
   let e ← unfoldTypeAliases e
+  if (← read).knownTrivial.contains e then
+    return true
+  else if ← Meta.isProp e then
+    return true
+
   match e with
   | .const .. | .app .. =>
     e.withApp fun fn args => do

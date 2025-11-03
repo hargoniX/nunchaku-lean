@@ -15,7 +15,7 @@ public def transformation : Transformation MVarId MVarId NunResult NunResult whe
    inner := {
     name := "ElimDep"
     encode g := private do
-      let (g, d)  ← elim g |>.run
+      let (g, d) ← elim g |>.run
       trace[chako.elimdep] m!"Result: {g}"
       return (g, d)
     decode ctx res := private do
