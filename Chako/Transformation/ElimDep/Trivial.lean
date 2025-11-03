@@ -44,10 +44,9 @@ private partial def visitInduct (info : InductiveVal) : TrivialM Bool := do
   else
     modify fun s => { s with visited := s.visited.insert info.name }
 
-  if ← Meta.isPropFormerType info.type then
-    return true
-
+  if info.ctors.isEmpty then return false
   if info.numIndices != 0 then return false
+  if ← Meta.isPropFormerType info.type then return true
 
   let simplifiedType ← unfoldTypeAliases info.type
   let hasSimpleType ← Meta.forallTelescope simplifiedType fun args _ => do
