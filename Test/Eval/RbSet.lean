@@ -54,15 +54,19 @@ def ins (d : Nat) (t : Set) : Set :=
   match t with
   | .nil => .node .nil d .red  .nil
   | .node left data .black right =>
-    match compare d data with
-    | .lt => baliL data (ins d left) right
-    | .eq => t
-    | .gt => baliR data left (ins d right)
+    if d < data then
+      baliL data (ins d left) right
+    else if d = data then
+      t
+    else
+      baliR data left (ins d right)
   | .node left data .red right =>
-    match compare d data with
-    | .lt => .node (ins d left) data .red right
-    | .eq => t
-    | .gt => .node left data .red (ins d right)
+    if d < data then
+      .node (ins d left) data .red right
+    else if d = data then
+      t
+    else
+      .node left data .red (ins d right)
 
 def insert (d : Nat) (t : Set) : Set :=
   paintColor .black (ins d t)
@@ -104,14 +108,14 @@ def appendTrees : Set → Set → Set
 def del (d : Nat) : Set → Set
   | .nil => .nil
   | .node left data _ right =>
-    match compare d data with
-    | .lt =>
+    if d < data then
       if left.isBlack then
         baldL data (del d left) right
       else
         .node (del d left) data .red right
-    | .eq => appendTrees left right
-    | .gt =>
+    else if d = data then
+      appendTrees left right
+    else
       if right.isBlack then
         baldR data left (del d right)
       else
