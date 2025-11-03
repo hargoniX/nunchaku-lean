@@ -236,16 +236,18 @@ where
         let encodedType ← encodeType argType
         let encodedBody ← go body locals
         return .lam [(idToVar argId, encodedType)] encodedBody
-    | .forallE _ _ body _ =>
+    | .forallE .. =>
       if (← Meta.inferType expr) != .sort 0 then
         throwError m!"Can't encode forall in non Prop term {expr}"
 
-      -- If it doesn't it must be an implication
-      let properForall := body.hasLooseBVars
       Meta.forallBoundedTelescope expr (some 1) fun arg body => do
         let arg := arg[0]!
         let argType ← Meta.inferType arg
-        if properForall then
+        if ← Meta.isProof arg then
+          let encodedLhs ← go argType locals
+          let encodedRhs ← go body locals
+          return .imply encodedLhs encodedRhs
+        else
           if argType.hasAnyFVar (fun fvar => locals.contains fvar) then
             throwError m!"Can't encode dependent forall {expr}"
           let argId ← freshNunId
@@ -253,10 +255,6 @@ where
           let encodedType ← encodeType argType
           let encodedBody ← go body locals
           return .forall (idToVar argId) encodedType encodedBody
-        else
-          let encodedLhs ← go argType locals
-          let encodedRhs ← go body locals
-          return .imply encodedLhs encodedRhs
     | .letE .. =>
       Meta.letBoundedTelescope expr (some 1) fun arg body => do
         let arg := arg[0]!
