@@ -1,32 +1,31 @@
 = RESULTS for perf
 == RESULTS for perf/list_basic.csv
 result
-SAT             152
-UNKNOWN          13
+SAT             162
 ERR_ENCODING      8
-ERR_NUNCHAKU      5
+UNKNOWN           8
 Name: count, dtype: int64
 
 == RESULTS for perf/list_lemmas.csv
 result
-SAT             764
+SAT             782
 UNKNOWN          53
 ERR_ENCODING     43
-ERR_NUNCHAKU     20
-UNSAT             1
+UNSAT             2
+ERR_NUNCHAKU      1
 Name: count, dtype: int64
 
 == RESULTS for perf/nat_basic.csv
 result
-SAT             464
-UNKNOWN          22
+SAT             467
+UNKNOWN          19
 ERR_ENCODING      2
 Name: count, dtype: int64
 
 == RESULTS for perf/nat_lemmas.csv
 result
-SAT             594
-UNKNOWN          92
+SAT             600
+UNKNOWN          86
 ERR_ENCODING     13
 Name: count, dtype: int64
 
@@ -38,36 +37,36 @@ Name: count, dtype: int64
 
 == RESULTS for perf/int_lemmas.csv
 result
-SAT             165
-UNKNOWN          15
+SAT             168
+UNKNOWN          12
 ERR_ENCODING      3
 Name: count, dtype: int64
 
 == RESULTS for perf/fin_basic.csv
 result
-SAT    26
+SAT        25
+UNKNOWN     1
 Name: count, dtype: int64
 
 == RESULTS for perf/fin_lemmas.csv
 result
-SAT             243
-UNKNOWN          48
+SAT             279
 ERR_ENCODING     13
+UNKNOWN          12
 Name: count, dtype: int64
 
 == RESULTS for perf/option_basic.csv
 result
-SAT             36
+SAT             37
 ERR_ENCODING     9
-ERR_NUNCHAKU     1
 Name: count, dtype: int64
 
 == RESULTS for perf/option_lemmas.csv
 result
-SAT             533
+SAT             542
 ERR_ENCODING     11
-ERR_NUNCHAKU     11
 UNSAT             4
+ERR_NUNCHAKU      2
 UNKNOWN           1
 Name: count, dtype: int64
 
@@ -79,25 +78,23 @@ Name: count, dtype: int64
 
 == RESULTS for perf/bitvec_lemmas.csv
 result
-SAT             603
-UNKNOWN          35
+SAT             611
+UNKNOWN          38
 ERR_NUNCHAKU      7
 Name: count, dtype: int64
 
 == RESULTS for perf/array_basic.csv
 result
-SAT             28
+SAT             31
 ERR_ENCODING     3
-ERR_NUNCHAKU     3
 UNKNOWN          2
 Name: count, dtype: int64
 
 == RESULTS for perf/array_lemmas.csv
 result
-ERR_ENCODING    538
-SAT             262
-UNKNOWN          29
-ERR_NUNCHAKU     11
+ERR_ENCODING    623
+SAT             311
+UNKNOWN          27
 UNSAT             2
 Name: count, dtype: int64
 
@@ -115,126 +112,120 @@ Name: count, dtype: int64
 
 == RESULTS for perf/rbset.csv
 result
-SAT             43
-ERR_NUNCHAKU    29
-UNKNOWN         21
+SAT        59
+UNKNOWN    34
 Name: count, dtype: int64
 
 == RESULTS for perf overall
 result
-SAT             4051
-ERR_ENCODING     644
-UNKNOWN          334
-ERR_NUNCHAKU      87
-UNSAT              7
+SAT             4212
+ERR_ENCODING     729
+UNKNOWN          296
+ERR_NUNCHAKU      10
+UNSAT              8
 Name: count, dtype: int64
 
 
 = RESULTS for sound
 == RESULTS for sound/list_basic.csv
 result
-UNSAT           127
+UNSAT           132
 UNKNOWN          26
 ERR_ENCODING      8
-ERR_NUNCHAKU      5
 SAT               2
 Name: count, dtype: int64
 
 == RESULTS for sound/list_lemmas.csv
 result
-UNKNOWN         452
+UNKNOWN         470
 UNSAT           179
 ERR_ENCODING     33
-ERR_NUNCHAKU     17
-SAT               2
+SAT               1
 Name: count, dtype: int64
 
 == RESULTS for sound/nat_basic.csv
 result
-UNKNOWN         223
-UNSAT            75
-SAT               7
+UNKNOWN         212
+UNSAT            87
+SAT               6
 ERR_ENCODING      2
 Name: count, dtype: int64
 
 == RESULTS for sound/nat_lemmas.csv
 result
-UNKNOWN         383
-UNSAT            28
+UNKNOWN         382
+UNSAT            29
 ERR_ENCODING      8
 Name: count, dtype: int64
 
 == RESULTS for sound/int_basic.csv
 result
-UNSAT      7
-UNKNOWN    1
+UNSAT    8
 Name: count, dtype: int64
 
 == RESULTS for sound/int_lemmas.csv
 result
-UNKNOWN         85
-UNSAT           61
-SAT              3
+UNKNOWN         84
+UNSAT           63
 ERR_ENCODING     3
+SAT              2
 Name: count, dtype: int64
 
 == RESULTS for sound/fin_basic.csv
 result
-UNSAT      10
-UNKNOWN     7
+UNSAT      12
+UNKNOWN     5
 Name: count, dtype: int64
 
 == RESULTS for sound/fin_lemmas.csv
 result
-UNKNOWN         131
-UNSAT           128
+UNSAT           143
+UNKNOWN         116
 ERR_ENCODING     13
 SAT               3
 Name: count, dtype: int64
 
 == RESULTS for sound/option_basic.csv
 result
-UNSAT           33
+UNSAT           34
 ERR_ENCODING     9
-UNKNOWN          2
+UNKNOWN          1
 Name: count, dtype: int64
 
 == RESULTS for sound/option_lemmas.csv
 result
-UNSAT           391
-UNKNOWN          19
+UNSAT           418
 ERR_ENCODING      9
-SAT               9
-ERR_NUNCHAKU      3
+SAT               2
+ERR_NUNCHAKU      1
+UNKNOWN           1
 Name: count, dtype: int64
 
 == RESULTS for sound/bitvec_basic.csv
 result
-UNSAT      26
-UNKNOWN     3
+UNSAT      28
+UNKNOWN     1
 Name: count, dtype: int64
 
 == RESULTS for sound/bitvec_lemmas.csv
 result
-UNKNOWN         543
-UNSAT            96
-ERR_NUNCHAKU      7
+UNKNOWN         540
+UNSAT           108
+ERR_NUNCHAKU      8
 Name: count, dtype: int64
 
 == RESULTS for sound/array_basic.csv
 result
-UNKNOWN         14
-UNSAT           11
-ERR_NUNCHAKU     3
+UNKNOWN         16
+UNSAT           12
 ERR_ENCODING     3
 Name: count, dtype: int64
 
 == RESULTS for sound/array_lemmas.csv
 result
 ERR_ENCODING    499
-UNKNOWN         193
-UNSAT            83
-ERR_NUNCHAKU     14
+UNKNOWN         203
+UNSAT            87
 Name: count, dtype: int64
 
 == RESULTS for sound/sum_basic.csv
@@ -252,18 +243,17 @@ Name: count, dtype: int64
 
 == RESULTS for sound/rbset.csv
 result
-UNKNOWN         24
-ERR_NUNCHAKU    13
-UNSAT            8
+UNKNOWN    36
+UNSAT       9
 Name: count, dtype: int64
 
 == RESULTS for sound overall
 result
-UNKNOWN         2108
-UNSAT           1341
+UNKNOWN         2095
+UNSAT           1427
 ERR_ENCODING     588
-ERR_NUNCHAKU      62
-SAT               29
+SAT               19
+ERR_NUNCHAKU       9
 Name: count, dtype: int64
 
 
