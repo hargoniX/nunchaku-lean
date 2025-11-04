@@ -21,6 +21,7 @@ def analyze_dir(dir_name: str):
         df = pandas.read_csv(filepath)
         analyze(df, filepath)
         dfs.append(df)
+    if len(dfs) == 0: return
     df = pandas.concat(dfs)
     analyze(df, f"{dir_name} overall")
     print("")
