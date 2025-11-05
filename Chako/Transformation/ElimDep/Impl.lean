@@ -120,17 +120,6 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
         let lhs ← elimExprRaw' args[0]! true subst
         let rhs ← elimExprRaw' args[1]! false subst
         return mkAnd lhs rhs
-      | .const ``Eq [u] =>
-        if args.isEmpty then
-          builtinDefaultBehavior ``Eq [u] args
-        else
-          let α := args[0]!
-          if α.isForall then
-            let newTarget ← Util.funext args false
-            elimExpr' newTarget inProp subst
-          else
-            let args ← args.mapM (elimValueOrProp' · subst)
-            return mkAppN (.const ``Eq [u]) args
       | .const fn us =>
         match ← preEliminateApp fn us args with
         | some expr => elimExpr' expr inProp subst

@@ -46,14 +46,18 @@ def count (x : Alphabet) (xs : List Alphabet) : Nat :=
   | [] => 0
   | y :: ys => (if x == y then 1 else 0) + count x ys
 
-/-
-TODO: this is going to work with the predicate optimization
-TODO: re-evaluate with bultin count then
-
-set_option trace.chako true in
+/--
+info: Chako found a counter example:
+val w := (List.cons Alphabet.b List.nil)
+---
+error: unsolved goals
+w : List Alphabet
+h : S w
+⊢ count Alphabet.a w = count Alphabet.b w
+-/
+#guard_msgs in
 theorem sound (h : S w) : count .a w = count .b w := by
   chako
--/
 
 /-
 TODO: this doesn't work at all :(

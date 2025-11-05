@@ -284,7 +284,7 @@ def head2 (xs : List Nat) (h : xs.isEmpty = false) : Nat :=
   | x :: _ => x
 
 /--
-info: Chako wasn't able to prove or disprove the theorem.
+info: Chako is convinced that the theorem is true.
 ---
 error: unsolved goals
 xs : List Nat

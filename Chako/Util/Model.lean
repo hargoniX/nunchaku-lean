@@ -158,7 +158,6 @@ def parse (s : String) : Except String NunResult := do
 
 instance : Lean.ToMessageData NunResult where
   toMessageData res :=
-    -- TODO
     match res with
     | .unsat => "Chako is convinced that the theorem is true."
     | .unknown => "Chako wasn't able to prove or disprove the theorem."

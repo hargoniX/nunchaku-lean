@@ -213,18 +213,6 @@ h : xs = []
 example (xs : List α) (h : xs = []) : MyAll (fun _ => False) xs := by
   chako
 
-/-
-/-
-TODO: times out
-inductive MyEven : Nat → Prop where
-  | zero : MyEven Nat.zero
-  | succ : MyEven n → MyEven (Nat.zero.succ.succ + n)
-
-set_option trace.chako true in
-example (n : Nat) : MyEven n := by chako
--/
--/
-
 /--
 info: Chako is convinced that the theorem is true.
 ---
@@ -259,9 +247,6 @@ example {as bs : List α} {a b : α} (h : as.concat a = bs.concat b) :
     ¬ (as = bs ∧ a = b) := by
   chako
 
-
-/-
--/
 
 /--
 info: Chako found a counter example:
@@ -322,18 +307,6 @@ as bs : List α
 example {a : α} {as : List α} (bs : List α) : a ∈ as → ¬ a ∈ as ++ bs := by
   chako
 
-/-
-
-TODO: This has additional pre preconditions in the equation → requires more stuff
-
-set_option trace.chako true in
-example [BEq α] : List.isSuffixOf ([] : List α) l = false := by
-  chako
-
-example [BEq α] {l : List α} : (l != []) = l.isEmpty := by
-  chako
--/
-
 section
 
 def myelem (a : Nat) : (l : List Nat) → Bool
@@ -375,7 +348,10 @@ example {p : α → Bool} {as : List α} {bs : List α} :
   chako
 
 /--
-info: Chako wasn't able to prove or disprove the theorem.
+info: Chako found a counter example:
+inductive α where | $α_0
+inductive β where | $β_0
+val xs := (List.cons (?__ ?l_Prod_elim__1_spec__10_0) List.nil)
 ---
 error: unsolved goals
 α β : Type

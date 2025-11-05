@@ -169,7 +169,6 @@ partial def specialiseExprRaw (expr : Expr) (subst : Meta.FVarSubst) : Specializ
             let remainingArgs ← others.mapM (specialiseExpr · subst)
             let specialisedName ← specialisedCtorName specialisedInductName info.name
             return mkAppN (.const specialisedName []) remainingArgs
-          -- TODO: opaques need some additional treatment
           | .inductInfo info | .defnInfo info | .axiomInfo info | .opaqueInfo info =>
             let (others, targets) ← partitionMonoArgPositions info.name args
             let pattern : FlowVariable × GroundInput :=
