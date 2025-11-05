@@ -373,3 +373,17 @@ example (a b : Bool) : TwoFoo a b := by
   chako
 
 end MyFoo
+
+namespace Funext
+
+/--
+info: Chako is convinced that the theorem is true.
+---
+error: unsolved goals
+⊢ @id = @id
+-/
+#guard_msgs in
+example : @id = @id := by
+  chako
+
+end Funext

@@ -4,7 +4,9 @@ public import Chako.Util.Pipeline
 public import Chako.Util.Model
 import Chako.Util.LocalContext
 import Chako.Util.AddDecls
+import Chako.Util.Funext
 import Lean.Meta.Tactic.Clear
+import Lean.Meta.Tactic.Intro
 
 namespace Chako
 namespace Transformation
@@ -31,6 +33,7 @@ This function eliminates:
 -/
 def elimComfortUniv (e : Expr) (subst : Meta.FVarSubst) : ComfortM Expr := do
   let e ← zetaBetaReduce e
+  let e ← Util.funextTransform e true
   Meta.transform e (pre := pre)
 where
   pre (e : Expr) : ComfortM TransformStep := do
@@ -68,6 +71,7 @@ public def transformation : Transformation MVarId MVarId NunResult NunResult whe
     name := "ElimComfort"
     encode g := do
       let g ← ComfortM.run <| encode g
+      let (_, g) ← g.intros
       trace[chako.elimcomfort] m!"Result: {g}"
       return (g, ())
     decode _ res := return res

@@ -11,3 +11,4 @@ public import Chako.Util.Sexp
 public import Chako.Util.Decode
 public import Chako.Util.AuxiliaryConsts
 public import Chako.Util.Eval
+public import Chako.Util.Funext

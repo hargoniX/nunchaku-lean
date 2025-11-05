@@ -3,6 +3,7 @@ public import Chako.Transformation.ElimDep.Basic
 import Chako.Transformation.ElimDep.Trivial
 import Chako.Transformation.ElimDep.SpecialHandling
 import Chako.Transformation.ElimDep.WF
+import Chako.Util.Funext
 import Chako.Util.LocalContext
 import Chako.Util.AddDecls
 import Lean.Meta.CollectFVars
@@ -110,19 +111,32 @@ partial def elimExprRaw' (expr : Expr) (inProp : Bool) (subst : Meta.FVarSubst) 
         return .const const us
   | .app .. =>
     expr.withApp fun fn args => do
+      let builtinDefaultBehavior fn us args := do
+        let args ← args.mapM (elimValueOrProp' · subst)
+        return mkAppN (.const fn us) args
       match fn with
       | .const ``Exists [0] =>
         -- This exists is being used to encode a dependent and
         let lhs ← elimExprRaw' args[0]! true subst
         let rhs ← elimExprRaw' args[1]! false subst
         return mkAnd lhs rhs
+      | .const ``Eq [u] =>
+        if args.isEmpty then
+          builtinDefaultBehavior ``Eq [u] args
+        else
+          let α := args[0]!
+          if α.isForall then
+            let newTarget ← Util.funext args false
+            elimExpr' newTarget inProp subst
+          else
+            let args ← args.mapM (elimValueOrProp' · subst)
+            return mkAppN (.const ``Eq [u]) args
       | .const fn us =>
         match ← preEliminateApp fn us args with
         | some expr => elimExpr' expr inProp subst
         | none =>
           if TransforM.isBuiltin fn then
-            let args ← args.mapM (elimValueOrProp' · subst)
-            return mkAppN (.const fn us) args
+            builtinDefaultBehavior fn us args
           else if let some info ← Meta.getMatcherInfo? fn then
             let params := args[0...info.numParams].toArray
             let motive := args[info.numParams]!

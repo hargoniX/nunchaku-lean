@@ -17,8 +17,8 @@ namespace Chako
 namespace Transformation
 
 public def pipeline : Pipeline Lean.MVarId NunProblem NunResult NunResult :=
-  .compose Falsify.transformation <|
   .compose ElimComfort.transformation <|
+  .compose Falsify.transformation <|
   .compose AbstractTypes.transformation <|
   .compose ElimDep.transformation <|
   .compose Monomorphization.transformation <|
