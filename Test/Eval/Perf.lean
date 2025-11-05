@@ -1,5 +1,7 @@
 import Chako
 import Test.Eval.RbSet
+set_option maxHeartbeats 200000000
+set_option Elab.async false
 #exit
 #eval_chako_perf_module Init.Data.List.Basic "results/perf/list_basic.csv"
 #eval_chako_perf_module Init.Data.List.Lemmas "results/perf/list_lemmas.csv"

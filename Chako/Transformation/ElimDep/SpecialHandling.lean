@@ -124,7 +124,7 @@ public partial def mkAuxiliaryMatcher (fn : Name) (params : Array Expr) (motive 
     modify fun s => { s with matchLikeCache := s.matchLikeCache.insert (fn, params, motive) newFn }
     return newFn
 where
-  mkUnfoldTheorem (fn : Name) : MetaM Expr := do
+  mkUnfoldTheorem (fn : Name) : TransforM Expr := do
     let info ← getConstInfoDefn fn
     Meta.lambdaTelescope (cleanupAnnotations := true) info.value fun xs body => do
       let lhs := mkAppN (← mkConstWithLevelParams fn) xs
@@ -132,7 +132,7 @@ where
       -- TODO: I'm just building this theorem because I don't know an easier way to
       -- turn all the universe parameters into meta levels
       let value ← Meta.mkLambdaFVars xs (← Meta.mkEqRefl lhs)
-      let thmName := .str fn "_eq_match_unfold"
+      let thmName ← TransforM.mkFreshName fn (pref := "_eq_match_unfold")
       addDecl <| .thmDecl {
         name := thmName
         levelParams := info.levelParams

@@ -2,6 +2,7 @@ module
 public import Chako.Transformation.ElimDep.Basic
 import Chako.Transformation.ElimDep.Trivial
 import Chako.Transformation.ElimDep.SpecialHandling
+import Chako.Transformation.ElimDep.WF
 import Chako.Util.LocalContext
 import Chako.Util.AddDecls
 import Lean.Meta.CollectFVars
@@ -335,7 +336,7 @@ partial def elimPropCtor (inductElimName : Name) (inductStencil : Array ArgKind)
   return ⟨elimName, elimType⟩
 
 partial def elimPropInduct (info : InductiveVal) (elimName : Name) (stencil : Array ArgKind) :
-    DepM (InductiveType × Nat) := do
+    DepM (InductiveType × Nat × Bool) := do
   let enrichedStencil := enrichStencil stencil
   let newType ← IndInvM.run <|
     Meta.forallTelescope info.type fun args body =>
@@ -359,7 +360,8 @@ partial def elimPropInduct (info : InductiveVal) (elimName : Name) (stencil : Ar
     type := newType,
     ctors := newCtors
   }
-  return (decl, nparams)
+  let wf ← inductiveIsWf info
+  return (decl, nparams, wf)
 
 partial def elimValueCtor (inductElimName : Name) (inductInfo : InductiveVal)
     (inductStencil : Array ArgKind) (ctorName : Name) : DepM Constructor := do
@@ -385,7 +387,7 @@ partial def elimValueCtor (inductElimName : Name) (inductInfo : InductiveVal)
   return ⟨elimName, elimType⟩
 
 partial def elimValueInduct (info : InductiveVal) (elimName : Name) (stencil : Array ArgKind) :
-    DepM (InductiveType × Nat) := do
+    DepM (InductiveType × Nat × Bool) := do
   let newType ← IndInvM.run <|
     elimForall info.type
       (fun idx _ => return stencil[idx]!.isInductiveErasable)
@@ -403,13 +405,13 @@ partial def elimValueInduct (info : InductiveVal) (elimName : Name) (stencil : A
     ctors := newCtors
   }
 
-  return (decl, nparams)
+  return (decl, nparams, false)
 
 partial def elimInduct (info : InductiveVal) : DepM Unit := do
   let name := info.name
   let elimName := (← get).constCache[name]!
   let stencil ← argStencil info.toConstantVal
-  let (decl, nparams) ←
+  let (decl, nparams, wf) ←
     if ← Meta.isPropFormerType info.type then
       elimPropInduct info elimName stencil
     else
@@ -417,6 +419,8 @@ partial def elimInduct (info : InductiveVal) : DepM Unit := do
 
   trace[chako.elimdep] m!"Proposing {decl.type} {decl.ctors.map (·.type)}"
   TransforM.recordDerivedDecl name <| .inductDecl info.levelParams nparams [decl] false
+  if wf then
+    TransforM.addAttribute elimName .wf
 
 partial def elimEquation (eq : Expr) : DepM Expr := do
   trace[chako.elimdep] m!"Working eq {eq}"

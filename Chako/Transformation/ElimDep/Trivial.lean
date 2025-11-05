@@ -94,7 +94,7 @@ end
 This function implements a heuristic for detecting whether the invariant
 associated with some `Expr` `e` is going to be trivial and thus unnecessary.
 -/
-public partial def typeHasTrivialInvariant (e : Expr) : MetaM Bool := do
+public def typeHasTrivialInvariant (e : Expr) : MetaM Bool := do
   let res ← visitExpr e |>.run {} |>.run' {}
   trace[chako.elimdep] m!"Has trivial invariant {e}? {res}"
   return res

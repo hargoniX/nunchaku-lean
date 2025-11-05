@@ -106,12 +106,15 @@ where
       let mutants := mutants.push mutant
       return mutants
 
-meta def timedRun [Monad m] [MonadExceptOf Exception m] [MonadLiftT BaseIO m] (x : m α) : m (Timed (Except Exception α)) := do
+meta def timedRun [Monad m] [MonadExceptOf Exception m] [MonadRuntimeException m] [MonadLiftT BaseIO m] (x : m α) : m (Timed (Except Exception α)) := do
   let startTime ← IO.monoMsNow
   try
-    let res ← x
+    let res ← tryCatchRuntimeEx (Except.ok <$> x) (fun e => pure <| .error e)
     let endTime ← IO.monoMsNow
-    return ⟨.ok res, endTime - startTime⟩
+    let time := endTime - startTime
+    match res with
+    | .ok res => return ⟨.ok res, time⟩
+    | .error ex => return ⟨.error ex, time⟩
   catch ex =>
     let endTime ← IO.monoMsNow
     return ⟨.error ex, endTime - startTime⟩
@@ -119,8 +122,9 @@ meta def timedRun [Monad m] [MonadExceptOf Exception m] [MonadLiftT BaseIO m] (x
 meta def tryChakoOn (evalProblem : Problem) : MetaM Result := do
   let g := evalProblem.g
   let (_, g) ← g.intros
+  let timeout := 2
 
-  TransforM.run g { timeout := 2 } do
+  TransforM.run g { timeout := timeout } do
     withoutModifyingEnv do
       let { timeMs := encodingMs, x := res } ← timedRun (Transformation.pipeline.run g)
       match res with
