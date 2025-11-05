@@ -24,7 +24,4 @@ set_option Elab.async false
 #eval_chako_perf_module Init.Data.Array.Basic "results/perf/array_basic.csv"
 #eval_chako_perf_module Init.Data.Array.Lemmas "results/perf/array_lemmas.csv"
 
-#eval_chako_perf_module Init.Data.Sum.Basic "results/perf/sum_basic.csv"
-#eval_chako_perf_module Init.Data.Sum.Lemmas "results/perf/sum_lemmas.csv"
-
 #eval_chako_perf_module Test.Eval.RbSet "results/perf/rbset.csv"

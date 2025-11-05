@@ -71,6 +71,85 @@ meta def Problem.fromTheorem (info : TheoremVal) : MetaM (Array Problem) := do
     g := mvar
   }]
 
+
+partial def typoFVar (e : Expr) (fvarH : FVarId → Option FVarId) : MetaM (Option Expr) := do
+  let res ← go e |>.run' false
+  if res != e then
+    return some res
+  else
+    return none
+where
+  go (e : Expr) : StateRefT Bool MetaM Expr := do
+    if (← get) then
+      return e
+    if ← liftM <| Meta.isProof e then
+      return e
+    match e with
+    | .fvar fvarId =>
+      if let some replacer := fvarH fvarId then
+        set true
+        return .fvar replacer
+      else
+        return .fvar fvarId
+    | .app fn arg =>
+      let fn ← go fn
+      let arg ← go arg
+      return .app fn arg
+    | .lam .. =>
+      Meta.lambdaBoundedTelescope e 1 fun args body => do
+        let body ← go body
+        let lam ← Meta.mkLambdaFVars args body
+        return lam
+    | .forallE .. =>
+      Meta.forallBoundedTelescope e (some 1) fun args body => do
+        let body ← go body
+        let lam ← Meta.mkForallFVars args body
+        return lam
+    | .proj type idx e =>
+      let e ← go e
+      return .proj type idx e
+    | .mdata _ e => go e
+    | .const .. | .letE .. | .bvar .. | .lit .. | .sort .. | .mvar .. => return e
+
+partial def typoConst (e : Expr) (constH : Name → Option Name) : MetaM (Option Expr) := do
+  let res ← go e |>.run' false
+  if res != e then
+    return some res
+  else
+    return none
+where
+  go (e : Expr) : StateRefT Bool MetaM Expr := do
+    if (← get) then
+      return e
+    if ← liftM <| Meta.isProof e then
+      return e
+    match e with
+    | .const name us =>
+      if let some altConst := constH name then
+        set true
+        return .const altConst us
+      else
+        return .const name us
+    | .app fn arg =>
+      let fn ← go fn
+      let arg ← go arg
+      return .app fn arg
+    | .lam .. =>
+      Meta.lambdaBoundedTelescope e 1 fun args body => do
+        let body ← go body
+        let lam ← Meta.mkLambdaFVars args body
+        return lam
+    | .forallE .. =>
+      Meta.forallBoundedTelescope e (some 1) fun args body => do
+        let body ← go body
+        let lam ← Meta.mkForallFVars args body
+        return lam
+    | .proj type idx e =>
+      let e ← go e
+      return .proj type idx e
+    | .mdata _ e => go e
+    | .fvar .. | .letE .. | .bvar .. | .lit .. | .sort .. | .mvar .. => return e
+
 meta def Problem.mutationsFromTheorem (info : TheoremVal) : MetaM (Array Problem) := do
   let mutantCandidates ← go #[] info.type #[]
   let mut problems := Array.emptyWithCapacity mutantCandidates.size
@@ -101,10 +180,47 @@ where
           let mutants := mutants.push mutant
           go (args.push newArg) remainder mutants
     else
-      -- Simple mutant where we invert the conclusion
-      let mutant := ← Meta.mkForallFVars args (mkNot remainder)
-      let mutants := mutants.push mutant
-      return mutants
+      let mut candidates := #[]
+      let constPairs := [
+        (``Or, ``And),
+        (``Iff, ``And),
+        (``LT.lt, ``GT.gt),
+        (``GT.gt, ``LT.lt),
+      ]
+      for pair in constPairs do
+        if let some mutant ← typoConst remainder (fun name => if name == pair.1 then some pair.2 else none) then
+          candidates := candidates.push mutant
+
+      let mut aliasCandidates : Std.HashMap Expr (List FVarId) := {}
+      for arg in args do
+        if ← Meta.isProof arg then
+          continue
+        let argType := (← Meta.inferType arg).consumeMData
+        aliasCandidates := aliasCandidates.alter argType
+          fun
+            | none => some [arg.fvarId!]
+            | some args => some (arg.fvarId! :: args)
+
+      for (ty, aliases) in aliasCandidates do
+        if aliases.length > 1 then
+          for target in aliases do
+            for alias in aliases do
+              if target == alias then continue
+              if let some m := (← typoFVar remainder fun fv => if fv == target then some alias else none) then
+                candidates := candidates.push m
+
+      let uniqueCandidates := Std.HashSet.ofArray candidates |>.erase remainder
+      let new ← uniqueCandidates.toArray.filterMapM fun candidate => do
+        try
+          Meta.check candidate
+          let candidate ← Meta.mkForallFVars args candidate
+          return some candidate
+        catch _ =>
+          return none
+
+      logInfo m!"{new}"
+
+      return mutants ++ new
 
 meta def timedRun [Monad m] [MonadExceptOf Exception m] [MonadRuntimeException m] [MonadLiftT BaseIO m] (x : m α) : m (Timed (Except Exception α)) := do
   let startTime ← IO.monoMsNow

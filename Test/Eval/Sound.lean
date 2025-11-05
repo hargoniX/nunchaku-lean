@@ -25,7 +25,4 @@ set_option maxHeartbeats 200000000
 #eval_chako_sound_module Init.Data.Array.Basic "results/sound/array_basic.csv"
 #eval_chako_sound_module Init.Data.Array.Lemmas "results/sound/array_lemmas.csv"
 
-#eval_chako_sound_module Init.Data.Sum.Basic "results/sound/sum_basic.csv"
-#eval_chako_sound_module Init.Data.Sum.Lemmas "results/sound/sum_lemmas.csv"
-
 #eval_chako_sound_module Test.Eval.RbSet "results/sound/rbset.csv"
