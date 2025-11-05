@@ -1,6 +1,8 @@
 import Chako
 import Test.Eval.RbSet
 
+set_option Elab.async false
+set_option maxHeartbeats 200000000
 #exit
 #eval_chako_sound_module Init.Data.List.Basic "results/sound/list_basic.csv"
 #eval_chako_sound_module Init.Data.List.Lemmas "results/sound/list_lemmas.csv"
