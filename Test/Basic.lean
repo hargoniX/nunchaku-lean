@@ -1,22 +1,18 @@
-import Chako
+import Test.Util
 
 /--
-info: Chako found a counter example:
-val x := (Nat.succ Nat.zero)
-val y := Nat.zero
+info: Counterexample
 ---
 error: unsolved goals
 x y : Nat
-⊢ (if (x == y) = true then panicWithPosWithDecl "Test.Basic" "_example" 13 38 "Ahh" else default + 1) = 0
+⊢ (if (x == y) = true then panicWithPosWithDecl "Test.Basic" "_example" 11 38 "Ahh" else default + 1) = 0
 -/
 #guard_msgs in
 example (x y : Nat) : (if x == y then panic! "Ahh" else default + 1) = 0 := by
-  chako
+  chako_test
 
 /--
-info: Chako found a counter example:
-val m := Nat.zero
-val n := Nat.zero
+info: Counterexample
 ---
 error: unsolved goals
 n m : Nat
@@ -24,29 +20,27 @@ h : n = m
 ⊢ n ≠ m
 -/
 #guard_msgs in
-example (n m : Nat) (h : n = m) : n ≠ m := by chako
+example (n m : Nat) (h : n = m) : n ≠ m := by chako_test
 
 /--
-info: Chako found a counter example:
-val m := Nat.zero
-val n := (Nat.succ Nat.zero)
+info: Counterexample
 ---
 error: unsolved goals
 n m : Nat
 ⊢ n.add n = n.add m
 -/
 #guard_msgs in
-example (n m : Nat) : n.add n = n.add m := by chako
+example (n m : Nat) : n.add n = n.add m := by chako_test
 
 /--
-info: Chako wasn't able to prove or disprove the theorem.
+info: Unknown
 ---
 error: unsolved goals
 n m : Nat
 ⊢ n.add m = m.add n
 -/
 #guard_msgs in
-example (n m : Nat) : n.add m = m.add n := by chako (timeout := 1)
+example (n m : Nat) : n.add m = m.add n := by chako_test
 
 
 inductive MyEven : Nat → Prop where
@@ -54,19 +48,17 @@ inductive MyEven : Nat → Prop where
   | succ : MyEven n → MyEven n.succ.succ
 
 /--
-info: Chako found a counter example:
-val n := (Nat.succ Nat.zero)
+info: Counterexample
 ---
 error: unsolved goals
 n : Nat
 ⊢ MyEven n
 -/
 #guard_msgs in
-example (n : Nat) : MyEven n := by chako
+example (n : Nat) : MyEven n := by chako_test
 
 /--
-info: Chako found a counter example:
-val n := Nat.zero
+info: Counterexample
 ---
 error: unsolved goals
 n : Nat
@@ -74,22 +66,21 @@ h : MyEven n
 ⊢ MyEven n.succ
 -/
 #guard_msgs in
-example (n : Nat) (h : MyEven n) : MyEven n.succ := by chako
+example (n : Nat) (h : MyEven n) : MyEven n.succ := by chako_test
 
 /--
-info: Chako is convinced that the theorem is true.
+info: Proven
 ---
 error: unsolved goals
 n : Nat
 ⊢ n ≠ n.succ
 -/
 #guard_msgs in
-example (n : Nat) : n ≠ n.succ := by chako
+example (n : Nat) : n ≠ n.succ := by chako_test
 
 
 /--
-info: Chako found a counter example:
-val n := Nat.zero
+info: Counterexample
 ---
 error: unsolved goals
 n : Nat
@@ -100,12 +91,10 @@ n : Nat
 example (n : Nat) :
     let m := n + (.succ .zero)
     m = n := by
-  chako
+  chako_test
 
 /--
-info: Chako found a counter example:
-val m := Nat.zero
-val n := Nat.zero
+info: Counterexample
 ---
 error: unsolved goals
 n : Nat
@@ -117,7 +106,7 @@ example (n : Nat) :
     let m := n + (.succ .zero)
     m = n := by
   intro m
-  chako
+  chako_test
 
 namespace Mutual
 
@@ -133,9 +122,7 @@ inductive Odd : Nat → Prop where
 end
 
 /--
-info: Chako found a counter example:
-val m := Nat.zero
-val n := Nat.zero
+info: Counterexample
 ---
 error: unsolved goals
 n m : Nat
@@ -145,7 +132,7 @@ h2 : Even m
 -/
 #guard_msgs in
 example (n m : Nat) (h1 : Even n) (h2 : Even m) : Odd (n.add m) := by
-  chako
+  chako_test
 
 mutual
 
@@ -160,14 +147,14 @@ inductive B where
 end
 
 /--
-info: Chako is convinced that the theorem is true.
+info: Proven
 ---
 error: unsolved goals
 x : A
 ⊢ A.step (B.step x) ≠ x
 -/
 #guard_msgs in
-example (x : A) : (.step (.step x)) ≠ x := by chako
+example (x : A) : (.step (.step x)) ≠ x := by chako_test
 
 mutual
 
@@ -184,8 +171,7 @@ def isOdd (n : Nat) : Bool :=
 end
 
 /--
-info: Chako found a counter example:
-val n := Nat.zero
+info: Counterexample
 ---
 error: unsolved goals
 n : Nat
@@ -194,7 +180,7 @@ h : isEven n = true
 -/
 #guard_msgs in
 example (n : Nat) (h : isEven n) : isEven n.succ := by
-  chako
+  chako_test
 
 mutual
 
@@ -211,7 +197,7 @@ def IsOdd (n : Nat) : Prop :=
 end
 
 /--
-info: Chako found a counter example:
+info: Chako found a counterexample:
 val n := Nat.zero
 ---
 error: unsolved goals
@@ -224,8 +210,7 @@ example (n : Nat) (h : IsEven n) : IsEven n.succ := by
   chako
 
 /--
-info: Chako found a counter example:
-val n := Nat.zero
+info: Counterexample
 ---
 error: unsolved goals
 n : Nat
@@ -233,7 +218,7 @@ n : Nat
 -/
 #guard_msgs in
 example (n : Nat) : IsEven n ↔ isOdd n := by
-  chako
+  chako_test
 
 end Mutual
 
@@ -243,8 +228,7 @@ def isZero (n : Nat) : Bool :=
   | _ + 1 => false
 
 /--
-info: Chako found a counter example:
-val n := (Nat.succ Nat.zero)
+info: Counterexample
 ---
 error: unsolved goals
 n : Nat
@@ -252,12 +236,10 @@ n : Nat
 -/
 #guard_msgs in
 example (n : Nat) : isZero n := by
-  chako
+  chako_test
 
 /--
-info: Chako found a counter example:
-val a := Nat.zero
-val b := (Nat.succ Nat.zero)
+info: Counterexample
 ---
 error: unsolved goals
 a b : Nat
@@ -265,11 +247,11 @@ a b : Nat
 -/
 #guard_msgs in
 example (a b : Nat) : Nat.ble a b ↔ Nat.beq a b := by
-  chako
+  chako_test
 
 
 /--
-info: Chako wasn't able to prove or disprove the theorem.
+info: Unknown
 ---
 error: unsolved goals
 a b : Nat
@@ -277,14 +259,11 @@ a b : Nat
 -/
 #guard_msgs in
 example (a b : Nat) : Nat.blt a b ↔ a < b := by
-  chako
+  chako_test
 
 
 /--
-info: Chako found a counter example:
-val k := Nat.zero
-val m := Nat.zero
-val n := Nat.zero
+info: Counterexample
 ---
 error: unsolved goals
 n m k : Nat
@@ -292,12 +271,10 @@ n m k : Nat
 -/
 #guard_msgs in
 example {n m k : Nat} : n + m = n + k → m ≠ k := by
-  chako
+  chako_test
 
 /--
-info: Chako found a counter example:
-val m := Nat.zero
-val n := Nat.zero
+info: Counterexample
 ---
 error: unsolved goals
 n m : Nat
@@ -305,10 +282,10 @@ n m : Nat
 -/
 #guard_msgs in
 example {n m : Nat} : n ≤ m → n < m := by
-  chako
+  chako_test
 
 /--
-info: Chako is convinced that the theorem is true.
+info: Proven
 ---
 error: unsolved goals
 a b : Unit
@@ -316,12 +293,10 @@ a b : Unit
 -/
 #guard_msgs in
 example (a b : Unit) : a = b := by
-  chako
+  chako_test
 
 /--
-info: Chako found a counter example:
-val a := PUnit.punit
-val b := PUnit.punit
+info: Counterexample
 ---
 error: unsolved goals
 a b : Unit
@@ -329,10 +304,10 @@ a b : Unit
 -/
 #guard_msgs in
 example (a b : Unit) : a ≠ b := by
-  chako
+  chako_test
 
 /--
-info: Chako is convinced that the theorem is true.
+info: Proven
 ---
 error: unsolved goals
 a b : Unit
@@ -340,7 +315,7 @@ a b : Unit
 -/
 #guard_msgs in
 example (a b : Unit) : a = Unit.unit := by
-  chako
+  chako_test
 
 namespace MyFoo
 
@@ -348,7 +323,7 @@ inductive Foo (a : Bool) where
   | ctor (h : if a = a then True else True) : Foo a
 
 /--
-info: Chako is convinced that the theorem is true.
+info: Proven
 ---
 error: unsolved goals
 a b : Bool
@@ -356,13 +331,13 @@ a b : Bool
 -/
 #guard_msgs in
 example (a b : Bool) : Foo a := by
-  chako
+  chako_test
 
 inductive TwoFoo (a b : Bool) where
   | ctor (h : if a = a then True else True) : TwoFoo a b
 
 /--
-info: Chako is convinced that the theorem is true.
+info: Proven
 ---
 error: unsolved goals
 a b : Bool
@@ -370,20 +345,20 @@ a b : Bool
 -/
 #guard_msgs in
 example (a b : Bool) : TwoFoo a b := by
-  chako
+  chako_test
 
 end MyFoo
 
 namespace Funext
 
 /--
-info: Chako is convinced that the theorem is true.
+info: Proven
 ---
 error: unsolved goals
 ⊢ @id = @id
 -/
 #guard_msgs in
 example : @id = @id := by
-  chako
+  chako_test
 
 end Funext

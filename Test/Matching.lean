@@ -1,9 +1,29 @@
-import Chako
+import Test.Util
 
 namespace Matching
 
+inductive Enum where
+  | a
+  | b
+
+def beq (l r : Enum) : Bool :=
+  match l, r with
+  | .a, .a => true
+  | _, _ => true
+
 /--
-info: Chako is convinced that the theorem is true.
+info: Counterexample
+---
+error: unsolved goals
+l r : Enum
+⊢ beq l r = true ↔ l = r
+-/
+#guard_msgs in
+example (l r : Enum) : beq l r ↔ l = r := by
+  chako_test
+
+/--
+info: Proven
 ---
 error: unsolved goals
 x : Nat
@@ -12,11 +32,10 @@ x : Nat
 #guard_msgs in
 example (x : Nat) :
     Nat.casesOn (motive := fun _ => Bool) x Bool.true (fun _ => Bool.true) = Bool.true := by
-  chako
+  chako_test
 
 /--
-info: Chako found a counter example:
-val x := (Nat.succ Nat.zero)
+info: Counterexample
 ---
 error: unsolved goals
 x : Nat
@@ -25,10 +44,10 @@ x : Nat
 #guard_msgs in
 example (x : Nat) :
     Nat.casesOn (motive := fun _ => Bool) x Bool.false (fun _ => Bool.true) = Bool.false := by
-  chako
+  chako_test
 
 /--
-info: Chako wasn't able to prove or disprove the theorem.
+info: Proven
 ---
 error: unsolved goals
 x : List Nat
@@ -37,10 +56,10 @@ x : List Nat
 #guard_msgs in
 example (x : List Nat) :
     List.casesOn (motive := fun _ => Bool) x Bool.true (fun _ _ => Bool.true) = Bool.true := by
-  chako
+  chako_test
 
 /--
-info: Chako is convinced that the theorem is true.
+info: Proven
 ---
 error: unsolved goals
 α : Type u_1
@@ -50,10 +69,10 @@ x : List α
 #guard_msgs in
 example (x : List α) :
     List.casesOn (motive := fun _ => Bool) x Bool.true (fun _ _ => Bool.true) = Bool.true := by
-  chako
+  chako_test
 
 /--
-info: Chako wasn't able to prove or disprove the theorem.
+info: Counterexample
 ---
 error: unsolved goals
 x : List Nat
@@ -62,12 +81,10 @@ x : List Nat
 #guard_msgs in
 example (x : List Nat) :
     List.casesOn (motive := fun _ => Bool) x Bool.false (fun _ _ => Bool.true) = Bool.false := by
-  chako
+  chako_test
 
 /--
-info: Chako found a counter example:
-inductive α where | $α_0
-val x := (List.cons $α_0 List.nil)
+info: Counterexample
 ---
 error: unsolved goals
 α : Type u_1
@@ -77,17 +94,14 @@ x : List α
 #guard_msgs in
 example (x : List α) :
     List.casesOn (motive := fun _ => Bool) x Bool.false (fun _ _ => Bool.true) = Bool.false := by
-  chako
+  chako_test
 
 inductive Vec (α : Type) : Nat → Type where
   | nil : Vec α 0
   | cons (x : α) (xs : Vec α n) : Vec α (n + 1)
 
 /--
-info: Chako found a counter example:
-inductive α where | $α_0
-val n := (Nat.succ Nat.zero)
-val x := (Matching.Vec.cons Nat.zero $α_0 Matching.Vec.nil)
+info: Counterexample
 ---
 error: unsolved goals
 α : Type
@@ -98,7 +112,7 @@ x : Vec α n
 #guard_msgs in
 example (x : Vec α n) :
     Vec.casesOn (motive := fun _ _ => Bool) x Bool.false (fun _ _ => Bool.true) = Bool.false := by
-  chako
+  chako_test
 
 def foo (xs : List α) (f : List α → List α) (g : α → β) (d : β) : β :=
   match xs with
@@ -109,10 +123,7 @@ def foo (xs : List α) (f : List α → List α) (g : α → β) (d : β) : β :
     | x :: _ => g x
 
 /--
-info: Chako found a counter example:
-inductive α where | $α_0 | $α_1
-val d := $α_1
-val xs := (List.cons $α_1 (List.cons $α_0 List.nil))
+info: Counterexample
 ---
 error: unsolved goals
 α : Type u_1
@@ -122,16 +133,14 @@ d : α
 -/
 #guard_msgs in
 example {xs : List α} {d : α} : foo xs id id d = d := by
-  chako
+  chako_test
 
 structure MyFin (n : Nat) : Type where
   m : Nat
   h : m < n
 
 /--
-info: Chako found a counter example:
-val n := (Nat.succ (Nat.succ Nat.zero))
-val x := (Matching.MyFin.mk Nat.zero)
+info: Counterexample
 ---
 error: unsolved goals
 n : Nat
@@ -140,7 +149,7 @@ x : MyFin n
 -/
 #guard_msgs in
 example {x : MyFin n} : MyFin.casesOn (motive := fun _ => Bool) x (fun _ _ => Bool.false) = Bool.true := by
-  chako
+  chako_test
 
 def listSameLen (xs ys : List α) : Bool :=
   match xs, ys with
@@ -149,10 +158,7 @@ def listSameLen (xs ys : List α) : Bool :=
   | _, _ => false
 
 /--
-info: Chako found a counter example:
-inductive α where | $α_0
-val xs := (List.cons $α_0 List.nil)
-val ys := List.nil
+info: Counterexample
 ---
 error: unsolved goals
 α : Type u_1
@@ -161,13 +167,10 @@ xs ys : List α
 -/
 #guard_msgs in
 example (xs ys : List α) : listSameLen xs ys := by
-  chako
+  chako_test
 
 /--
-info: Chako found a counter example:
-inductive α where | $α_0
-val xs := List.nil
-val ys := List.nil
+info: Counterexample
 ---
 error: unsolved goals
 α : Type u_1
@@ -176,6 +179,6 @@ xs ys : List α
 -/
 #guard_msgs in
 example (xs ys : List α) : xs.zip ys ≠ [] := by
-  chako
+  chako_test
 
 end Matching

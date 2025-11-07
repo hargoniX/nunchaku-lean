@@ -161,7 +161,7 @@ instance : Lean.ToMessageData NunResult where
     match res with
     | .unsat => "Chako is convinced that the theorem is true."
     | .unknown => "Chako wasn't able to prove or disprove the theorem."
-    | .sat model => m!"Chako found a counter example:\n{model}"
+    | .sat model => m!"Chako found a counterexample:\n{model}"
 
 end NunResult
 

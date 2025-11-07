@@ -45,6 +45,8 @@ structure ChakoConfig where
   falsify : Bool := true
   /-- The list of portfolio solvers to try. -/
   solvers : Array ChakoConfig.Solvers := #[.cvc4, .smbc, .kodkod]
+  /-- Just print whether we found a counter example but not the counter example itself. -/
+  testMode : Bool := false
 
 declare_config_elab elabChakoConfig Chako.ChakoConfig
 

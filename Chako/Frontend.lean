@@ -79,7 +79,13 @@ public meta def evalChako : Tactic
   | `(tactic| chako $cfg:optConfig) => do
     let cfg ← elabChakoConfig cfg
     let res ← runChako (← getMainGoal) cfg
-    logInfo m!"{res}"
+    if cfg.testMode then
+      match res with
+      | .unsat => logInfo "Proven"
+      | .unknown => logInfo "Unknown"
+      | .sat .. => logInfo "Counterexample"
+    else
+      logInfo m!"{res}"
   | _ => throwUnsupportedSyntax
 
 end Chako

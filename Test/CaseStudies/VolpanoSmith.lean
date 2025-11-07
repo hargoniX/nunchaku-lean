@@ -21,9 +21,10 @@ inductive Value where
 instance : BEq Value where
   beq
     | .bool b1, .bool b2 => b1 == b2
+    | .nat n1, .nat n2 => n1 == n2
+    --| _, _ => false
     | .bool b1, .nat n1 => false
     | .nat n1, .bool b1 => false
-    | .nat n1, .nat n2 => n1 == n2
 
 inductive Bop where
   | eq
@@ -39,7 +40,6 @@ def Bop.apply (bop : Bop) (lhs rhs : Value) : Option Value :=
   | .less, .nat lhs, .nat rhs => some <| .bool <| lhs < rhs
   | .add, .nat lhs, .nat rhs => some <| .nat <| lhs + rhs
   | .sub, .nat lhs, .nat rhs => some <| .nat <| lhs - rhs
-  -- Cannot yet handle default equations
   --| _, _, _ => some <| .nat 0
   | .sub, .bool _, .bool _ => some <| .nat 0
   | .sub, .nat _, .bool _ => some <| .nat 0
@@ -92,7 +92,7 @@ inductive Red : Com × State → Com × State → Prop where
   | whilepos (h : d.interpret s = some (.bool true)) : (.while d b, s) ⇝ (.seq b (.while d b), s)
   | whileneg (h : d.interpret s = some (.bool false)) : (.while d b, s) ⇝ (.skip, s)
 
-inductive RTC {α : Type u} (R : α → α → Prop) (a : α) : α → Prop
+inductive RTC (R : Com × State → Com × State → Prop) (a : Com × State) : Com × State → Prop
   | refl : RTC R a a
   | tail (b c) (hab : RTC R a b) (hbc : R b c) : RTC R a c
 
@@ -126,11 +126,10 @@ inductive SecComTyping (Γ: TypeEnv) : (lvl : SecLevel) → (com : Com) → Prop
   | while (h1 : Γ ⊢ b : σ) (h2 : (Γ, σ) ⊢ c) : (Γ, σ) ⊢ .while b c
   | cast (h : (Γ, .high) ⊢ c) : (Γ, .low) ⊢ c
 
--- TODO: currently broken due to lambda lifting
-
 /-
+set_option trace.chako true in
+  -/
 set_option trace.chako true in
 example (Γ : TypeEnv) (c : Com) (s s' : State) (h : ((Γ, .high) ⊢ c) ∧ (c, s) ⇝* (.skip, s')) :
     ∀ v, Γ v = some .low → s v = s' v := by
   chako
-  -/

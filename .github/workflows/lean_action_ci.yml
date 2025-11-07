@@ -12,3 +12,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: leanprover/lean-action@v1
+        with:
+          # Tests would require us to install all the solvers in CI, we don't want that
+          test: "false"
