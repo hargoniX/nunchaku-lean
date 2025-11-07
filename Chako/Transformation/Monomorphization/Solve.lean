@@ -1,6 +1,7 @@
 module
 
 public import Chako.Transformation.Monomorphization.Util
+import Lean.Util.SCC
 
 namespace Chako
 namespace Transformation
@@ -9,9 +10,93 @@ namespace Solve
 
 open Lean
 
-public def constraintsSolvable (constraints : List FlowConstraint) : Bool :=
-  -- TODO
-  true
+structure Node where
+  var : FlowVariable
+  idx : Nat
+deriving BEq, Hashable, Repr
+
+structure Edge where
+  node : Node
+  growing : Bool
+deriving BEq, Hashable, Repr
+
+structure ConstraintGraph where
+  nodes : Std.HashSet Node := {}
+  edges : Std.HashMap Node (Std.HashSet Edge) := {}
+
+namespace ConstraintGraph
+
+abbrev M := StateT ConstraintGraph (ReaderT MonoAnalysisState Id)
+
+partial def ofConstraints (constraints : List FlowConstraint) (mono : MonoAnalysisState) :
+    ConstraintGraph :=
+  let (_, g) := go constraints |>.run {} |>.run mono
+  g
+where
+  go (constraints : List FlowConstraint) : M Unit :=
+    constraints.forM fun constraint => do
+      match constraint.src with
+      | .var srcVar =>
+        let varSize ← getVarSize srcVar
+        for idx in 0...varSize do
+          addEdge { var := srcVar, idx } false { var := constraint.dst, idx }
+      | .vec args =>
+        for h : idx in 0...args.size do
+          handleArg args[idx] constraint.dst idx
+
+  getVarSize (var : FlowVariable) : M Nat := do
+    return (← read).argPos[var.function]!.size
+
+  handleArg (arg : FlowTypeArg) (dst : FlowVariable) (dstIdx : Nat) : M Unit := do
+    match arg with
+    | .index src srcIdx => addEdge { var := src, idx := srcIdx } false { var := dst, idx := dstIdx }
+    | .const name innerArgs => innerArgs.forM (handleInnerArg · dst dstIdx)
+    | .func dom codom =>
+      handleInnerArg dom dst dstIdx
+      handleInnerArg codom dst dstIdx
+
+  handleInnerArg (arg : FlowTypeArg) (dst : FlowVariable) (dstIdx : Nat) : M Unit := do
+    match arg with
+    | .index src srcIdx => addEdge { var := src, idx := srcIdx } true { var := dst, idx := dstIdx }
+    | .const name innerArgs => innerArgs.forM (handleInnerArg · dst dstIdx)
+    | .func dom codom =>
+      handleInnerArg dom dst dstIdx
+      handleInnerArg codom dst dstIdx
+
+  addEdge (src : Node) (growing : Bool) (dst : Node) : M Unit := do
+    let edge := { node := dst, growing }
+    let helper :=
+      fun
+        | none => some { edge }
+        | some es => some (es.insert edge)
+    modify fun s =>
+      { s with
+          nodes := s.nodes.insert src |>.insert dst,
+          edges := s.edges.alter src helper }
+
+end ConstraintGraph
+
+public def constraintsSolvable (constraints : List FlowConstraint) (mono : MonoAnalysisState) :
+    Bool := Id.run do
+  let graph := ConstraintGraph.ofConstraints constraints mono
+  let sccs := SCC.scc graph.nodes.toList fun node =>
+    let edges := graph.edges.getD node {}
+    edges.toList.map Edge.node
+  let mut sccIndex := Std.HashMap.emptyWithCapacity graph.nodes.size
+  let mut idx := 0
+  for scc in sccs do
+    for node in scc do
+      sccIndex := sccIndex.insert node idx
+    idx := idx + 1
+
+  for (node, edges) in graph.edges do
+    for edge in edges do
+      if edge.growing then
+        let scc1 := sccIndex[node]!
+        let scc2 := sccIndex[edge.node]!
+        if scc1 == scc2 then
+          return false
+  return true
 
 structure SolveCtx where
   /--
@@ -120,8 +205,7 @@ partial def fixpoint : SolveM Unit := do
   else
     return ()
 
-public partial def solveConstraints (constraints : List FlowConstraint)
-    (_h : constraintsSolvable constraints) :
+public partial def solveConstraints (constraints : List FlowConstraint) :
     Std.HashMap FlowVariable (List GroundInput) := Id.run do
   let mut facts := {}
   let mut rules := #[]

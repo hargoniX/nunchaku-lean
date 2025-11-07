@@ -80,11 +80,11 @@ public def transformation : Transformation MVarId MVarId NunResult NunResult whe
     name := "Monomorphisation"
     encode g := g.withContext do
       let (constraints, monoAnalysis) ← (collectConstraints g).run
-      if h : !constraintsSolvable constraints then
+      if !(constraintsSolvable constraints monoAnalysis) then
         throwError "The goal cannot be monomorphised."
       else
         trace[chako.mono] m!"Constraints: {constraints}"
-        let solution := solveConstraints constraints (by simpa using h)
+        let solution := solveConstraints constraints
         trace[chako.mono] m!"Solution: {solution.toList}"
         let (g, d) ← (specialize g).run { solution } monoAnalysis
         trace[chako.mono] m!"Result: {g}"
