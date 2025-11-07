@@ -9,28 +9,26 @@ import Chako.Util.NunchakuPrinter
 import Std.Data.TreeSet.Basic
 
 /-!
-This module contains the definition of a Chako result, including the kind of models
+This module contains the definition of a Nunchaku result, including the kind of models
 nunchaku is capable of returning.
 -/
 
 namespace Chako
 
-public section
-
-inductive SolverResult (α : Type) where
+public inductive SolverResult (α : Type) where
   | unsat
   | unknown
   | sat (x : α)
 
 namespace SolverResult
 
-def map (f : α → β) (res : SolverResult α) : SolverResult β :=
+public def map (f : α → β) (res : SolverResult α) : SolverResult β :=
   match res with
   | .unsat => .unsat
   | .unknown => .unknown
   | .sat x => .sat <| f x
 
-def mapM [Monad m] (f : α → m β) (res : SolverResult α) : m (SolverResult β) := do
+public def mapM [Monad m] (f : α → m β) (res : SolverResult α) : m (SolverResult β) := do
   match res with
   | .unsat => return .unsat
   | .unknown => return .unknown
@@ -38,17 +36,17 @@ def mapM [Monad m] (f : α → m β) (res : SolverResult α) : m (SolverResult �
 
 end SolverResult
 
-inductive NunModelDecl where
+public inductive NunModelDecl where
   | type (name : String) (members : List String)
   | val (name : String) (value : NunTerm)
   | witness (name : String) (value : NunTerm)
 
 namespace NunModelDecl
 
-def name : NunModelDecl → String
+public def name : NunModelDecl → String
   | .type name .. | .val name .. | .witness name .. => name
 
-private def parseType (ty : Sexp) : Except String NunType := do
+def parseType (ty : Sexp) : Except String NunType := do
   match ty with
   | .atom "prop" => return .prop
   | .atom "type" => return .type
@@ -57,7 +55,7 @@ private def parseType (ty : Sexp) : Except String NunType := do
     return .arrow (← parseType lhs) (← parseType rhs)
   | _ => throw s!"Unexpected type: {ty}"
 
-private def parseTerm (t : Sexp) : Except String NunTerm := do
+def parseTerm (t : Sexp) : Except String NunTerm := do
   go t |>.run {}
 where
   go (t : Sexp) : ReaderT (Std.TreeSet String (cmp := compare)) (Except String) NunTerm := do
@@ -101,7 +99,7 @@ where
         return .appN base (← args.mapM go)
     | _ => throw s!"Unexpected term: {t}"
 
-private def parse (d : Sexp) : Except String NunModelDecl := do
+def parse (d : Sexp) : Except String NunModelDecl := do
   match d with
   | .list [.atom "type", .atom id, .list members] =>
     let members ← members.mapM fun mem => do
@@ -117,7 +115,7 @@ private def parse (d : Sexp) : Except String NunModelDecl := do
     return .witness "_witness_of" value
   | _ => throw s!"Unexpected model decl: {d}"
 
-instance : ToString NunModelDecl where
+public instance : ToString NunModelDecl where
   toString decl := private
     match decl with
     | .type name members =>
@@ -128,25 +126,25 @@ instance : ToString NunModelDecl where
 
 end NunModelDecl
 
-structure NunModel where
+public structure NunModel where
   decls : List NunModelDecl
 
 namespace NunModel
 
-private def parse (m : List Sexp) : Except String NunModel := do
+def parse (m : List Sexp) : Except String NunModel := do
   let decls ← m.mapM NunModelDecl.parse
   return { decls }
 
-instance : ToString NunModel where
+public instance : ToString NunModel where
   toString model := String.intercalate "\n" <| model.decls.map toString
 
 end NunModel
 
-abbrev NunResult := SolverResult NunModel
+public abbrev NunResult := SolverResult NunModel
 
 namespace NunResult
 
-def parse (s : String) : Except String NunResult := do
+public def parse (s : String) : Except String NunResult := do
   let s ← Sexp.parse s
   match s with
   | .list [.atom "SAT", .list model] =>
@@ -156,7 +154,7 @@ def parse (s : String) : Except String NunResult := do
   | .atom "UNKNOWN" => return .unknown
   | _ => throw "Unexpected solver result"
 
-instance : Lean.ToMessageData NunResult where
+public instance : Lean.ToMessageData NunResult where
   toMessageData res :=
     match res with
     | .unsat => "Chako is convinced that the theorem is true."
@@ -164,8 +162,5 @@ instance : Lean.ToMessageData NunResult where
     | .sat model => m!"Chako found a counterexample:\n{model}"
 
 end NunResult
-
-
-end
 
 end Chako

@@ -50,17 +50,17 @@ public meta def runSolver (problem : NunProblem) (cfg : ChakoConfig) :
     let out? ← BVDecide.External.runInterruptible (cfg.timeout + 2) { cmd, args, stdin := .piped, stdout := .piped, stderr := .null }
     match out? with
     | .timeout =>
-      let mut err := "Chako timed out while solving the problem.\n"
+      let mut err := "Nunchaku timed out while solving the problem.\n"
       err := err ++ "Consider increasing the timeout with the `timeout` config option.\n"
       throwError err
     | .success { exitCode := exitCode, stdout := stdout, stderr := stderr} =>
       if exitCode == 255 then
-        throwError s!"Failed to execute Chako:\n{stderr}"
+        throwError s!"Failed to execute Nunchaku:\n{stderr}"
       else
         match NunResult.parse stdout with
         | .ok res => return res
         | .error err =>
-          throwError s!"The external prover produced unexpected output:\n  {err}\nstdout:\n{stdout}stderr:\n{stderr}"
+          throwError s!"Nunchaku produced unexpected output:\n  {err}\nstdout:\n{stdout}stderr:\n{stderr}"
 
 public meta def runChako (g : MVarId) (cfg : ChakoConfig) : MetaM NunResult := do
   TransforM.run g cfg do
@@ -71,7 +71,7 @@ public meta def runChako (g : MVarId) (cfg : ChakoConfig) : MetaM NunResult := d
       let res ←
         withTraceNode `chako (fun _ => return "Running Nunchaku") do
           runSolver problem (← TransforM.getConfig)
-      withTraceNode `chako (fun _ => return "Running the backwards pipeline") do
+      withTraceNode `chako (fun _ => return "Running backwards pipeline") do
         back res
 
 @[tactic chakoStx]

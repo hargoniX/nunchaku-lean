@@ -4,6 +4,11 @@ import Lean.Elab.Command
 meta import Chako.Frontend
 meta import Chako.Transformation
 
+/-!
+This module implements the mutation testing based evaluation framework for Chako. The key
+entrypoints are the various `#eval_chako_*` commands at the end of the file.
+-/
+
 namespace Chako
 namespace Eval
 
@@ -11,14 +16,42 @@ public section
 
 open Lean
 
+/--
+The various possible outcomes of running `chako` on a problem.
+-/
 inductive ResultKind where
+  /--
+  Chako found a counterexample.
+  -/
   | counterExample
+  /--
+  Chako proved the state theorem.
+  -/
   | proven
+  /--
+  Chako gave up on the problem.
+  -/
   | gaveUp
+  /--
+  Error while running the recovery pipeline.
+  -/
   | recoveryError (e : Exception)
+  /--
+  Error while running Nunchaku. This usually means nunchaku produced some unexpected output.
+  There can be various causes for this:
+  - we produced a broken input for Nunchaku
+  - Nunchaku has a bug
+  - Nunchaku produced an unexpected model (this can also mean Nunchaku has a bug)
+  -/
   | nunchakuError (e : Exception)
+  /--
+  Error while running the encoding pipeline.
+  -/
   | encodingError (e : Exception)
 
+/--
+How long running `chako` on a problem took, split up by components.
+-/
 structure Duration where
   encodingMs : Nat
   nunchakuMs : Nat
@@ -30,15 +63,30 @@ def Duration.toMessageData (dur : Duration) : MessageData :=
 instance : ToMessageData Duration where
   toMessageData := Duration.toMessageData
 
+/--
+The result of running `chako` on a problem.
+-/
 structure Result where
+  /--
+  The original name of the target theorem.
+  -/
   thm : Name
+  /--
+  The mutant ID (if we mutated the theorem).
+  -/
   mutation : Option Nat
+  /--
+  The kind of result of running `chako`.
+  -/
   kind : ResultKind
+  /--
+  How long it took to run `chako` to arrive at the result.
+  -/
   duration : Duration
 
 def Result.toMessageData (res : Result) : MessageData :=
   match res.kind with
-  | .counterExample => m!"{res.thm} counter example found with time: {res.duration}"
+  | .counterExample => m!"{res.thm} counterexample found with time: {res.duration}"
   | .proven => m!"{res.thm} proved with time: {res.duration}"
   | .gaveUp => m!"{res.thm} given up on after time: {res.duration}"
   | .recoveryError err =>
@@ -51,10 +99,21 @@ def Result.toMessageData (res : Result) : MessageData :=
 instance : ToMessageData Result where
   toMessageData := Result.toMessageData
 
+/--
+Description of a problem for evaluation.
+-/
 structure Problem where
-  thm : Name
+  /--
+  Information about the target theorem.
+  -/
   info : TheoremVal
+  /--
+  The mutant ID (if we mutated the theorem).
+  -/
   mutation : Option Nat
+  /--
+  The goal to try.
+  -/
   g : MVarId
   deriving Inhabited
 
@@ -62,16 +121,21 @@ structure Timed (α : Type u) where
   x : α
   timeMs : Nat
 
+/--
+Build a problem that is just exactly the input theorem. Used for soundness testing.
+-/
 meta def Problem.fromTheorem (info : TheoremVal) : MetaM (Array Problem) := do
   let mvar := (← Meta.mkFreshExprMVar info.type).mvarId!
   return #[{
-    thm := info.name,
     info := info,
     mutation := none,
     g := mvar
   }]
 
 
+/--
+Typo a free variable in `e` according to `fvarH`.
+-/
 partial def typoFVar (e : Expr) (fvarH : FVarId → Option FVarId) : MetaM (Option Expr) := do
   let res ← go e |>.run' false
   if res != e then
@@ -111,6 +175,9 @@ where
     | .mdata _ e => go e
     | .const .. | .letE .. | .bvar .. | .lit .. | .sort .. | .mvar .. => return e
 
+/--
+Typo a const variable in `e` according to `constH`.
+-/
 partial def typoConst (e : Expr) (constH : Name → Option Name) : MetaM (Option Expr) := do
   let res ← go e |>.run' false
   if res != e then
@@ -150,6 +217,9 @@ where
     | .mdata _ e => go e
     | .fvar .. | .letE .. | .bvar .. | .lit .. | .sort .. | .mvar .. => return e
 
+/--
+Given a base theorem produce a sequence of mutated theorems that are mostly false.
+-/
 meta def Problem.mutationsFromTheorem (info : TheoremVal) : MetaM (Array Problem) := do
   let mutantCandidates ← go #[] info.type #[]
   let mut problems := Array.emptyWithCapacity mutantCandidates.size
@@ -157,7 +227,6 @@ meta def Problem.mutationsFromTheorem (info : TheoremVal) : MetaM (Array Problem
     let mutant := mutantCandidates[idx]
     let mvar := (← Meta.mkFreshExprMVar mutant).mvarId!
     problems := problems.push {
-      thm := info.name,
       info := info,
       mutation := (some idx),
       g := mvar,
@@ -181,6 +250,7 @@ where
           go (args.push newArg) remainder mutants
     else
       let mut candidates := #[]
+      -- Mutants where we swap constants according to this list.
       let constPairs := [
         (``Or, ``And),
         (``Iff, ``And),
@@ -191,6 +261,7 @@ where
         if let some mutant ← typoConst remainder (fun name => if name == pair.1 then some pair.2 else none) then
           candidates := candidates.push mutant
 
+      -- Mutants where we swap free variables with free variables of the same type.
       let mut aliasCandidates : Std.HashMap Expr (List FVarId) := {}
       for arg in args do
         if ← Meta.isProof arg then
@@ -212,6 +283,7 @@ where
       let uniqueCandidates := Std.HashSet.ofArray candidates |>.erase remainder
       let new ← uniqueCandidates.toArray.filterMapM fun candidate => do
         try
+          -- We need to typecheck the mutants as doing the swapping might've made them invalid.
           Meta.check candidate
           let candidate ← Meta.mkForallFVars args candidate
           return some candidate
@@ -222,7 +294,8 @@ where
 
       return mutants ++ new
 
-meta def timedRun [Monad m] [MonadExceptOf Exception m] [MonadRuntimeException m] [MonadLiftT BaseIO m] (x : m α) : m (Timed (Except Exception α)) := do
+meta def timedRun [Monad m] [MonadExceptOf Exception m] [MonadRuntimeException m]
+    [MonadLiftT BaseIO m] (x : m α) : m (Timed (Except Exception α)) := do
   let startTime ← IO.monoMsNow
   try
     let res ← tryCatchRuntimeEx (Except.ok <$> x) (fun e => pure <| .error e)
@@ -235,6 +308,9 @@ meta def timedRun [Monad m] [MonadExceptOf Exception m] [MonadRuntimeException m
     let endTime ← IO.monoMsNow
     return ⟨.error ex, endTime - startTime⟩
 
+/--
+Evaluate `chako` on a problem, the core entrypoint for all the evaluation functions.
+-/
 meta def tryChakoOn (evalProblem : Problem) : MetaM Result := do
   let g := evalProblem.g
   let (_, g) ← g.intros
@@ -257,7 +333,7 @@ meta def tryChakoOn (evalProblem : Problem) : MetaM Result := do
               | .unknown => .gaveUp
               | .sat .. => .counterExample
             return {
-              thm := evalProblem.thm,
+              thm := evalProblem.info.name,
               mutation := evalProblem.mutation,
               kind,
               duration := {
@@ -268,7 +344,7 @@ meta def tryChakoOn (evalProblem : Problem) : MetaM Result := do
             }
           | .error ex =>
             return {
-              thm := evalProblem.thm,
+              thm := evalProblem.info.name,
               mutation := evalProblem.mutation,
               kind := .recoveryError ex,
               duration := {
@@ -279,7 +355,7 @@ meta def tryChakoOn (evalProblem : Problem) : MetaM Result := do
             }
         | .error ex =>
           return {
-            thm := evalProblem.thm,
+            thm := evalProblem.info.name,
             mutation := evalProblem.mutation,
             kind := .nunchakuError ex,
             duration := {
@@ -290,7 +366,7 @@ meta def tryChakoOn (evalProblem : Problem) : MetaM Result := do
           }
       | .error ex =>
         return {
-          thm := evalProblem.thm,
+          thm := evalProblem.info.name,
           mutation := evalProblem.mutation,
           kind := .encodingError ex,
           duration := {
@@ -331,7 +407,7 @@ meta def evalChako (targetModule : Name) (file : System.FilePath)
   out.putStrLn "theorem,mutant,result,encoding,nunchaku,recovery"
   targets.forM fun target => do
     let res ← tryChakoOn target
-    let mut resStr := s!"{target.thm},"
+    let mut resStr := s!"{target.info.name},"
     resStr := resStr ++ s!"{target.mutation.getD 0},"
     resStr :=
       resStr ++

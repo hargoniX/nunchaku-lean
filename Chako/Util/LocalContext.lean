@@ -4,6 +4,12 @@ public import Lean.Meta.Basic
 public import Lean.Meta.Tactic.FVarSubst
 import Lean.Meta.Tactic.Util
 
+/-!
+This module contains infrastructure for mapping a transformation through an entire local context.
+This is useful when we are transforming a goal and want to transform both the statement as well as
+all of the local variables.
+-/
+
 namespace Chako
 
 open Lean Meta
@@ -72,9 +78,15 @@ where
       let newLCtx := subst.domain.foldl (init := lctx) LocalContext.erase
       return (newLCtx, subst)
 
+/--
+Map a transformation `f` over a goal `g`, transforming all the local assumptions as well as the
+theorem statement. `f` takes both a type/prop to transform as well as a substitution from original
+fvars to their transformed counterpart.
+-/
 @[specialize]
 public def mapMVarId [MonadControlT MetaM m] [MonadLiftT MetaM m] [MonadError m] [MonadLCtx m]
-    [MonadMCtx m] [Monad m] (g : MVarId) (f : Expr → FVarSubst → m Expr) (processLetDecl : Bool := false) : m MVarId :=
+    [MonadMCtx m] [Monad m] (g : MVarId) (f : Expr → FVarSubst → m Expr)
+    (processLetDecl : Bool := false) : m MVarId :=
   g.withContext do
     let (newLCtx, subst) ← mapLCtx (← getLCtx) f processLetDecl
     let gType ← instantiateMVars (← g.getType)
@@ -83,9 +95,15 @@ public def mapMVarId [MonadControlT MetaM m] [MonadLiftT MetaM m] [MonadError m]
       let g := (← Lean.Meta.mkFreshExprMVar newType).mvarId!
       return g
 
+/--
+Like `mapMVarId` but `extender` can additionally be used to add additional assumptions into the
+local context as we transform. For this purpose it is called on all local assumptions and
+takes the original type/prop, the same substitution as the `mapper` and the `FVarId` of the already
+transformed declaration it is currently operating on.
+-/
 @[specialize]
-public def mapExtendMVarId [MonadControlT MetaM m] [MonadLiftT MetaM m] [MonadError m] [MonadLCtx m]
-    [MonadMCtx m] [Monad m] (g : MVarId) (mapper : Expr → FVarSubst → m Expr)
+public def mapExtendMVarId [MonadControlT MetaM m] [MonadLiftT MetaM m] [MonadError m]
+    [MonadLCtx m] [MonadMCtx m] [Monad m] (g : MVarId) (mapper : Expr → FVarSubst → m Expr)
     (extender : Expr → FVarSubst → FVarId → m (Option Expr)) : m MVarId :=
   g.withContext do
     let (newLCtx, subst) ← mapExtendLCtx (← getLCtx) mapper extender

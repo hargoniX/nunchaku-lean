@@ -12,6 +12,9 @@ import Chako.Transformation.Approximation
 import Chako.Transformation.ElimDep
 import Chako.Transformation.Output
 
+/-!
+This module contains the core transformation pipeline of Chako.
+-/
 
 namespace Chako
 namespace Transformation

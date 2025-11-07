@@ -1,12 +1,12 @@
 # Chako
-Chako is a counter example finder for a fragment of Lean 4, backed by the finite model finder
+Chako is a counterexample finder for a fragment of Lean 4, backed by the finite model finder
 Nunchaku.
 
 ```lean
 import Chako
 
 /--
-info: Chako found a counter example:
+info: Chako found a counterexample:
 inductive α where | $α_0
 val f := (fun (v_0 : α) . $α_0)
 val xs := List.nil

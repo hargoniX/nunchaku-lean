@@ -4,7 +4,7 @@ public import Chako.Util.NunchakuSyntax
 public import Std.Data.HashSet.Basic
 
 /-!
-This module contains utility functions for building Chako syntax and problems.
+This module contains utility functions for building Nunchaku syntax and problems.
 -/
 
 namespace Chako

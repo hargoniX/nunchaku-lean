@@ -4,8 +4,8 @@ public import Chako.Util.NunchakuSyntax
 import Chako.Util.NunchakuBuilder
 
 /-!
-This module contains the implementation of the Chako pretty printer, used to dump Chako
-problems to the external solver.
+This module contains the implementation of the Nunchaku pretty printer, used to dump Nunchaku
+problems to the disk.
 -/
 
 namespace Chako

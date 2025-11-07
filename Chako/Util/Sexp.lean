@@ -1,6 +1,10 @@
 module
 import Std.Internal.Parsec
 
+/-!
+This module contains a simple sexpression library to decode Nunchaku models.
+-/
+
 namespace Chako
 
 public inductive Sexp where

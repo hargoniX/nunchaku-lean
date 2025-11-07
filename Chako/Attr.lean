@@ -45,13 +45,13 @@ structure ChakoConfig where
   falsify : Bool := true
   /-- The list of portfolio solvers to try. -/
   solvers : Array ChakoConfig.Solvers := #[.cvc4, .smbc, .kodkod]
-  /-- Just print whether we found a counter example but not the counter example itself. -/
+  /-- Just print whether we found a counterexample but not the counterexample itself. -/
   testMode : Bool := false
 
 declare_config_elab elabChakoConfig Chako.ChakoConfig
 
 /--
-Invoke the external model finder Nunchaku in an attempt to find a counter example for the current
+Invoke the external model finder Nunchaku in an attempt to find a counterexample for the current
 goal state.
 -/
 syntax (name := chakoStx) "chako" Lean.Parser.Tactic.optConfig : tactic

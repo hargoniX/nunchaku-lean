@@ -1,7 +1,7 @@
 module
 
 /-!
-This module contains the AST for Chako problems. Note that the specific fragment of Chako
+This module contains the AST for Nunchaku problems. Note that the specific fragment of Nunchaku
 we are targeting is already fully monomorphized so there is no need to account for things like
 generic types.
 -/
@@ -22,7 +22,7 @@ inductive NunType where
   deriving Inhabited, Repr
 
 /--
-All Chako built-in functions with special syntax, meaning etc.
+All Nunchaku built-in functions with special syntax, meaning etc.
 -/
 inductive NunBuiltin where
   /--
@@ -72,7 +72,7 @@ inductive NunBuiltin where
   deriving Inhabited, Repr
 
 /--
-A monomorphized Chako term.
+A monomorphized Nunchaku term.
 -/
 inductive NunTerm where
   /--
@@ -80,11 +80,11 @@ inductive NunTerm where
   -/
   | var (id : String)
   /--
-  A Chako constant such as a function.
+  A Nunchaku constant such as a function.
   -/
   | const (name : String)
   /--
-  A Chako built-in.
+  A Nunchaku built-in.
   -/
   | builtin (builtin : NunBuiltin)
   /--
@@ -156,7 +156,7 @@ structure NunPredSpec where
   deriving Inhabited, Repr
 
 /--
-A monomorphized Chako command.
+A monomorphized Nunchaku command.
 -/
 inductive NunCommand where
   /--
@@ -186,11 +186,11 @@ inductive NunCommand where
   deriving Inhabited, Repr
 
 /--
-A full Chako problem.
+A full Nunchaku problem.
 -/
 structure NunProblem where
   /--
-  The commands of the Chako problem.
+  The commands of the Nunchaku problem.
   -/
   commands : List NunCommand
   deriving Inhabited, Repr

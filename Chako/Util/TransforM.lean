@@ -3,14 +3,14 @@ module
 import Lean.Meta.Eqns
 import Lean.Meta.Reduce
 public import Chako.Attr
-public meta import Chako.Attr -- TODO: this should not be necessary
+public meta import Chako.Attr
 import Lean.Meta.Match.MatchEqsExt
 import Chako.Util.AuxiliaryConsts
 public import Chako.Util.NunchakuSyntax
 
 /-!
-This module contains the definition of the `TransforM` monad which is the core
-monad that almost all operations of the Chako tactic operate in.
+This module contains the definition of the `TransforM` monad which is the core monad that almost
+all operations of the Chako tactic operate in.
 -/
 
 namespace Chako
@@ -18,9 +18,21 @@ namespace Chako
 open Lean Meta
 
 public structure TransforM.State where
+  /--
+  A map from definition names to lists of equations associated with them.
+  -/
   equations : Std.HashMap Name (List Expr)
+  /--
+  An index to produce fresh global names.
+  -/
   nameIdx : Nat := 0
+  /--
+  Currently recorded declarations that have not yet been committed.
+  -/
   freshDecls : List Declaration := []
+  /--
+  Attributes attached to declarations.
+  -/
   attributes : Std.HashMap Lean.Name (Std.TreeSet NunAttribute) := {}
 
 public abbrev TransforM := ReaderT ChakoConfig <| StateRefT TransforM.State MetaM
@@ -60,11 +72,12 @@ public def preprocessEquation (eq : Expr) : MetaM Expr := do
   Meta.forallTelescope eq fun args body => do
     let mkApp3 (.const ``Eq [u]) α lhs rhs := body | throwError m!"Equation is malformed: {eq}"
     let fnArgs := lhs.getAppArgs
+    -- We apply reducing to all arguments to turn things like `n + 1` into `Nat.succ n` because
+    -- Nunchaku only likes equations with constructors.
     let fnArgs ← fnArgs.mapM Meta.reduce
     let lhs := mkAppN lhs.getAppFn fnArgs
     let body := mkApp3 (.const ``Eq [u]) α lhs rhs
     Meta.mkForallFVars args body
-
 
 public def equationIsNonTrivial (eq : Expr) : MetaM Bool := do
   /-
@@ -78,6 +91,7 @@ public def equationIsNonTrivial (eq : Expr) : MetaM Bool := do
 
 def findEquationsForDefn (info : DefinitionVal) : MetaM (Array Expr) := do
   if (← Meta.isMatcher info.name) || (isCasesOnRecursor (← getEnv) info.name) then
+    -- These get handled later in ElimDep.
     return #[]
   else
     let some eqns ← getEqnsFor? info.name
@@ -91,6 +105,9 @@ def findEquationsForDefn (info : DefinitionVal) : MetaM (Array Expr) := do
     else
       return eqns
 
+/--
+Initialize the equation map by looking through all symbols that transitively occur in our goal.
+-/
 def findEquations (g : MVarId) : MetaM (Std.HashMap Name (List Expr)) := do
   let mut worklist : Array Name ← initializeWorklist g
   let mut defs : Std.HashMap Name (List Expr) := {}
@@ -136,6 +153,9 @@ where
       used := used ++ decl.type.getUsedConstants ++ (decl.value?.map Expr.getUsedConstants).getD #[]
     return used
 
+/--
+Generate a globally unique name, optionally with a certain prefix.
+-/
 public def mkFreshName (name : Name) (pref : String := "") : TransforM Name := do
   let idx := (← get).nameIdx
   modify fun s => { s with nameIdx := s.nameIdx + 1}

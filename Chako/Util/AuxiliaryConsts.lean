@@ -4,12 +4,16 @@ namespace Chako
 
 public section
 
-/-
-Constants used to encode ite without dealing with Decidable. This is sensible as nunchaku just
-assumes decidability of everything anyway so there is no need to translate them.
+/-!
+This module contains auxiliary constants used in the translation steps.
 -/
 
-opaque classicalIf {α : Sort u} (d : Prop) (t e : α) : α := t
+open Classical in
+/--
+The actual `ite` declaration requires `Decidable p` but Nunchaku is a classical system so we can
+just work with the discriminant and both branches.
+-/
+noncomputable opaque classicalIf {α : Sort u} (d : Prop) (t e : α) : α := if d then t else e
 
 end
 

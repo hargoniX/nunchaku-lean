@@ -33,7 +33,7 @@ This function eliminates:
 -/
 def elimComfortUniv (e : Expr) (subst : Meta.FVarSubst) : ComfortM Expr := do
   let e ← zetaBetaReduce e
-  let e ← Util.funextTransform e true
+  let e ← Util.funextTransform e
   Meta.transform e (pre := pre)
 where
   pre (e : Expr) : ComfortM TransformStep := do

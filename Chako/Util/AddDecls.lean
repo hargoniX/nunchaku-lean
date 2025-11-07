@@ -3,6 +3,16 @@ import Lean.Util.SCC
 public import Lean.AddDecl
 public import Chako.Util.TransforM
 
+/-!
+This module provides infrastructure for adding declarations produced by a pipeline step in a way
+that respects dependencies between mutually recursive declarations. The process generally works in
+two steps:
+1. During the execution of the pipeline step declarations are recorded by the pipeline
+2. Once the step is done the pipeline commits the declarations in one go. This is when the mutual
+   dependencies are dynamically found in order to present Lean with correct mutual blocks of
+   declarations.
+-/
+
 namespace Chako
 
 open Lean Core
@@ -68,22 +78,39 @@ public def addDeclsScc (decls : List Declaration) : TransforM Unit := do
 
 namespace TransforM
 
+/--
+Add an attribute to a declaration (existing or recorded).
+-/
 public def addAttribute (decl : Name) (attr : NunAttribute) : TransforM Unit :=
   modify fun s => { s with
     attributes := s.attributes.alter decl fun | some s => s.insert attr | none => some { attr }
   }
 
+/--
+Get the set of attributes associated with a declaration (existing or recorded).
+-/
 public def getAttributes (decl : Name) : TransforM (Std.TreeSet NunAttribute) :=
   return (← get).attributes.getD decl {}
 
+/--
+Record a new declaration, independent of any other declaration before.
+-/
 public def recordNewDecl (decl : Declaration) : TransforM Unit :=
   modify fun s => { s with freshDecls := decl :: s.freshDecls }
 
+/--
+Record a declaration that was derived from another already existing one. The only difference to
+`recordNewDecl` is that attributes are inhereted.
+-/
 public def recordDerivedDecl (orig : Name) (decl : Declaration) : TransforM Unit := do
   recordNewDecl decl
   let name := decl.getNames.head!
   modify fun s => { s with attributes := s.attributes.insert name (s.attributes.getD orig {}) }
 
+/--
+Commit all declarations that are currently recorded in this `TransforM` and clear the set of
+recorded declarations afterwards.
+-/
 public def addDecls : TransforM Unit := do
   let decls := (← get).freshDecls
   addDeclsScc decls

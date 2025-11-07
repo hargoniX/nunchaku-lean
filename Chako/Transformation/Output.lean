@@ -11,7 +11,7 @@ import Chako.Util.AddDecls
 
 /-!
 This module contains the transformation for turning a monomorphized and dependently typed eliminated
-fragment of Lean into Chako logic.
+fragment of Lean into Nunchaku logic.
 -/
 
 namespace Chako
@@ -284,7 +284,7 @@ def arrowN (n : Nat) (type : Expr) : MetaM (Array Expr × Expr) :=
 def encodePredCtor (ctor : Name) : OutputM NunTerm := do
   let info ← getConstInfoCtor ctor
   /-
-  Chako expects our ctors to be of the form
+  Nunchaku expects our ctors to be of the form
   forall xs, cond => Pred ys
   While in Lean we have two additional freedoms:
   1. Conditions and data can be mixed in the quantifiers
