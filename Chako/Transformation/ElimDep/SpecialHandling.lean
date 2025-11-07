@@ -3,6 +3,18 @@ public import Chako.Transformation.ElimDep.Basic
 import Chako.Util.AuxiliaryConsts
 import Lean.Meta.Match.MatchEqs
 
+/-!
+This module contains infrastructure for specially handling certain (kinds of) constants in the
+dependent type elimination. In particular we treat:
+- matchers and `casesOn` specially because they are technically out of our supported fragment but
+  can always easily be specialised for their motive (which turns them back into our fragment).
+- the `PUnit` type because its universe level cannot be determined trivially.
+- `ite`, `dite` and `decide` because Nunchaku's logic is classical so we can always get rid of
+  `Decidable` instances
+- `False.rec` because Nunchaku has no notion of empty types
+- various kinds of `panic` because they use strings which are very large to encode.
+-/
+
 namespace Chako
 namespace Transformation
 namespace ElimDep

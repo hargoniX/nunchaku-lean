@@ -8,6 +8,13 @@ import Chako.Util.LocalContext
 import Chako.Util.AddDecls
 import Lean.Meta.CollectFVars
 
+/-!
+This module is the central entrypoint for the elimination of dependent types. The key idea here is
+to split a dependent type into its value component and an invariant that must hold about this value.
+At binding locations of dependent types when then introduce these invariants as additional
+assumptions if necessary.
+-/
+
 namespace Chako
 namespace Transformation
 namespace ElimDep

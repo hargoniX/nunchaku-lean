@@ -2,6 +2,11 @@ module
 import Chako.Transformation.ElimDep.Basic
 public import Lean.Meta.Basic
 
+/-!
+This module contains the logic for determining whether the invariant associated with a type is
+always going to be trivially true, this allows us to drop them almost all of the time.
+-/
+
 namespace Chako
 namespace Transformation
 namespace ElimDep
@@ -93,6 +98,13 @@ end
 /--
 This function implements a heuristic for detecting whether the invariant
 associated with some `Expr` `e` is going to be trivial and thus unnecessary.
+
+The heuristic for this is roughly: If the type has at most other type arguments (i.e. no value ones)
+we call it trivial if it has at least one constructor and all of its constructors bind only other
+trivial types and in particular no proofs.
+
+Using this result, if we encounter a type that is trivial and all of its argument types are trivial
+as well we know for sure that its invariant is going to be useless and we can drop it.
 -/
 public def typeHasTrivialInvariant (e : Expr) : MetaM Bool := do
   let res ← visitExpr e |>.run {} |>.run' {}

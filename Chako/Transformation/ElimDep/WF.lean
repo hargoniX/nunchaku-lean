@@ -3,6 +3,13 @@ public import Lean.Meta.Basic
 import Lean.Elab.PreDefinition.WF.GuessLex
 import Lean.Elab.PreDefinition.FixedParams
 
+/-!
+This module contains an implementation of `[wf]` attribute inference for inductive types. This is
+done by using the approach from "Relational Analysis of (Co)inductive Predicates, (Co)algebraic
+Datatypes, and (Co)recursive Functions" (https://www.tcs.ifi.lmu.de/staff/jasmin-blanchette/sqj2013-relational.pdf)
+with Lean's lexicographic guessing framework. 
+-/
+
 namespace Chako
 namespace Transformation
 namespace ElimDep

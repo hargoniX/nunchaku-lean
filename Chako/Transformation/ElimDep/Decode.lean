@@ -2,6 +2,10 @@ module
 public import Chako.Transformation.ElimDep.Basic
 public import Chako.Util.Decode
 
+/-!
+This module contains the decoding logic for the dependent type elimination.
+-/
+
 namespace Chako
 namespace Transformation
 namespace ElimDep

@@ -3,6 +3,10 @@ public import Chako.Util.TransforM
 public import Lean.Meta.Tactic.FVarSubst
 import Chako.Util.AddDecls
 
+/-!
+This module contains basic infrastructure for the dependent type elimination.
+-/
+
 namespace Chako
 namespace Transformation
 namespace ElimDep
@@ -231,8 +235,12 @@ public def correctProjIndex (typeName : Name) (idx : Nat) : DepM Nat := do
   trace[chako.elimdep] m!"Adjusting projection on {typeName} from {idx} to {newIdx}"
   return newIdx
 
+/--
+A version of `elimExtendForall` where we are already under the telescope.
+-/
 @[inline]
-public partial def elimExtendForall' [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadLiftT DepM m]
+public partial def elimExtendForall' [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m]
+    [MonadLiftT DepM m]
     (args : Array Expr) (body : Expr) (dropArg : Nat → Expr → m Bool)
     (argHandler : Expr → Meta.FVarSubst → m Expr)
     (extender : Expr → Meta.FVarSubst → FVarId → m (Option Expr))
@@ -266,8 +274,14 @@ where
       let newExpr ← Meta.mkForallFVars allFVars newBody
       return newExpr
 
+/--
+A version of `elimForall` which can additionally introduce new parts to the telescope through
+`extender` which, for each non removed element, is called with the original type, the substitution
+and the fvar of the already updated element.
+-/
 @[inline]
-public partial def elimExtendForall [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadLiftT DepM m]
+public partial def elimExtendForall [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m]
+    [MonadLiftT DepM m]
     (expr : Expr) (dropArg : Nat → Expr → m Bool)
     (argHandler : Expr → Meta.FVarSubst → m Expr)
     (extender : Expr → Meta.FVarSubst → FVarId → m (Option Expr))
@@ -276,8 +290,12 @@ public partial def elimExtendForall [Monad m] [MonadLiftT MetaM m] [MonadControl
   Meta.forallTelescope expr fun args body => do
     elimExtendForall' args body dropArg argHandler extender bodyHandler subst
 
+/--
+A version of `elimForall` where we are already under the telescope.
+-/
 @[inline]
-public partial def elimForall' [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadLiftT DepM m]
+public partial def elimForall' [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m]
+    [MonadLiftT DepM m]
     (args : Array Expr) (body : Expr)
     (dropArg : Nat → Expr → m Bool)
     (argHandler : Expr → Meta.FVarSubst → m Expr)
@@ -285,8 +303,17 @@ public partial def elimForall' [Monad m] [MonadLiftT MetaM m] [MonadControlT Met
     m Expr := do
   elimExtendForall' args body dropArg argHandler (fun _ _ _ => return none) bodyHandler subst
 
+/--
+Given an `expr` which starts with a forall telescope we:
+- drop all parts of the telescope for which `dropArg` with the index and type of the part returns
+  true
+- transform all other parts using `argHandler`, the handler is passed a substitution with the
+  updated fvars in case its type depends on them.
+- finally update the body using `bodyHandler` in the same way.
+-/
 @[inline]
-public partial def elimForall [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m] [MonadLiftT DepM m]
+public partial def elimForall [Monad m] [MonadLiftT MetaM m] [MonadControlT MetaM m]
+    [MonadLiftT DepM m]
     (expr : Expr) (dropArg : Nat → Expr → m Bool)
     (argHandler : Expr → Meta.FVarSubst → m Expr)
     (bodyHandler : Expr → Meta.FVarSubst → Array Expr → m Expr)
