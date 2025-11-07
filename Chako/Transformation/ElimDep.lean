@@ -4,6 +4,10 @@ import Chako.Transformation.ElimDep.Decode
 public import Chako.Util.Pipeline
 public import Chako.Util.Model
 
+/-!
+This module contains the transformation for eliminating dependent types.
+-/
+
 namespace Chako
 namespace Transformation
 namespace ElimDep

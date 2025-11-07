@@ -4,11 +4,9 @@ public import Chako.Util.Pipeline
 public import Chako.Util.NunchakuSyntax
 public import Chako.Util.Model
 import Chako.Transformation.Falsify
-import Chako.Transformation.Skolemization
 import Chako.Transformation.ElimComfort
 import Chako.Transformation.AbstractTypes
 import Chako.Transformation.Monomorphization
-import Chako.Transformation.Approximation
 import Chako.Transformation.ElimDep
 import Chako.Transformation.Output
 

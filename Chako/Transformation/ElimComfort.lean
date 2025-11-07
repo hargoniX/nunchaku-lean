@@ -8,6 +8,15 @@ import Chako.Util.Funext
 import Lean.Meta.Tactic.Clear
 import Lean.Meta.Tactic.Intro
 
+/-!
+This module contains the transformation for eliminating comfort features from the goal. This amounts
+to:
+- let declarations (by inlining them)
+- universe polymorphism (by setting all universe parameters of the theorem to 1, 1 is used because
+  it will make theorems polymorphic over `Sort u` be over `Type` instead of `Prop`)
+- applying function extensionality (see the Funext module for an explanation)
+-/
+
 namespace Chako
 namespace Transformation
 namespace ElimComfort

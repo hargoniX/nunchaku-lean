@@ -11,7 +11,10 @@ import Chako.Util.AddDecls
 
 /-!
 This module contains the transformation for turning a monomorphized and dependently typed eliminated
-fragment of Lean into Nunchaku logic.
+fragment of Lean into Nunchaku logic. The key point of complexity in this module is that
+declarations on the Lean side are not sorted so we need to figure out the dependency graph and emit
+a toposorted version to Nunchaku. The logic of the target declarations at this point is almost 1:1
+Nunchaku's logic.
 -/
 
 namespace Chako

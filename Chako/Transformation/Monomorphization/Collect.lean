@@ -7,18 +7,39 @@ namespace Transformation
 namespace Monomorphization
 namespace Collect
 
+/-!
+This module contains the main logic for collecting type flow constraints from a given problem.
+-/
+
 open Lean
 
 structure CollectCtx where
+  /--
+  When we go into a definition that is parametrized over some type variable `α₁, ..., αₙ` we record
+  them here so we know how to turn them into a `FlowInput` when encountering them.
+  -/
   flowFVars : FVarIdMap FlowTypeArg := {}
 
 structure CollectState where
+  /--
+  Constraints that were collected so far.
+  -/
   constraints : Std.HashSet FlowConstraint := {}
+  /--
+  A cache for expressions we have already seen that we don't need to revisit.
+  -/
   seenExpr : Std.HashSet Expr := {}
+  /--
+  A cache for constants we have already seen that we don't need to revisit.
+  -/
   seenConst : Std.HashSet Name := {}
 
 abbrev CollectM := ReaderT CollectCtx <| StateRefT CollectState MonoAnalysisM
 
+/--
+This function takes an array of `FlowTypeArg` and converts it to a `FlowInput`, if possible this
+compresses the input into just a `.var` otherwise the array is returned wrapped in `.vec`.
+-/
 def FlowInput.ofTypes (types : Array FlowTypeArg) : MonoAnalysisM FlowInput := do
   if types.isEmpty then
     return .vec #[]
@@ -39,7 +60,10 @@ def FlowInput.ofTypes (types : Array FlowTypeArg) : MonoAnalysisM FlowInput := d
       return .vec types
   | _ => return .vec types
 
-def addConstraint (flowVariable : FlowVariable) (input : FlowInput) : CollectM Unit := do
+/--
+Record a constraint `input ⊑ flowVariable`
+-/
+def addConstraint (input : FlowInput) (flowVariable : FlowVariable) : CollectM Unit := do
   if let .var inputVar := input then
     if flowVariable == inputVar then
       -- drop trivial constraints of the form `input ⊑ input`.
@@ -57,6 +81,10 @@ def alreadyVisitedConst (c : Name) : CollectM Bool := do
     let (fresh, seenConst) := seenConst.containsThenInsert c
     (fresh, { constraints, seenExpr, seenConst })
 
+/--
+Attempt to turn an `expr` representing a type into an input for a flow constraint. This may fail if
+the type is not simple enough.
+-/
 partial def flowTypeOfExpr (expr : Expr) : CollectM FlowTypeArg := do
     match expr with
     | .fvar fvarId =>
@@ -93,6 +121,9 @@ partial def flowTypeOfExpr (expr : Expr) : CollectM FlowTypeArg := do
 
 mutual
 
+/--
+Collect constraints imposed by the type of a constant.
+-/
 partial def collectConstType (info : ConstantVal) : CollectM Unit := do
   Meta.forallTelescope info.type fun args out => do
     let positions ← getMonoArgPositions info.name
@@ -106,6 +137,9 @@ partial def collectConstType (info : ConstantVal) : CollectM Unit := do
         collectExpr type
       collectExpr out
 
+/--
+Collect constraints imposed by a constant.
+-/
 partial def collectConst (const : Name) : CollectM Unit := do
   if ← alreadyVisitedConst const then
     return ()
@@ -115,7 +149,7 @@ partial def collectConst (const : Name) : CollectM Unit := do
     let inductPositions ← getMonoArgPositions const
     for ctor in info.ctors do
       -- If we introduce existentials this constraint needs to change
-      addConstraint ⟨const⟩ (.var ⟨ctor⟩)
+      addConstraint (.var ⟨ctor⟩) ⟨const⟩
       let info ← getConstVal ctor
       Meta.forallTelescope info.type fun args out => do
         let positions ← getMonoArgPositions ctor
@@ -159,7 +193,9 @@ partial def collectConst (const : Name) : CollectM Unit := do
   | .recInfo .. | .quotInfo .. | .thmInfo .. =>
     throwError m!"Cannot monomorphise {const}"
 
-
+/--
+Collect constraints imposed by an expression.
+-/
 partial def collectExpr (expr : Expr) : CollectM Unit := do
   if ← alreadyVisitedExpr expr then
     return ()
@@ -172,7 +208,7 @@ partial def collectExpr (expr : Expr) : CollectM Unit := do
       throwError m!"Underapplied constant cannot be monomorphised: {expr}"
 
     collectConst const
-    addConstraint ⟨const⟩ (.vec #[])
+    addConstraint (.vec #[]) ⟨const⟩
   | .app .. =>
     expr.withApp fun fn args => do
       args.forM collectExpr
@@ -187,7 +223,7 @@ partial def collectExpr (expr : Expr) : CollectM Unit := do
             throwError m!"Underapplied constant cannot be monomorphised: {expr}"
         let flowTypes ← monoArgPositions.mapM (fun idx => flowTypeOfExpr args[idx]!)
         collectConst fn
-        addConstraint ⟨fn⟩ (← FlowInput.ofTypes flowTypes)
+        addConstraint (← FlowInput.ofTypes flowTypes) ⟨fn⟩
       | none => collectExpr fn
   | .lam .. =>
     Meta.lambdaTelescope expr fun vars body => do
@@ -221,10 +257,17 @@ partial def collectExpr (expr : Expr) : CollectM Unit := do
 
 end
 
+/--
+Collect constraints imposed by an assumption in the local context.
+-/
 def collectFVar (fvar : FVarId) : CollectM Unit := do
   let type ← fvar.getType
   collectExpr (← instantiateMVars type)
 
+/--
+Collect constraints imposed by a full goal. This includes constraints directly produced from the
+goal and also in transitively occuring constants.
+-/
 def collectMVar (g : MVarId) : CollectM Unit := do
   for decl in ← getLCtx do
     if decl.isImplementationDetail then
@@ -235,6 +278,10 @@ def collectMVar (g : MVarId) : CollectM Unit := do
   trace[chako.mono] m!"Collecting constraints for goal: {← g.getType}"
   collectExpr (← instantiateMVars (← g.getType))
 
+/--
+Collect constraints imposed by a full goal. This includes constraints directly produced from the
+goal and also in transitively occuring constants.
+-/
 public partial def collectConstraints (g : MVarId) : MonoAnalysisM (List FlowConstraint) := do
   let mut flowFVars := {}
   let (_, st) ← collectMVar g |>.run { flowFVars } |>.run {}

@@ -3,6 +3,14 @@ module
 public import Chako.Transformation.Monomorphization.Util
 import Lean.Util.SCC
 
+/-!
+This module contains the solver for Monomorphization constraints. It is mostly based on the artifact
+of the original paper, though optimized with an index to avoid some unnecessary linear searches.
+In addition to this it also contains a checker for whether the constraints are solvable at all.
+This checker uses an SCC based algorithm to provide an efficient implementation, disjoint from the
+algorithm used in the artifact.
+-/
+
 namespace Chako
 namespace Transformation
 namespace Monomorphization
@@ -76,9 +84,15 @@ where
 
 end ConstraintGraph
 
+/--
+Check whether `constraints` has a solution by re-interpreting it as a graph, as described in the
+paper. Edges in this graph are either growing or non-growing. The system is solvable iff we cannot
+find a growing edge `(e1, e2)` where `e1` and `e2` are in the same SCC. This runs in `O(|V| + |E|)`.
+-/
 public def constraintsSolvable (constraints : List FlowConstraint) (mono : MonoAnalysisState) :
     Bool := Id.run do
   let graph := ConstraintGraph.ofConstraints constraints mono
+  -- `O(|V| + |E|)`
   let sccs := SCC.scc graph.nodes.toList fun node =>
     let edges := graph.edges.getD node {}
     edges.toList.map Edge.node
@@ -89,6 +103,7 @@ public def constraintsSolvable (constraints : List FlowConstraint) (mono : MonoA
       sccIndex := sccIndex.insert node idx
     idx := idx + 1
 
+  -- `O(|E|)`
   for (node, edges) in graph.edges do
     for edge in edges do
       if edge.growing then

@@ -4,6 +4,12 @@ public import Chako.Transformation.Monomorphization.Util
 import Chako.Util.LocalContext
 import Chako.Util.AddDecls
 
+/-!
+This module contains the implementation of the specialiser. Given a solution to a type flow
+constraint set it is going to instantiate all of the new definitions proposed by the solutions,
+fix up the bodies of definitions to use them etc.
+-/
+
 namespace Chako
 namespace Transformation
 namespace Monomorphization
@@ -12,11 +18,25 @@ namespace Specialise
 open Lean
 
 public structure SpecializeContext where
+  /--
+  The solution we were told to instantiate.
+  -/
   solution : Std.HashMap FlowVariable (List GroundInput)
 
 public structure SpecializeState where
+  /--
+  Equations associated with new definitions that we are going to commit after specialisation has
+  finished.
+  -/
   newEquations : Std.HashMap Name (List Expr) := {}
+  /--
+  A map from monomorphisation solutions to the name that we used to instantiate that solution (if it
+  already exists)
+  -/
   specialisationCache : Std.HashMap (FlowVariable × GroundInput) Name := {}
+  /--
+  A cache for expression specialisation.
+  -/
   exprCache : Std.HashMap Expr Expr := {}
 
 public structure DecodeCtx where
@@ -71,6 +91,12 @@ def partitionMonoArgPositions (const : Name) (args : Array Expr) :
 
   return (others, targets)
 
+/--
+Try to reflect a type repersented by `expr` back into a ground type (that is, a type without type
+variables). This is usually used to figure out what ground types flow into a constant that occurs
+withing another constant that is currently being specialised, in order to update the body to refer
+to the proper specialised constant as well.
+-/
 partial def groundTypeOfExpr (expr : Expr) : MonoAnalysisM GroundTypeArg := do
   match expr with
   | .const const _ =>
@@ -98,8 +124,13 @@ partial def groundTypeOfExpr (expr : Expr) : MonoAnalysisM GroundTypeArg := do
   | .proj .. | .lit .. | .sort .. | .bvar .. | .mvar .. | .letE .. | .lam ..
   | .fvar .. => throwError m!"Can't interpret {expr} as a ground type"
 
+/--
+Given some expression as well as a stencil with indices of type arguments and values to plug in for
+those type arguments we instantiate the type arguments with these values and return the resulting
+expression.
+-/
 def instantiateStencilWith (remainder : Expr) (stencil : Array (Nat × GroundTypeArg))
-      (stencilPos : Nat) (lastArgPos : Nat) : MetaM Expr := do
+      (stencilPos : Nat := 0) (lastArgPos : Nat := 0) : MetaM Expr := do
   if h : stencilPos < stencil.size then
     let (argPos, arg) := stencil[stencilPos]
     Meta.forallBoundedTelescope remainder (some (argPos - lastArgPos)) fun args body => do
@@ -120,6 +151,10 @@ def specialisedCtorName (inductSpecName : Name) (ctorName : Name) : MetaM Name :
 
 mutual
 
+/--
+Do a cache lookup, then specialise an expression. This method should always be called instead of
+`specialiseExprRaw`.
+-/
 partial def specialiseExpr (expr : Expr) (subst : Meta.FVarSubst) : SpecializeM Expr := do
   if let some cached := (← get).exprCache[expr]? then
     return cached
@@ -128,6 +163,10 @@ partial def specialiseExpr (expr : Expr) (subst : Meta.FVarSubst) : SpecializeM 
     modify fun s => { s with exprCache := s.exprCache.insert expr finishedExpr }
     return finishedExpr
 
+/--
+Specialise an expression, assuming that all type variables within `expr` have already been
+instantiated, usually by a call to `instantiateStencilWith`.
+-/
 partial def specialiseExprRaw (expr : Expr) (subst : Meta.FVarSubst) : SpecializeM Expr := do
   match expr with
   | .const const us =>
@@ -226,6 +265,9 @@ partial def specialiseExprRaw (expr : Expr) (subst : Meta.FVarSubst) : Specializ
   | .fvar .. => return subst.apply expr
   | .lit .. | .sort .. | .bvar .. | .mvar .. => return expr
 
+/--
+Specialise the type of a constant for a particular list of type inputs.
+-/
 partial def specialiseConstType (info : ConstantVal) (input : GroundInput) :
     SpecializeM (Expr × Level) := do
   let expr ← Meta.mkConstWithFreshMVarLevels info.name
@@ -233,12 +275,15 @@ partial def specialiseConstType (info : ConstantVal) (input : GroundInput) :
   let positions ← getMonoArgPositions info.name
   assert! positions.size = input.args.size
   let stencil := positions.zip input.args
-  let instantiated ← instantiateStencilWith type stencil 0 0
+  let instantiated ← instantiateStencilWith type stencil
   let final ← instantiateMVars instantiated
   let level ← Meta.getLevel final
   let specialised ← specialiseExpr final {}
   return (specialised, level)
 
+/--
+Specialise a constructor for a particular list of type inputs.
+-/
 partial def specialiseCtor (inductSpecName : Name) (ctorName : Name) (input : GroundInput) :
     SpecializeM Constructor := do
   let info ← getConstVal ctorName
@@ -246,6 +291,9 @@ partial def specialiseCtor (inductSpecName : Name) (ctorName : Name) (input : Gr
   let (specType, _) ← specialiseConstType info input
   return ⟨specName, specType⟩
 
+/--
+Specialise an inductive for a particular list of type inputs.
+-/
 partial def specialiseInduct (info : InductiveVal) (input : GroundInput) : SpecializeM Unit := do
   let name := info.name
   let specName := (← get).specialisationCache[(FlowVariable.mk name, input)]!
@@ -264,6 +312,9 @@ partial def specialiseInduct (info : InductiveVal) (input : GroundInput) : Speci
       { s with specialisationCache := s.specialisationCache.insert (⟨oldCtor⟩, input) newCtor.name }
   TransforM.recordDerivedDecl name <| .inductDecl [] nparams [decl] false
 
+/--
+Specialise an equation associated with some definition for a particular list of type inputs.
+-/
 partial def specialiseEquation (name : Name) (eq : Expr) (input : GroundInput) :
     SpecializeM Expr := do
   if input.args.isEmpty then
@@ -273,10 +324,13 @@ partial def specialiseEquation (name : Name) (eq : Expr) (input : GroundInput) :
     let positions ← getMonoArgPositions name
     assert! positions.size = input.args.size
     let stencil := positions.zip input.args
-    let instantiated ← instantiateStencilWith eq stencil 0 0
+    let instantiated ← instantiateStencilWith eq stencil
     let final ← instantiateMVars instantiated
     specialiseExpr final {}
 
+/--
+Specialise an `opaque` for a particular list of type inputs.
+-/
 partial def specialiseOpaque (info : OpaqueVal) (input : GroundInput) : SpecializeM Unit := do
   let name := info.name
   let specName := (← get).specialisationCache[(FlowVariable.mk name, input)]!
@@ -291,6 +345,9 @@ partial def specialiseOpaque (info : OpaqueVal) (input : GroundInput) : Speciali
   }
   TransforM.recordDerivedDecl name <| .opaqueDecl defn
 
+/--
+Specialise an `axiom` for a particular list of type inputs.
+-/
 partial def specialiseAxiom (info : AxiomVal) (input : GroundInput) : SpecializeM Unit := do
   let name := info.name
   let specName := (← get).specialisationCache[(FlowVariable.mk name, input)]!
@@ -304,6 +361,9 @@ partial def specialiseAxiom (info : AxiomVal) (input : GroundInput) : Specialize
   }
   TransforM.recordDerivedDecl name <| .axiomDecl defn
 
+/--
+Specialise an `def` for a particular list of type inputs.
+-/
 partial def specialiseDefn (info : DefinitionVal) (input : GroundInput) : SpecializeM Unit := do
   let name := info.name
   let specName := (← get).specialisationCache[(FlowVariable.mk name, input)]!
@@ -325,6 +385,9 @@ partial def specialiseDefn (info : DefinitionVal) (input : GroundInput) : Specia
   let newEqs ← equations.mapM (specialiseEquation name · input)
   modify fun s => { s with newEquations := s.newEquations.insert specName newEqs }
 
+/--
+Specialise an arbitrary constant for a particular list of type inputs.
+-/
 partial def specialiseConst (name : Name) (input : GroundInput) : SpecializeM Unit := do
   let flow := FlowVariable.mk name
   if (← get).specialisationCache.contains (flow, input) then
