@@ -1,5 +1,6 @@
 module
 import Std.Internal.Parsec
+import Std.Internal.Parsec.Basic
 
 /-!
 This module contains a simple sexpression library to decode Nunchaku models.
@@ -32,8 +33,16 @@ def idChar : Parser Char := do
 mutual
 
 partial def atom : Parser Sexp := do
-  let chars ← many1 idChar
-  return .atom <| String.mk chars.toList
+  let head ← peek!
+  if head == '|' then
+    skipChar '|'
+    let chars ← many (satisfy (· != '|'))
+    skipChar '|'
+    return .atom <| String.mk ('|' :: chars.toList) ++ "|"
+  else
+    let chars ← many1 idChar
+    return .atom <| String.mk chars.toList
+
 
 partial def list : Parser Sexp := do
   skipChar '('

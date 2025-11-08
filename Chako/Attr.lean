@@ -26,11 +26,13 @@ initialize registerTraceClass `chako.output (inherited := true)
 public section
 
 inductive ChakoConfig.Solvers where
+  | cvc5
   | cvc4
   | smbc
   | kodkod
 
 def ChakoConfig.Solvers.toCliArg : Solvers → String
+  | .cvc5 => "cvc5"
   | .cvc4 => "cvc4"
   | .smbc => "smbc"
   | .kodkod => "kodkod"
@@ -44,7 +46,7 @@ structure ChakoConfig where
   /-- Whether to look for a counter-model, if set to `false` looks for a model instead. -/
   falsify : Bool := true
   /-- The list of portfolio solvers to try. -/
-  solvers : Array ChakoConfig.Solvers := #[.cvc4, .smbc, .kodkod]
+  solvers : Array ChakoConfig.Solvers := #[.cvc5, .smbc, .kodkod]
   /-- Just print whether we found a counterexample but not the counterexample itself. -/
   testMode : Bool := false
 
