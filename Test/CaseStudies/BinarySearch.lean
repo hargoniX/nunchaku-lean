@@ -19,10 +19,6 @@ def binSearchAux {α : Type u} (lt : α → α → Bool) (as : Array α) (k : α
     (some a)
 termination_by hi.1 - lo.1
 
-#print binSearchAux
-set_option pp.fieldNotation false in
-#print binSearchAux._unary
-
 def binSearch {α : Type u} (as : Array α) (k : α) (lt : α → α → Bool) : Option α :=
   let lo := 0
   let hi := as.size - 1
@@ -31,8 +27,19 @@ def binSearch {α : Type u} (as : Array α) (k : α) (lt : α → α → Bool) :
   else
     none
 
+class TotalOrder (α : Type u) extends LE α, LT α where
+  le_refl : ∀ a : α, a ≤ a
+  le_trans : ∀ a b c : α, a ≤ b → b ≤ c → a ≤ c
+  le_antisymm : ∀ a b : α, a ≤ b → b ≤ a → a = b
+  le_total: ∀ x y : α, x ≤ y ∨ y ≤ x
+  lt_iff_le_not_ge : ∀ a b : α, a < b ↔ a ≤ b ∧ ¬b ≤ a
+
+theorem complete' [inst1 : TotalOrder α] [inst2 : DecidableLT α] (xs : Array α) (h : n ∈ xs) :
+    xs.binSearch n (· < ·) = some n := by
+  chako
+
 /- Lacks (h : xs.Sorted Nat.blt) -/
-theorem complete (xs : Array Nat) (h : n ∈ xs) : xs.binSearch n Nat.blt = some n := by
+theorem complete (xs : Array Nat) (h : n ∈ xs) : xs.binSearch n (· < ·) = some n := by
   chako
 
 /- Is an → not a ↔ -/
